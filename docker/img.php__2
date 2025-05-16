@@ -1,0 +1,71 @@
+
+FROM php:8.2-fpm-bullseye
+
+
+ARG user
+ARG uid
+
+RUN apt-get update && apt-get install -y \
+    git \
+    curl \
+    libpng-dev \
+    apt-utils \
+    gnupg \
+    gosu \
+    wget \
+    libcurl4-openssl-dev \
+    ca-certificates \
+    supervisor \
+    libmemcached-dev \
+    libz-dev \
+    libbrotli-dev \
+    libpq-dev \
+    libjpeg-dev \
+    libfreetype6-dev \
+    libssl-dev \
+    libwebp-dev \
+    libmcrypt-dev \
+    libonig-dev \
+    libevent-dev \
+    libpcre3-dev \
+    libzip-dev zip unzip \
+    libargon2-1 \
+    libidn2-0 \
+    libpcre2-8-0 \
+    libpcre3 \
+    libxml2 \
+    libzstd1 \
+    procps \
+    zlib1g-dev \
+    libicu-dev \
+    g++ \
+    libc-ares-dev\
+    zip \
+    unzip \
+    libxml2-dev \
+    cron \
+    make \
+    default-mysql-client
+
+RUN apt-get clean && rm -rf /var/lib/apt/lists/*
+
+RUN docker-php-ext-configure zip
+RUN docker-php-ext-configure intl
+RUN docker-php-ext-configure gd --prefix=/usr --with-jpeg --with-webp --with-freetype
+RUN docker-php-ext-install pdo_mysql exif pcntl bcmath gd intl zip mbstring sockets soap
+RUN pecl install redis
+RUN docker-php-ext-enable redis
+
+
+COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
+
+RUN useradd -G www-data,root -u $uid -d /home/$user $user
+RUN mkdir -p /home/$user/.composer && \
+    chown -R $user:$user /home/$user
+
+RUN touch /var/log/cron.log
+RUN echo "* * * * * root php /var/www/artisan schedule:run >> /var/log/cron.log 2>&1" >> /etc/crontab
+
+WORKDIR /var/www
+
+USER $user

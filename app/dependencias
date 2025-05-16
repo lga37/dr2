@@ -1,0 +1,74 @@
+apt install vim git-all curl mysql-server
+
+======== PHP ========================================
+add-apt-repository ppa:ondrej/php 
+apt update
+
+apt install php8.3 php-common php8.3-cli 
+apt install php8.3-{bz2,bcmath,common,curl,fpm,gd,intl,mbstring,mysql,opcache,readline,xml,zip}
+======== PHP ========================================
+
+======== mysql ========================================
+mysql -u root --skip-password
+mysql> ALTER USER 'root'@'localhost' IDENTIFIED BY '123';
+======== mysql ========================================
+
+======== composer ========================================
+curl -sS https://getcomposer.org/installer -o /tmp/composer-setup.php
+HASH=`curl -sS https://composer.github.io/installer.sig`
+echo $HASH
+php -r "if (hash_file('SHA384', '/tmp/composer-setup.php') === '$HASH') { echo 'Installer verified'; } else { echo 'Installer corrupt'; unlink('composer-setup.php'); } echo PHP_EOL;"
+php /tmp/composer-setup.php --install-dir=/usr/local/bin --filename=composer
+======== composer ========================================
+
+======== 1 - node pode fazer assim  ========================================
+wget https://nodejs.org/dist/v20.14.0/node-v20.14.0-linux-x64.tar.xz
+tar xvf /home/gustavo/??????Downloads?????/node-v20.14.0-linux-x64.tar.xz -C /usr/local/
+
+======== 2 - OU assim  ========================================
+curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash
+nvm install 20
+======== node e npm instalado  ========================================
+
+================================= binario do ngrok
+curl -s https://ngrok-agent.s3.amazonaws.com/ngrok.asc | sudo tee /etc/apt/trusted.gpg.d/ngrok.asc >/dev/null && echo "deb https://ngrok-agent.s3.amazonaws.com buster main" 	| sudo tee /etc/apt/sources.list.d/ngrok.list && sudo apt update && sudo apt install ngrok
+================================= em qq lugar
+ngrok config add-authtoken 4Qn1xhZspqD5Abs3d1PKs_4T5qhYBtFA7cMPJhA5QxN
+
+######################### checando as versoes
+node -v && npm -v && composer about && php -v && mysql -V
+
+
+##################### seed #################################
+
+insert into canals (slug,youtube_id,busca_id,nome) 
+values 
+('@economistasincero','UCrp0zmecZ3TNV8FSR-tjv7A',1,'econ sinc'),
+('@ancap_su','UCLTWPE7XrHEe8m_xAmNbQ-Q',1,'ancapsu');
+
+insert into videos (slug,busca_id,nome,canal_id) 
+values 
+('watch?v=pKOBXeTgCic',1,'video 1-1',1),
+('watch?v=GIUh4395t7E',1,'video 1-2',1),
+('watch?v=3EckU1ZDg4g',1,'video 2-1',2),
+('watch?v=6vug1B9pklE',1,'video 2-2',2);
+
+
+rodar os seguintes comandos
+a2enmod proxy
+a2enmod proxy_http
+
+ja em vim /etc/apache2/sites-enabled/000-default.conf
+
+<VirtualHost *:80>
+    ProxyPreserveHost On
+    ProxyRequests Off
+    ProxyPass / http://localhost:8000/
+    ProxyPassReverse / http://localhost:8000/
+
+    ErrorLog ${APACHE_LOG_DIR}/error.log
+    CustomLog ${APACHE_LOG_DIR}/access.log combined
+</VirtualHost>
+
+
+

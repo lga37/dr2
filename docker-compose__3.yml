@@ -1,0 +1,72 @@
+ersion: "3"
+
+services:
+  app:
+    image: ghcr.io/${{ github.repository_owner }}/myapp:latest
+    container_name: laravel-app
+    restart: unless-stopped
+    working_dir: /var/www/
+    volumes:
+      - ./.env:/var/www/.env
+      - app-data:/var/www
+      - ./docker/storage_app:/var/www/storage/app
+      - ./docker/php/production.ini:/usr/local/etc/php/conf.d/custom-php.ini
+      - ./docker/php/docker-fpm.conf:/usr/local/etc/php-fpm.d/www.conf
+      - ./docker/scripts/laravel-worker.conf:/etc/supervisor/conf.d/laravel-worker.conf
+      
+    depends_on:
+      - db
+    networks:
+      - laravel
+
+  db:
+    image: mysql/mysql-server:8.0
+    container_name: laravel-db
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: ${DB_DATABASE}
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD}
+      MYSQL_PASSWORD: ${DB_PASSWORD}
+      MYSQL_USER: ${DB_USERNAME}
+    volumes:
+      - ./docker/mysql:/docker-entrypoint-initdb.d
+    networks:
+      - laravel
+      
+  redis:
+    image: redis:alpine
+    volumes:
+        - 'laravel-redis:/data'
+    networks:
+        - laravel
+    healthcheck:
+        test:
+            - CMD
+            - redis-cli
+            - ping
+        retries: 3
+        timeout: 5s
+        
+  nginx:
+    image: nginx:alpine
+    container_name: laravel-nginx
+    restart: unless-stopped
+    ports:
+      - 443:80
+    volumes:
+      - app-data:/var/www
+      - ./docker/storage_app:/var/www/storage/app
+      - ./docker/nginx:/etc/nginx/conf.d/
+      - ./docker/nginx/logs:/var/log/nginx/
+    
+    networks:
+      - laravel
+
+networks:
+  laravel:
+    driver: bridge
+    
+volumes:
+    laravel-redis:
+        driver: local
+    app-data:
