@@ -1,7 +1,7 @@
 <div>
     <x-slot name="header">
         <h2 class="text-xl font-semibold leading-tight text-gray-800">
-            {{ __('Arxivs') }}
+            {{ __('Arxivs') }} - {{ $canal->nome }}
         </h2>
     </x-slot>
 
@@ -13,7 +13,27 @@
 
                     <div class="min-w-full align-middle">
 
-                        {{-- {{ $chart->render() }} --}}
+                        <div style="overflow-x:auto;">
+                            <div class="grafico">
+                                @foreach ($dados as $linha)
+                                    @php
+                                        $altura = $max > 0 ? ($linha->inscritos / $max) * 100 : 0;
+                                        $alturaPx = $altura * 2.5;
+                                        $label = $linha->ano . '-S' . str_pad($linha->semana, 2, '0', STR_PAD_LEFT);
+                                    @endphp
+                                    <div class="barra-wrapper">
+                                        <div class="barra" style="height: {{ $alturaPx }}px;">
+                                            {{ number_format($linha->inscritos, 0, ',', '.') }}
+                                        </div>
+                                        <div class="legenda">
+                                            {{ $label }}
+                                        </div>
+                                    </div>
+                                @endforeach
+                                <div style="min-width: 40px;"></div> <!-- margem extra no final -->
+                            </div>
+                        </div>
+
                         
                         <table class="min-w-full border divide-y divide-gray-200">
                             <thead>
@@ -44,10 +64,18 @@
                             </thead>
 
                             <tbody class="bg-white divide-y divide-gray-200 divide-solid">
-                                @forelse($arxivs as $arxiv)
+                                @forelse($pontos as $arxiv)
+
+                                    @php 
+                                    $ts = \Carbon\Carbon::parse($arxiv->ts)->format('YmdHis');
+                                    $y_id = $canal->youtube_id;
+                                    $url = "http://web.archive.org/web/$ts/https://www.youtube.com/channel/$y_id"; 
+                                    $url = $arxiv->url;
+                                    @endphp
                                     <tr class="bg-white">
                                         <td class="px-6 py-4 text-sm leading-5 text-gray-900 whitespace-no-wrap">
-                                         <a href="http://web.archive.org/web/{{$arxiv->ts}}/https://www.youtube.com/channel/{{$arxiv->canal->youtube_id}}" 
+                                        
+                                        <a href="{{ $url }}" 
                                                 class="underline hover:no-underline text-blue-600 hover:text-blue-900 visited:text-purple-600"
                                                 target="_blank">
                                                 {{ $arxiv->id }}
@@ -55,7 +83,7 @@
                                             
                                         </td>
                                         <td class="px-6 py-4 text-sm leading-5 text-gray-900 whitespace-no-wrap">
-                                            {{ $arxiv->canal->nome }}
+                                            {{ $canal->nome }}
                                         </td>
                                         <td class="px-6 py-4 text-sm leading-5 text-gray-900 whitespace-no-wrap">
                                             {{ $arxiv->ts }}

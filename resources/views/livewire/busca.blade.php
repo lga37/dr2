@@ -5,16 +5,13 @@
         </h2>
     </x-slot>
 
+    <x-msg />
+
     <div class="py-12">
         <div class="mx-auto max-w-7xl sm:px-6 lg:px-8">
             <div class="overflow-hidden bg-white shadow-sm sm:rounded-lg">
                 <div class="p-6 overflow-hidden overflow-x-auto bg-white border-b border-gray-200">
 
-                    @if (session()->has('success'))
-                        <div class="bg-green-200 p-3 rounded text-green-800" role="alert">
-                            {{ session('success') }}
-                        </div>
-                    @endif
                     <div class="min-w-full align-middle">
                         <form method="POST" class="flex items-center mb-3" wire:submit='add'>
                             <x-input-label for="busca" class="mr-1" :value="__('Query')" />
@@ -85,6 +82,20 @@
                                         <td class="px-6 py-4 text-sm leading-5 text-gray-900 whitespace-no-wrap">
                                             {{ $busca->updated_at->diffForHumans() }}
                                         </td>
+
+
+                                        <td class="px-2 py-1 text-sm leading-5 text-gray-900 whitespace-no-wrap">
+                                            <a class="text-blue-700 font-semibold" 
+                                                href="{{ route('nlp',$busca) }}">Graf</a>
+                                        </td>
+
+
+
+                                        <td class="px-3 py-1 text-sm leading-5 text-gray-900 whitespace-no-wrap">
+                                            <a wire:click.prevent="API('{{ $busca->id }}')" href="#"
+                                                class="text-green-700 font-semibold">Api</a>
+                                        </td>
+
 
                                         <td class="px-3 py-1 text-sm leading-5 text-gray-900 whitespace-no-wrap">
                                             <a wire:click.prevent="Bot('{{ $busca->id }}')" href="#"

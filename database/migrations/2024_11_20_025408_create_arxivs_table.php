@@ -21,6 +21,7 @@ return new class extends Migration
 
             #$table->date('dt');
             $table->datetime('ts');
+            $table->string('url')->nullable();
             $table->text('obs')->nullable();
             $table->boolean('parsed')->default(0);
             

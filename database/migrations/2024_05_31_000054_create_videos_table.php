@@ -46,7 +46,7 @@ return new class extends Migration
             $table->datetime('dt')->nullable();
 
             $table->foreignIdFor(Canal::class)->nullable();
-            $table->foreignIdFor(Busca::class);
+            $table->foreignIdFor(Busca::class)->nullable();
 
 
             $table->timestamps();

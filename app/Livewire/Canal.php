@@ -22,6 +22,31 @@ class Canal extends Component
 
     public $out;
 
+
+    public string $url = ''; // precisa declarar isso
+
+    function add(){
+
+        $re = 'https?:\/\/(www\.)?youtube\.com\/@([a-zA-Z0-9_.-]+)';
+
+        $url = $this->url;
+
+        if (preg_match('/'. $re .'/', $url, $matches)){
+            $cod = $url;
+    
+            $res = ModelsCanal::updateOrCreate(compact('cod'));
+            session()->flash('success', 'Canal added');
+
+        } else {
+            session()->flash('error', 'URL Canal nadequada');
+
+        }
+
+    }
+
+
+
+
     public function doSort($column)
     {
         if ($this->sortColumn == $column) {
@@ -85,10 +110,7 @@ class Canal extends Component
 
         $queries = ModelsCanal::whereIn('id', $ids)->select('youtube_id')->get()->toArray();
 
-
-
         $youtube_ids = array_column($queries, 'youtube_id');
-
 
         $videos_sep_virgulas = implode(",", $youtube_ids);
 
@@ -113,7 +135,13 @@ class Canal extends Component
 
         $vs = json_decode($output, true);
 
-        dd($vs);
+        #dd($vs);
+        if (isset($vs['error'])) {
+            dd('Erro na API: ' . $vs['error']['message']);
+        }
+        if (!isset($vs['items']) || empty($vs['items'])) {
+            dd('Nenhum canal retornado da API.', $vs);
+        }
 
         $coluna_vs = $vs['items'];
 

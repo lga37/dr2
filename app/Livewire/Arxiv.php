@@ -13,6 +13,9 @@ use Maantje\Charts\Line\Point;
 use Livewire\Attributes\Layout;
 use App\Models\Arxiv as ModelsArxiv;
 
+use Illuminate\Support\Facades\DB;
+
+
 class Arxiv extends Component
 {
 
@@ -25,7 +28,55 @@ class Arxiv extends Component
 
 
     #[Layout("layouts/app")]
-    public function render()
+    public function render(){
+         
+                    #dd($this->canal_id);
+
+        $dados = DB::table('arxivs')
+            ->select(
+                DB::raw("YEAR(ts) as ano"),
+                DB::raw("WEEK(ts, 1) as semana"),
+                DB::raw("MAX(subscribers) as inscritos")
+            )
+            ->where('canal_id', $this->canal_id)
+            ->whereNotNull('subscribers')
+            ->groupBy('ano', 'semana')
+            ->orderBy('ano')
+            ->orderBy('semana')
+            ->get();
+
+        $max = $dados->max('inscritos');
+
+        $hoje = Carbon::now();
+        $pontos = ModelsArxiv::where('parsed', 1)
+            ->where('canal_id', $this->canal_id)
+            ->select('url','ts', 'subscribers')
+            ->orderBy('ts')
+            ->get()
+            ->map(function ($arx) use ($hoje) {
+                $diff_in_weeks = round(Carbon::parse($arx->ts)->diffInWeeks($hoje));
+                return (object)[
+                    #'ts' => $arx->ts->format('Y-m-d H:i'),
+                    'ts' => Carbon::parse($arx->ts)->format('Y-m-d H:i'),
+
+                    'subscribers' => $arx->subscribers,
+                    'url' => $arx->url,
+                    'diff_weeks' => $diff_in_weeks,
+                ];
+            });
+
+        dump($dados);
+
+
+        return view('livewire.arxiv', compact('dados', 'pontos', 'max'));
+
+        
+    }
+
+
+
+
+    public function render333333333()
     {
         $hoje = Carbon::now();
 

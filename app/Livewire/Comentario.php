@@ -51,24 +51,88 @@ class Comentario extends Component
 
     public Video $video;
 
+
+
     function setTox($id)
     {
         $comm = ModelsComentario::find($id);
         $txt = $comm->texto;
+        $apiKey = env("PERSPECTIVE_API");
+
+        $url = 'https://commentanalyzer.googleapis.com/v1alpha1/comments:analyze?key=' . $apiKey;
+
+        $payload = [
+            'comment' => ['text' => $txt],
+            'languages' => ['pt'], // ou 'pt' se quiser
+            'requestedAttributes' => [
+                'TOXICITY' => new \stdClass()
+            ]
+        ];
+
+        $json = json_encode($payload);
+
+        $ch = curl_init($url);
+
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_POST => true,
+            CURLOPT_HTTPHEADER => ['Content-Type: application/json'],
+            CURLOPT_POSTFIELDS => $json,
+            CURLOPT_SSL_VERIFYPEER => true,
+            CURLOPT_SSL_VERIFYHOST => 2,
+        ]);
+
+        $response = curl_exec($ch);
+
+        if (curl_errno($ch)) {
+            dd('Erro cURL: ' . curl_error($ch));
+            curl_close($ch);
+            return null;
+        }
+
+        curl_close($ch);
+
+        $res = json_decode($response, true);
+
+        if (!is_array($res)) {
+            return;
+        }
+
+        $tox = round($res['attributeScores']['TOXICITY']['summaryScore']['value'], 3);
+
+        $comm->update(['tox' => $tox]);
+    }
+
+
+
+    function setTox2222($id)
+    {
+        $comm = ModelsComentario::find($id);
+        $txt = $comm->texto;
+
+        // $params = [
+        //     "comment" => ["text" => "hi everybody is fine"],
+        //     "languages" => ["en"],
+        //     "requestedAttributes" => ["TOXICITY" => ""]
+        // ];
+        // $params = json_encode($params);
+
+        #dd($params);
+        // $txt = trim($txt, '"');
+
+        #$params = '{comment: {text: "'.$txt.'"},languages: ["pt"],requestedAttributes: {TOXICITY:{}} }';
+
 
         $params = [
-            "comment" => ["text" => "hi everybody is fine"],
-            "languages" => ["en"],
-            "requestedAttributes" => ["TOXICITY"=>""]
+            "comment" => ["text" => $txt],
+            "languages" => ["pt"],
+            "requestedAttributes" => ["TOXICITY" => new \stdClass()]
         ];
         $params = json_encode($params);
 
-        #dd($params);
-        $txt = trim($txt,'"');
-
-        $params = '{comment: {text: "'.$txt.'"},languages: ["pt"],requestedAttributes: {TOXICITY:{}} }';
 
         $url = 'https://commentanalyzer.googleapis.com/v1alpha1/comments:analyze?key=' . env('PERSPECTIVE_API');
+
 
         $headers =  [
             "Content-type: application/json",
@@ -83,16 +147,13 @@ class Comentario extends Component
             return;
         }
 
-        #dd($res);
+        dd($res);
 
-        $tox = round($res['attributeScores']['TOXICITY']['summaryScore']['value'],3);
+        $tox = round($res['attributeScores']['TOXICITY']['summaryScore']['value'], 3);
 
 
         $comm->update(['tox' => $tox]);
     }
-
-
-
 
     function cUrlGetData($url, $post_fields = null, $headers = null)
     {
@@ -123,6 +184,8 @@ class Comentario extends Component
         curl_close($ch);
         return $data;
     }
+
+
 
     function processaNumOcorrencias($texto, $query_slug)
     {

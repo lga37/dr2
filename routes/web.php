@@ -3,7 +3,14 @@
 #use App\Livewire\Monet;
 use App\Livewire\Graf;
 
+use App\Livewire\Tarefa1;
+use App\Livewire\Tarefa2;
+use App\Livewire\Tarefa3;
+
+
 use App\Livewire\Arxiv;
+use App\Livewire\Toxic;
+use App\Livewire\Nlp;
 use App\Livewire\Busca;
 use App\Livewire\Canal;
 use App\Livewire\Monet;
@@ -14,20 +21,14 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\ProfileController;
 
 Route::get('/', function () {
-    return view('welcome');
+    return redirect()->route('busca');
 });
 
-Route::get('ai', function(){
-    $res = app('openai')->chat()->create([
-        'model'=>'gpt-3.5-turbo-16k',
-        'messages'=>[
-            ['role'=>'system','content'=>'Voce e um bot academico que quer ajudar'],
-            ['role'=>'user','content'=>'link me to the laravel docs'],
-        ]
-    ]);
 
-    dd($res);
-});
+Route::get('tarefa1', Tarefa1::class)->name('tarefa1');
+Route::get('tarefa2', Tarefa2::class)->name('tarefa2');
+Route::get('tarefa3', Tarefa3::class)->name('tarefa3');
+
 
 
 Route::get('busca', Busca::class)->name('busca');
@@ -37,6 +38,8 @@ Route::get('monet', Monet::class)->name('monet');
 Route::get('arxiv/{canal_id?}', Arxiv::class)->name('arxiv');
 
 Route::get('graf/{canal?}', Graf::class)->name('graf');
+Route::get('toxic/{video?}', Toxic::class)->name('toxic');
+Route::get('nlp/{busca?}', Nlp::class)->name('nlp');
 
 Route::get('comentario/{video_id?}', Comentario::class)->name('comentario');
 

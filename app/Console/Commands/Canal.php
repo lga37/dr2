@@ -26,7 +26,15 @@ class Canal extends Bot
             $cod = $query['cod'];
             $canal_id = $query['id'];
 
-            $url = 'https://www.youtube.com' . urldecode($cod);
+            $re = 'https?:\/\/(www\.)?youtube\.com\/@([a-zA-Z0-9_.-]+)';
+
+            if (preg_match('/'. $re .'/', $cod, $matches)){
+                $url = $cod;
+        
+            } else {
+                $url = 'https://www.youtube.com' . urldecode($cod);
+            }
+
 
             $youtube_id = $dt = $local = $links = $nome = $desc = $slug = $lang = null;
 

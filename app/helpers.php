@@ -14,49 +14,103 @@ function datetimeTZtoDateMysql(string $datetimeTZ)
 # 123,7 mi para 123700000
 #2,999
 
-#dd(retornaMilMilhaoBilhaoToInt('512 mil assinantes'));
 
-function retornaMilMilhaoBilhaoToInt(string $txt)
+
+function retornaFloat($txt)
 {
-    #dump($txt);
-    $txt = str_replace(",", ".", $txt);
-    #dump($txt);
-
-    # atencao se for so m ele pega primeiro em relacao ao mi
-    $re = '([\d\.]+)\s?(mil|M|mi|k|K|B|b)?';
-    if (preg_match('/' . $re . '/', $txt, $res)) {
-        $num = $res[1];
-        $num = str_replace(".", "", $num);
-
-        $letra = "";
-        if (isset($res[2])) {
-            $letras = strtolower($res[2]);
-            #dump($letras);
-            switch ($letras) {
-                case "mil":
-                case "k":
-                case "m":
-                    $letra = 'k';
-                    break;
-
-                case "milhoes":
-                case "mi":
-                    $letra = 'm';
-                    break;
-
-                case "bi":
-                case "b":
-                    $letra = 'b';
-                    break;
-            }
-            $val = $num . $letra;
-            $num = return_kmb_to_integer($val);
-
-        }
-        #dd($num);
-        return $num;
+    if (empty($txt) || is_array($txt)) {
+        return 0;
     }
+
+    // Remove tudo que não for dígito, ponto ou vírgula
+    $txt_limpo = preg_replace('/[^\d.,]/', '', $txt);
+
+    $tem_ponto = strpos($txt_limpo, '.') !== false;
+    $tem_virgula = strpos($txt_limpo, ',') !== false;
+
+    if ($tem_ponto && $tem_virgula) {
+        // Verifica qual vem por último (define o separador decimal)
+        if (strrpos($txt_limpo, ',') > strrpos($txt_limpo, '.')) {
+            // Caso: "1.320,90" — ponto separa milhar, vírgula é decimal
+            $numero = str_replace(['.', ','], ['', '.'], $txt_limpo);
+        } else {
+            // Caso: "123,456.78" — vírgula separa milhar, ponto é decimal
+            $numero = str_replace(',', '', $txt_limpo);
+        }
+    } elseif ($tem_virgula) {
+        // Caso: "1.200,00" ou "1200,50"
+        $numero = str_replace(['.', ','], ['', '.'], $txt_limpo);
+    } elseif ($tem_ponto) {
+        // Caso: "1.200.50" ou "1200.50"
+        $pedaços = explode('.', $txt_limpo);
+        $ultima_parte = array_pop($pedaços);
+
+        if (strlen($ultima_parte) <= 2) {
+            // Última parte parece centavos
+            $numero = str_replace('.', '', implode('.', $pedaços)) . '.' . $ultima_parte;
+        } else {
+            // Não parece centavos, então remove todos os pontos
+            $numero = str_replace('.', '', $txt_limpo);
+        }
+    } else {
+        // Somente dígitos
+        $numero = $txt_limpo;
+    }
+
+    return (float) $numero;
 }
+
+
+#$v = '2,999';
+#dd(retornaMilMilhaoBilhaoToInt($v));
+
+
+function retorna_float($input)
+{
+    if (preg_match('/\d+\.?\d+/', $input, $tokens)) {
+        return $tokens[0];
+    }
+    return null;
+}
+
+
+function retornaMilMilhaoBilhaoToInt(?string $txt): int
+{
+    if (!$txt) return 0;
+
+    $s = trim($txt);
+
+    // Detecta sufixo (k/mil, mi/m, b/bi/bilhão...)
+    $mult = 1;
+    $hasSuffix = false;
+    if (preg_match('/\b(k|mil|mi|m|b|bi|bilh(?:a|õ|o)es?)\b/iu', $s, $m)) {
+        $hasSuffix = true;
+        $suf = mb_strtolower($m[1], 'UTF-8');
+        if ($suf === 'k' || $suf === 'mil') $mult = 1_000;
+        elseif (in_array($suf, ['m', 'mi', 'milhão', 'milhoes', 'milhões'])) $mult = 1_000_000;
+        elseif (in_array($suf, ['b', 'bi', 'bilhao', 'bilhão', 'bilhoes', 'bilhões'])) $mult = 1_000_000_000;
+    }
+
+    // Extrai parte numérica
+    if (!preg_match('/\d[\d\.\,\s  ]*/u', $s, $mm)) return 0; // inclui NBSP
+    $num = preg_replace('/[\s  ]+/u', '', $mm[0]); // remove espaços
+
+    if (!$hasSuffix) {
+        // Sem sufixo => considere sempre separadores de milhar
+        // "4,123,237" / "1.234.567" / "12 345" -> só dígitos
+        $base = (int) preg_replace('/\D/', '', $num);
+        return $base; // multiplicador = 1
+    }
+
+    // Com sufixo => aceitar decimal (1,2 mi / 1.2M etc.)
+    // Normaliza decimal para ponto: mantém só o último como decimal
+    $num = str_replace(',', '.', $num);
+    $num = preg_replace('/\.(?=.*\.)/', '', $num); // remove pontos exceto o último
+    $base = (float) $num;
+
+    return (int) round($base * $mult);
+}
+
 
 
 function limpaEspacosAcentuacao($str)
@@ -81,17 +135,6 @@ function limpaEspacosTabs($txt)
 }
 
 
-
-function retornaFloat($txt)
-{
-    #dump($txt);
-    $so_digitos = filtraDigitos($txt);
-    if (is_numeric($so_digitos)) {
-        $fl = (float) round($so_digitos / 100, 2);
-        return $fl;
-    }
-    return 0;
-}
 
 
 function filtraDigitos($txt)
@@ -165,14 +208,6 @@ function kmbt($number)
     }
 
     return $number;
-}
-
-function retorna_float($input)
-{
-    if (preg_match('/\d+\.\d+/', $input, $tokens)) {
-        return $tokens[0];
-    }
-    return null;
 }
 
 

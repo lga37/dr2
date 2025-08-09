@@ -40,7 +40,7 @@ class Busca extends Bot
 
                 sleep(1);
 
-                $pags = 4;
+                $pags = 5;
                 for ($i = 1; $i <= $pags; $i++) {
                     sleep(1);
                     $page->evaluate("window.scrollTo(0, document.body.scrollHeight || document.documentElement.scrollHeight);");
@@ -75,8 +75,8 @@ class Busca extends Bot
                     $res ? $tot++ : $err++;
                 }
                 echo "\nTotal upserts para busca_id: $busca_id = $tot - Erros: $err ::::::::::::::";
-            } catch (OperationTimedOut $e) {
-                echo 'OperationTimedOut : ' . $e->getMessage();
+            #} catch (OperationTimedOut $e) {
+            #    echo 'OperationTimedOut : ' . $e->getMessage();
             } catch (\Exception $e) {
                 echo 'Exception : ' . $e->getMessage();
             } finally {

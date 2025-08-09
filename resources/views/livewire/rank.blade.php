@@ -1,3 +1,18 @@
+<x-modal>
+    <div class="p-4">
+        <h2 class="text-xl font-bold">Teste de Modal</h2>
+        <pre>{{ var_export($ranking, true) }}</pre>
+    </div>
+</x-modal>
+
+
+
+
+
+
+
+
+<!-- 
 <div class="p-6">
     <h2 class="text-xl font-bold mb-4 text-gray-800">Ranking de Palavras</h2>
 
@@ -20,4 +35,6 @@
     @else
         <p class="text-gray-500">Nenhuma palavra relevante encontrada.</p>
     @endif
-</div>
+</div> -->
+
+

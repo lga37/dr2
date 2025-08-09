@@ -5,13 +5,28 @@
         </h2>
     </x-slot>
  
+    <x-msg />
+
     <div class="py-2">
         <div class="mx-auto max-w-12xl sm:px-2 lg:px-2">
+
+            <form method="POST" class="flex items-center mb-3" wire:submit='add'>
+                <x-input-label for="busca" class="mr-1" :value="__('Canal Add')" />
+                <x-text-input id="url" class="mt-1 w-40" wire:model.defer="url" />
+                <x-primary-button class="ms-3">Add</x-primary-button>
+            </form>
+
+            <form method="POST" class="flex items-center mb-3" wire:submit='add'>
+                <x-input-label for="busca" class="mr-1" :value="__('Canal Add')" />
+                <x-text-input id="url" class="mt-1 w-40" wire:model.defer="url" />
+                <x-primary-button class="ms-3">Add</x-primary-button>
+            </form>
+
+
+
             <div class="overflow-hidden bg-white shadow-sm sm:rounded-lg">
                 <div class="p-6 overflow-hidden overflow-x-auto bg-white border-b border-gray-200">
                     
-                    <x-msg />
-
                     <div class="flex items-center justify-around mb-3">
                         <div class="flex items-center space-x-4">
                             <x-input-label>Search</x-input-label>
@@ -115,7 +130,7 @@
                                             {{ kmbt($canal->inscritos) }}
                                         </td>
                                         <td class="px-2 py-1 text-sm leading-5 text-gray-900 whitespace-no-wrap">
-                                            {{ $canal->busca->slug ?? '' }}
+                                            {{ $canal->busca->slug ?? 'X' }}
                                         </td>
                                         <td class="px-2 py-1 text-sm leading-5 text-gray-900 whitespace-no-wrap">
                                             {{ Number::currency($canal->min ?? 0) }}

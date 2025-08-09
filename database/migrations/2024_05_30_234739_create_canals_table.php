@@ -40,7 +40,7 @@ return new class extends Migration
             
 
             #$table->foreignIdFor(Video::class);
-            $table->foreignIdFor(Busca::class);
+            $table->foreignIdFor(Busca::class)->nullable();
 
             $table->timestamps();
         });

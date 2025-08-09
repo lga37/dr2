@@ -5,12 +5,20 @@
         </h2>
     </x-slot>
 
-    <div class="py-12">
-        <div class="mx-auto max-w-12xl sm:px-6 lg:px-8">
+    <x-msg />
+
+    <div class="py-2">
+        <div class="mx-auto max-w-12xl sm:px-2 lg:px-2">
+
+            <form method="POST" class="flex items-center mb-3" wire:submit='add'>
+                <x-input-label for="url" class="mr-1" :value="__('Vdeo Add')" />
+                <x-text-input id="url" class="mt-1 w-40" wire:model.defer="url" />
+                <x-primary-button class="ms-3">Add</x-primary-button>
+            </form>
+
             <div class="overflow-hidden bg-white shadow-sm sm:rounded-lg">
                 <div class="p-6 overflow-hidden overflow-x-auto bg-white border-b border-gray-200">
 
-                    <x-msg />
 
                     <div class="flex items-center space-x-8 justify-around mb-3">
                         <div class="flex items-center">
@@ -67,6 +75,7 @@
                                     </th>
                                     <th class="px-2 py-1 text-left bg-gray-50">busca</th>
                                     <th class="px-2 py-1 text-left bg-gray-50">lik|dislik</th>
+                                    <th class="px-2 py-1 text-left bg-gray-50">dt</th>
                                     <th class="px-2 py-1 text-left bg-gray-50">views</th>
                                     <th class="px-2 py-1 text-left bg-gray-50">keywds</th>
                                     <th class="px-2 py-1 text-left bg-gray-50">comm uq/tot</th>
@@ -106,13 +115,17 @@
                                             {{ Str::limit($video->nome, 45) }}
                                         </td>
                                         <td class="px-3 py-1 text-sm leading-5 text-gray-900 whitespace-no-wrap">
-                                            {{ $video->busca->slug }}
+                                            {{ $video->busca->slug ?? 'X' }}
                                         </td>
 
                                         <td class="px-3 py-1 text-sm leading-5 text-gray-900 whitespace-no-wrap">
                                             {{ $video->likes }} | {{ $video->dislikes }}
                                         </td>
 
+                                        <td class="px-3 py-1 text-sm leading-5 text-gray-900 whitespace-no-wrap">
+                                            {{ $video->dt }}
+                                        </td>
+                                        
                                         <td class="px-3 py-1 text-sm leading-5 text-gray-900 whitespace-no-wrap">
                                             {{ $video->views }}
                                         </td>
@@ -145,6 +158,12 @@
 
                                         <td class="px-3 py-1 text-sm leading-5 text-gray-900 whitespace-no-wrap">
                                             {{ $video->gpt }}
+                                        </td>
+
+
+                                        <td class="px-2 py-1 text-sm leading-5 text-gray-900 whitespace-no-wrap">
+                                            <a class="text-blue-700 font-semibold" 
+                                                href="{{ route('toxic',$video) }}">Graf</a>
                                         </td>
 
 
@@ -189,6 +208,13 @@
                                                     class="text-green-700 font-semibold">RnK</a>
                                             </td>
 
+
+         <td class="px-2 py-1 text-sm leading-5 text-gray-900 whitespace-no-wrap">
+                                                <button class="text-yellow-700 font-semibold"
+                                                wire:click.prevent="$dispatch('openModal', { component: 'manual', arguments: { canal: {{ $video->id }} }})">
+                                                Man</button>
+                                            </td>
+
  
                                             <td class="px-2 py-1 text-sm leading-5 text-gray-900 whitespace-no-wrap">
                                                 <button class="text-yellow-700 font-semibold"
@@ -196,14 +222,7 @@
                                                 RANK</button>
                                             </td>
 
-
-
-
-                                          
-                                          
                                         @endif
-
-
 
                                         <td class="px-2 py-1 text-sm leading-5 text-gray-900 whitespace-no-wrap">
                                             <x-danger-button class=""
@@ -225,7 +244,6 @@
 
                     <div wire:stream="out">{{ $out }}</div>
 
-
                     <x-secondary-button wire:click="craw" class="mt-3">
                         {{ __('Acoes divs') }}
                     </x-secondary-button>
@@ -233,7 +251,6 @@
                     <div class="w-full bg-gray-300" wire:stream="result">
                         {{ $content ?? '' }}
                     </div>
-
 
                 </div>
             </div>

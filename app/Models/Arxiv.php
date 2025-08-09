@@ -10,7 +10,7 @@ class Arxiv extends Model
     /** @use HasFactory<\Database\Factories\ArxivFactory> */
     use HasFactory;
 
-    protected $fillable = ['canal_id','ts'];
+    protected $fillable = ['canal_id','ts','url'];
 
     public function canal(){
         return $this->belongsTo(Canal::class);

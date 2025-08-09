@@ -17,6 +17,7 @@ class Arxiv extends Bot
     protected $signature = 'arxiv {canal_ids?*} {--acao=craw}';
 
 
+    #aqui eu pego as paginas disponiveis no arxiv
     public function craw(array $canal_ids)
     {
         $queries = Canal::whereIn('id', $canal_ids)->select('id', 'youtube_id')->get()->toArray();
@@ -26,36 +27,49 @@ class Arxiv extends Bot
             $canal_id = $query['id'];
             $youtube_id = $query['youtube_id'];
             ######### api
-            $url = "https://www.youtube.com/channel/$youtube_id";
+            $url = "youtube.com/channel/$youtube_id"; ### atencao parece q nao pode ter o http s
             echo $url . "\n\n";
 
-            $site = "https://archive.org/wayback/available?url=$url";
-            $out = file_get_contents($site);
-            $res = json_decode($out, true);
-            $tot = 0;
-            if (isset($res['archived_snapshots']['closest']['available']) && $res['archived_snapshots']['closest']['available'] == 'true') {
-                $snaps = "https://web.archive.org/cdx/search/cdx?url=$url";
-                $txt = file_get_contents($snaps);
+            $variacoes = ['http://','https://','','www.','http://www.','https://www.'];
+            foreach($variacoes as $v){
+                $url2 = $v . $url;
 
-                echo "\n\n$txt\n\n";
-                $re = '\s([\d]{12,})\s(.+?)\s';
-                $canal = Canal::find($canal_id);
-                if (preg_match_all('/' . $re . '/', $txt, $res)) {
-                    foreach ($res[1] as $k => $ts) {
-                        if (!ArxivModel::where('canal_id', $canal_id)->where('ts', $ts)->exists()) {
-                            ArxivModel::create(compact('canal_id', 'ts'));
-                            $tot++;
+                $site = "https://archive.org/wayback/available?url=$url2";
+
+                echo "$v - $site\n";
+                $out = file_get_contents($site);
+                $res = json_decode($out, true);
+                #dd($res);
+                $tot = 0;
+                if (isset($res['archived_snapshots']['closest']['available']) && $res['archived_snapshots']['closest']['available'] == 'true') {
+                    $snaps = "https://web.archive.org/cdx/search/cdx?url=$url2";
+                    $txt = file_get_contents($snaps);
+
+                    echo "\n\n$txt\n\n";
+                    $re = '\s([\d]{12,})\s(.+?)\s';
+                    $canal = Canal::find($canal_id);
+                    if (preg_match_all('/' . $re . '/', $txt, $res)) {
+                        foreach ($res[1] as $k => $ts) {
+                            if (!ArxivModel::where('canal_id', $canal_id)->where('ts', $ts)->exists()) {
+                                ArxivModel::create(compact('url','canal_id', 'ts'));
+                                echo "\n$ts criado";
+                                $tot++;
+                            }
                         }
+                    } else {
+                        echo "nao parseou";
                     }
+
+
                 } else {
-                    echo "nao parseou";
+                    dump($res);
+                    echo "\nATENCAO::::::::: nao tem arxiv para ele ::::::: $url2 \n";
                 }
 
 
-            } else {
-                dump($res);
-                echo "\nATENCAO::::::::::::::::::::::::: nao tem arxiv para ele :::::::::::::::::::::::::: $url";
+
             }
+
 
 
         }
@@ -65,13 +79,14 @@ class Arxiv extends Bot
     }
 
 
+    #aqui eu entro em cada pagina do canal e pego os inscritos
     public function process($id)
     {
         ######## craw
         // $canal->fresh();
         $canal = Canal::find($id);
         $youtube_id = $canal->first()->youtube_id;
-        $url = "https://www.youtube.com/channel/$youtube_id";
+        $url = "http://www.youtube.com/channel/$youtube_id"; #problema aqui http https ...
 
         $arxivs = ArxivModel::where('canal_id', $id)->where('parsed', 0)->select('id', 'ts')->get()->toArray();
 
@@ -99,7 +114,7 @@ class Arxiv extends Bot
                 #ru-RU es
                 if($elem = $page->dom()->querySelector("html")){
                     if($lang = $elem->getAttribute('lang')){
-                        echo "\n--------- $lang";
+                        echo "\n-------idioma: $lang --- \n";
                         if($lang){
                             $lang = substr($lang,0,2);
                             if(in_array($lang,['ru'])){
@@ -111,20 +126,11 @@ class Arxiv extends Bot
                 }
 
                 $seletor1 = 'span.yt-subscription-button-subscriber-count-branded-horizontal.yt-uix-tooltip';
-
-
                 $seletor2 = 'span.yt-subscription-button-subscriber-count-branded-horizontal.subscribed.yt-uix-tooltip'; #aria-label
-
                 $seletor3 = 'span.yt-core-attributed-string.yt-content-metadata-view-model-wiz__metadata-text yt-core-attributed-string--white-space-pre-wrap.yt-core-attributed-string--link-inherit-color';
-
                 $seletor4 = 'span.yt-core-attributed-string.yt-content-metadata-view-model-wiz__metadata-text yt-core-attributed-string--white-space-pre-wrap.yt-core-attributed-string--link-inherit-color > span';
-
-
                 $seletor5 = '#subscriber-count.style-scope.ytd-c4-tabbed-header-renderer'; #esse aqui e pelo aria-label
-
                 $seletor6 = 'span.yt-subscription-button-subscriber-count-branded-horizontal.subscribed'; #so com gettext
-
-
 
                 if ($elem = $page->dom()->querySelector($seletor1)) {
                     #echo $elem->getHTML();
@@ -134,7 +140,8 @@ class Arxiv extends Bot
                     echo "\n if1 $subscribers \n";
                     if($subscribers > 0){
                         $parsed=1;
-                        ArxivModel::where('id', $arxiv_id)->update(compact('subscribers', 'parsed'));
+                        $r = ArxivModel::where('id', $arxiv_id)->update(compact('subscribers', 'parsed'));
+                        dump($r);
                     }
 
                 } elseif ($elem = $page->dom()->querySelector($seletor2)) {
