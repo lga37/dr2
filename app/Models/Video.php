@@ -14,27 +14,33 @@ class Video extends Model
     // ];
     protected $guarded = [];
 
+    // app/Models/Video.php
+    protected $casts = [
+        'keywords' => 'array',
+        'parse'    => 'bool',
+        'dt'       => 'datetime',
+    ];
+
+
     # neste caso coloquei comments para nao dar pau aqui na table
-    public function comentarios(){
+    public function comentarios()
+    {
         return $this->hasMany(Comentario::class);
     }
 
-    public function busca(){
+    public function busca()
+    {
         return $this->belongsTo(Busca::class);
     }
 
-    public function scopeSearch($query, $search){
+    public function scopeSearch($query, $search)
+    {
 
-        if($search != ''){
-            return $query->where('nome','LIKE','%'. $search .'%')
-            ->orWhere('slug','LIKE','%'. $search .'%')
-            ;           
-    
+        if ($search != '') {
+            return $query->where('nome', 'LIKE', '%' . $search . '%')
+                ->orWhere('slug', 'LIKE', '%' . $search . '%')
+            ;
         }
         return;
     }
-
-
-
-
 }

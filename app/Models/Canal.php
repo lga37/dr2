@@ -16,13 +16,51 @@ class Canal extends Model
     protected $guarded = [];
 
 
-    protected function casts(): array
-    {
-        return [
-            'dt' => 'date:Y-m-d',
-        ];
-    }
-    
+    // protected function casts(): array
+    // {
+    //     return [
+    //         'dt' => 'date:Y-m-d',
+    //     ];
+    // }
+
+
+    // protected $fillable = [
+    //     'nome',
+    //     'slug',
+    //     'cod',
+    //     'youtube_id',
+    //     'desc',
+    //     'links',
+    //     'parse',
+    //     'verificado',
+    //     'inscritos',
+    //     'views',
+    //     'dt',
+    //     'local',
+    //     'categ',
+    //     'videos',
+    //     'score',
+    //     'min',
+    //     'max',
+    //     'engagement',
+    //     'frequency',
+    //     'length',
+    //     'busca_id'
+    // ];
+
+    // app/Models/Canal.php
+    protected $casts = [
+        'links'      => 'array',
+        'parse'      => 'bool',
+        'verificado' => 'bool',
+        'dt'         => 'date',
+    ];
+
+
+
+
+
+
     public function videos()
     {
         return $this->hasMany(Video::class);

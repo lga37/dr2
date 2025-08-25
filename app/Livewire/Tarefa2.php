@@ -5,35 +5,72 @@ namespace App\Livewire;
 use Log;
 use Livewire\Component;
 use Livewire\Attributes\Url;
+use Illuminate\Support\Carbon;
 use Livewire\Attributes\Layout;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Session;
 
 
 class Tarefa2 extends Component
 {
 
-    public $buscas = []; // para armazenar os vídeos
+
+    public $buscas = []; 
     public array $canais = [];
     public array $selecionados = [];
 
-
     #[Url()]
     public $query = '';
+    public string $addInput = '';
 
-
-    public function updated($propertyName)
+    public function mount()
     {
-        if (str_starts_with($propertyName, 'selecionados')) {
-            $this->selecionados = array_values(array_filter($this->selecionados));
+        $this->selecionados = Session::get('sel_canais', []);
+    }
+
+    protected function persistSelecionados(): void
+    {
+        $this->selecionados = array_values(array_unique(array_filter($this->selecionados)));
+        Session::put('sel_canais', $this->selecionados);
+    }
+
+    public function add(string $canalId): void
+    {
+        if (!in_array($canalId, $this->selecionados, true)) {
+            $this->selecionados[] = $canalId;
+            $this->persistSelecionados();
         }
     }
 
+    public function removeSelecionado(string $canalId): void
+    {
+        $this->selecionados = array_values(array_diff($this->selecionados, [$canalId]));
+        $this->persistSelecionados();
+    }
 
-    public function updatedQuery($value)
+    public function clearSelecionados(): void
+    {
+        $this->selecionados = [];
+        $this->canais = [];
+        Session::forget('sel_canais');
+    }
+
+    public function addCanalByInput(): void
+    {
+        $input = trim($this->addInput);
+        if ($input === '') return;
+
+        $id = $this->parseCanalIdentifier($input);
+        if ($id) {
+            $this->add($id);
+            $this->addInput = '';
+        }
+    }
+
+    public function updatedQuery()
     {
         $this->getCanais();
     }
-
 
 
     public function getCanais()
@@ -43,6 +80,8 @@ class Tarefa2 extends Component
         }
 
         $query = $this->query;
+
+        #dd($query);
         $apiKey = env('YOUTUBE_API_KEY');
 
         // 1. Buscar vídeos por termo
@@ -86,149 +125,118 @@ class Tarefa2 extends Component
             ];
         })->toArray();
 
+        #dd($this->buscas);
+
         return $this->buscas;
     }
 
 
-
-    function nlp33333333(string $texto): ?float
+    public function getSessaoCanaisProperty(): array
     {
-        if (empty(trim($texto))) return null;
+        $idsSessao = Session::get('sel_canais', []);
+        if (empty($idsSessao)) return [];
 
-        $url = 'https://api.gotit.ai/NLU/v1.5/Analyze';
-        $basic = env('GOTIT_API_KEY') . ':' . env('GOTIT_SECRET_KEY');
+        // cache local da listagem atual
+        $cacheAtual = collect($this->buscas ?? [])->keyBy('canalId');
 
-        $payload = json_encode([
-            "T" => $texto,
-            "S" => true,
-            "EM" => true,
-        ]);
+        $prontos = [];
+        $faltantes = [];
 
-        $headers = [
-            "Content-Type: application/json",
-            "Authorization: Basic " . base64_encode($basic),
-        ];
-
-        $ch = curl_init($url);
-
-        curl_setopt_array($ch, [
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_POST => true,
-            CURLOPT_POSTFIELDS => $payload,
-            CURLOPT_HTTPHEADER => $headers,
-            CURLOPT_CONNECTTIMEOUT => 5,
-            CURLOPT_SSL_VERIFYHOST => 0,
-            CURLOPT_SSL_VERIFYPEER => 0,
-        ]);
-
-        $result = curl_exec($ch);
-
-        #dd($result);
-
-        if (curl_errno($ch)) {
-            dd('Erro cURL NLP: ' . curl_error($ch));
-            curl_close($ch);
-            return null;
+        foreach ($idsSessao as $id) {
+            if ($cacheAtual->has($id)) {
+                $prontos[] = $cacheAtual->get($id);
+            } else {
+                $faltantes[] = $id;
+            }
         }
 
-        curl_close($ch);
-
-        $res = json_decode($result, true);
-
-
-        if (!is_array($res) || empty($res['sentiment']['score'])) {
-            dump($res);
-            dd('Resposta inválida da API NLP');
-            return null;
+        if (!empty($faltantes)) {
+            $mais = $this->fetchCanaisByIds($faltantes);
+            $prontos = array_merge($prontos, $mais);
         }
 
-        return round($res['sentiment']['score'], 2);
+        // manter a ordem dos IDs na sessão
+        $byId = collect($prontos)->keyBy('canalId');
+        return collect($idsSessao)->map(fn($id) => $byId->get($id))->filter()->values()->toArray();
     }
 
-
-
-
-    function nlp(string $texto): ?float
+    protected function fetchCanaisByIds(array $ids): array
     {
-        $texto = trim($texto);
-        if ($texto === '') return null;
+        $ids = array_values(array_unique(array_filter($ids)));
+        if (empty($ids)) return [];
 
-        // opcional: limitar tamanho pra evitar timeout/quotas
-        if (mb_strlen($texto) > 3000) {
-            $texto = mb_substr($texto, 0, 3000);
-        }
+        $apiKey = env('YOUTUBE_API_KEY');
+        $out = [];
 
-        // cache 30 dias por hash do texto
-        $cacheKey = 'nlp:' . sha1($texto);
-        return Cache::remember($cacheKey, now()->addDays(30), function () use ($texto) {
-            $url   = 'https://api.gotit.ai/NLU/v1.5/Analyze';
-            $basic = env('GOTIT_API_KEY') . ':' . env('GOTIT_SECRET_KEY');
-
-            $payload = json_encode(["T" => $texto, "S" => true, "EM" => true]);
-            $headers = [
-                "Content-Type: application/json",
-                "Authorization: Basic " . base64_encode($basic),
-            ];
-
-            $ch = curl_init($url);
-            curl_setopt_array($ch, [
-                CURLOPT_RETURNTRANSFER => true,
-                CURLOPT_POST => true,
-                CURLOPT_POSTFIELDS => $payload,
-                CURLOPT_HTTPHEADER => $headers,
-                CURLOPT_CONNECTTIMEOUT => 5,
-                CURLOPT_TIMEOUT => 15,
-                CURLOPT_SSL_VERIFYHOST => 0,
-                CURLOPT_SSL_VERIFYPEER => 0,
+        foreach (array_chunk($ids, 50) as $pack) {
+            $url = 'https://www.googleapis.com/youtube/v3/channels?' . http_build_query([
+                'part' => 'snippet,statistics',
+                'id'   => implode(',', $pack),
+                'key'  => $apiKey,
             ]);
 
-            $result = curl_exec($ch);
-            if (curl_errno($ch)) {
-                Log::warning('NLP timeout/erro', ['err' => curl_error($ch)]);
-                curl_close($ch);
-                return null;
+            $resp = @file_get_contents($url);
+            if ($resp === false) continue;
+            $json = json_decode($resp, true);
+
+            foreach ($json['items'] ?? [] as $item) {
+                $stats   = $item['statistics'] ?? [];
+                $snippet = $item['snippet'] ?? [];
+                $out[] = [
+                    'canalId'   => $item['id'] ?? null,
+                    'title'     => $snippet['title'] ?? '',
+                    'pais'      => $snippet['country'] ?? 'n/a',
+                    'views'     => $stats['viewCount'] ?? 0,
+                    'comments'  => $stats['commentCount'] ?? 0,
+                    'videos'    => $stats['videoCount'] ?? 0,
+                    'inscritos' => $stats['subscriberCount'] ?? 0,
+                    'published' => $snippet['publishedAt'] ?? '',
+                    'thumbnail' => $snippet['thumbnails']['default']['url'] ?? '',
+                ];
             }
-            $http = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-            curl_close($ch);
-
-            if ($http !== 200) {
-                Log::warning('NLP HTTP não-200', ['http' => $http, 'body' => $result]);
-                return null;
-            }
-
-            $res = json_decode($result, true);
-            $score = data_get($res, 'sentiment.score'); // pode vir 0 (falsy), então não use empty()
-            return is_numeric($score) ? round((float)$score, 2) : null;
-        });
-    }
-
-
-
-
-
-
-
-    public function buscarVideos444444()
-    {
-        $this->canais = [];
-
-        foreach ($this->selecionados as $canalId) {
-            $videos = $this->getAllVideos($canalId);
-
-            // Ordena do mais antigo para o mais recente
-            $ordenados = collect($videos)->sortBy('publishedAt')->values()->toArray();
-
-            $this->canais[$canalId] = $ordenados;
         }
+
+        return $out;
     }
 
-
-    protected function avgNullable(array $vals): ?float
+    protected function parseCanalIdentifier(string $input): ?string
     {
-        $nums = array_values(array_filter($vals, fn($v) => $v !== null));
-        if (!count($nums)) return null;
-        return round(array_sum($nums) / count($nums), 2);
+        // ID começa com UC + 22 chars
+        if (preg_match('~^(UC[A-Za-z0-9_-]{22})$~', $input, $m)) {
+            return $m[1];
+        }
+        // URL /channel/UC...
+        if (preg_match('~channel/(UC[A-Za-z0-9_-]{22})~', $input, $m)) {
+            return $m[1];
+        }
+        // @handle (ou URL com /@handle)
+        if (preg_match('~@([A-Za-z0-9._-]{3,30})~', $input, $m)) {
+            return $this->resolveChannelIdBySearch('@' . $m[1]);
+        }
+        // fallback: tentar achar pelo nome
+        return $this->resolveChannelIdBySearch($input);
     }
+
+    protected function resolveChannelIdBySearch(string $q): ?string
+    {
+        $apiKey = env('YOUTUBE_API_KEY');
+        $url = 'https://www.googleapis.com/youtube/v3/search?' . http_build_query([
+            'part'       => 'snippet',
+            'type'       => 'channel',
+            'maxResults' => 1,
+            'q'          => $q,
+            'key'        => $apiKey,
+        ]);
+
+        $resp = @file_get_contents($url);
+        if ($resp === false) return null;
+        $data = json_decode($resp, true);
+        return $data['items'][0]['id']['channelId'] ?? null;
+    }
+
+
+    #1  ###################################################################################
+
 
     public function buscarVideos()
     {
@@ -256,10 +264,6 @@ class Tarefa2 extends Component
             $this->canais[$canalId] = $scored;
         }
     }
-
-
-
-
 
     protected function getAllVideos($canalId, $pageToken = null): array
     {
@@ -325,15 +329,67 @@ class Tarefa2 extends Component
     }
 
 
-
-    protected function ISO8601ToSeconds($duration)
+    #2  ####################################################################################
+    function nlp(string $texto): ?float
     {
-        if (!$duration) return null;
+        $texto = trim($texto);
+        if ($texto === '') return null;
 
-        $interval = new \DateInterval($duration);
-        return ($interval->h * 3600) + ($interval->i * 60) + $interval->s;
+        // opcional: limitar tamanho pra evitar timeout/quotas
+        if (mb_strlen($texto) > 3000) {
+            $texto = mb_substr($texto, 0, 3000);
+        }
+
+        // cache 30 dias por hash do texto
+        $cacheKey = 'nlp:' . sha1($texto);
+        return Cache::remember($cacheKey, now()->addDays(30), function () use ($texto) {
+            $url   = 'https://api.gotit.ai/NLU/v1.5/Analyze';
+            $basic = env('GOTIT_API_KEY') . ':' . env('GOTIT_SECRET_KEY');
+
+            $payload = json_encode(["T" => $texto, "S" => true, "EM" => true]);
+            $headers = [
+                "Content-Type: application/json",
+                "Authorization: Basic " . base64_encode($basic),
+            ];
+
+            $ch = curl_init($url);
+            curl_setopt_array($ch, [
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_POST => true,
+                CURLOPT_POSTFIELDS => $payload,
+                CURLOPT_HTTPHEADER => $headers,
+                CURLOPT_CONNECTTIMEOUT => 5,
+                CURLOPT_TIMEOUT => 15,
+                CURLOPT_SSL_VERIFYHOST => 0,
+                CURLOPT_SSL_VERIFYPEER => 0,
+            ]);
+
+            $result = curl_exec($ch);
+            if (curl_errno($ch)) {
+                Log::warning('NLP timeout/erro', ['err' => curl_error($ch)]);
+                curl_close($ch);
+                return null;
+            }
+            $http = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            curl_close($ch);
+
+            if ($http !== 200) {
+                Log::warning('NLP HTTP não-200', ['http' => $http, 'body' => $result]);
+                return null;
+            }
+
+            $res = json_decode($result, true);
+            $score = data_get($res, 'sentiment.score'); // pode vir 0 (falsy), então não use empty()
+            return is_numeric($score) ? round((float)$score, 2) : null;
+        });
     }
 
+    protected function avgNullable(array $vals): ?float
+    {
+        $nums = array_values(array_filter($vals, fn($v) => $v !== null));
+        if (!count($nums)) return null;
+        return round(array_sum($nums) / count($nums), 2);
+    }
 
 
     #[Layout("layouts/app")]

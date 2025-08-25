@@ -3,9 +3,11 @@
 namespace App\Livewire;
 
 use Livewire\Component;
-use Livewire\Attributes\Layout;
 use Livewire\Attributes\Url;
+use Livewire\Attributes\Layout;
+use App\Services\YoutubeStorage;
 use Livewire\Attributes\Computed;
+use Illuminate\Support\Facades\Session;
 
 
 class Tarefa1 extends Component
@@ -15,38 +17,320 @@ class Tarefa1 extends Component
     public array $comentarios = [];
     public array $selecionados = [];
 
+    public string $addInput = '';
 
     #[Url()]
     public $query = '';
 
 
-    public function updated($propertyName)
+    public function mount()
     {
-        if (str_starts_with($propertyName, 'selecionados')) {
-            $this->selecionados = array_values(array_filter($this->selecionados));
+        // carrega seleção persistida
+        $this->selecionados = Session::get('sel_videos', []);
+    }
+
+
+    protected function persistSelecionados(): void
+    {
+        // normaliza: únicos e sem vazios
+        $this->selecionados = array_values(array_unique(array_filter($this->selecionados)));
+        Session::put('sel_videos', $this->selecionados);
+    }
+
+    public function add(string $videoId): void
+    {
+        if (!in_array($videoId, $this->selecionados, true)) {
+            $this->selecionados[] = $videoId;
+            $this->persistSelecionados(); // já salva na sessão
         }
     }
+
+
+
+
+    public function clearSelecionados(): void
+    {
+        $this->selecionados = [];
+        $this->comentarios  = [];
+        Session::forget('sel_videos');
+    }
+
+    public function removeSelecionado(string $videoId): void
+    {
+        $this->selecionados = array_values(array_diff($this->selecionados, [$videoId]));
+        $this->persistSelecionados();
+    }
+
+
+    #[Computed]
+    public function getSessaoVideosProperty33333333333333(): array
+    {
+        $idsSessao = \Illuminate\Support\Facades\Session::get('sel_videos', []);
+        if (empty($idsSessao)) return [];
+
+        // cache local da busca atual
+        $cacheAtual = collect($this->buscas ?? [])->keyBy('videoId');
+
+        $prontos = [];
+        $faltantes = [];
+
+        foreach ($idsSessao as $id) {
+            if ($cacheAtual->has($id)) {
+                $prontos[] = $cacheAtual->get($id);
+            } else {
+                $faltantes[] = $id;
+            }
+        }
+
+        if (!empty($faltantes)) {
+            $mais = $this->fetchVideosByIds($faltantes);
+            $prontos = array_merge($prontos, $mais);
+        }
+
+        // manter a ordem dos IDs na sessão
+        $byId = collect($prontos)->keyBy('videoId');
+        return collect($idsSessao)->map(fn($id) => $byId->get($id))->filter()->values()->toArray();
+    }
+    
+    
+    public function addVideoByInput(): void
+    {
+        $input = trim($this->addInput);
+        if ($input === '') return;
+
+        #$id = null;
+        $id = $this->parseVideoId($input);
+
+
+        if (preg_match('~(?:v=|youtu\.be/)([A-Za-z0-9_-]{11})~', $input, $m)) {
+            $id = $m[1];
+        } elseif (preg_match('~^[A-Za-z0-9_-]{11}$~', $input)) {
+            $id = $input;
+        }
+
+        if ($id && !in_array($id, $this->selecionados, true)) {
+            $this->selecionados[] = $id;
+            $this->persistSelecionados();
+        }
+
+        // limpa o campo após adicionar
+        $this->addInput = '';
+    }
+
 
     public function buscarComentarios()
     {
+        $this->selecionados = Session::get('sel_videos', $this->selecionados);
         $this->comentarios = [];
 
-        foreach ($this->selecionados as $videoId) {
-            $comentarios = $this->getAllComentarios($videoId);
+        $storage = app(YoutubeStorage::class);
 
-            // Ordena do mais antigo para o mais recente (se houver publishedAt)
-            $ordenados = collect($comentarios)->sortBy(function ($c) {
-                return $c['publishedAt'] ?? now(); // fallback pra não dar erro
-            })->values()->toArray();
+        // (1) registra/recupera a busca atual
+        $busca = $storage->upsertBusca($this->query ?? '(manual)');
 
-            $this->comentarios[$videoId] = $ordenados;
+        foreach ($this->selecionados as &$vid) {
+            $vid = $this->parseVideoId($vid) ?: $vid;
         }
 
-        #dd($this->comentarios);
+        foreach ($this->selecionados as $videoId) {
+            // (2) garantir canal + vídeo no BD
+            $raw = $this->getVideoInfo($videoId); // sua função já existente
+            // mapeia canal
+            $canal = $storage->upsertCanal([
+                'cod'        => $raw['channelId'],               // UC...
+                'nome'       => $raw['channelTitle'] ?? null,
+                'youtube_id' => $raw['channelHandle'] ?? null,   // se tiver
+                'links'      => [
+                    'yt'    => "https://www.youtube.com/channel/{$raw['channelId']}",
+                    'vidiq' => "https://vidiq.com/youtube-stats/channel/{$raw['channelId']}",
+                ],
+                'inscritos'  => $raw['channelSubs'] ?? null,
+                'views'      => $raw['channelViews'] ?? null,
+                'videos'     => $raw['channelVideos'] ?? null,
+                'dt'         => now(),
+                'categ'      => $raw['channelCategory'] ?? null,
+                'min'        => $raw['monet_min'] ?? null,
+                'max'        => $raw['monet_max'] ?? null,
+                'engagement' => $raw['engagement'] ?? null,
+                'frequency'  => $raw['upload_frequency'] ?? null,
+                'length'     => $raw['avg_length'] ?? null,
+            ], $busca);
+
+            // mapeia vídeo
+            $video = $storage->upsertVideo($canal, [
+                'cod'        => $videoId,
+                'nome'       => $raw['title'] ?? null,
+                'desc'       => $raw['description'] ?? null,
+                'keywords'   => $raw['keywords'] ?? null,
+                'comments'   => $raw['commentCount'] ?? null,
+                'likes'      => $raw['likeCount'] ?? null,
+                'views'      => $raw['viewCount'] ?? null,
+                'duration'   => $raw['duration_seconds'] ?? null,
+                'lang'       => $raw['lang'] ?? null,
+                'dt'         => $raw['publishedAt'] ?? null,
+            ], $busca);
+
+            // (3) coletar comentários e ordenar
+            $comentarios = $this->getAllComentarios($videoId); // precisa devolver 'cod'
+            $ordenados = collect($comentarios)
+                ->sortBy(fn($c) => $c['dt'] ?? $c['publishedAt'] ?? now())
+                ->values()
+                ->toArray();
+
+            // (4) persistir
+            $storage->upsertComentarios($video, array_map(function ($c) {
+                return [
+                    'cod'      => $c['id'] ?? $c['cod'] ?? null, // commentId
+                    'user'     => $c['author'] ?? $c['user'] ?? null,
+                    'texto'    => $c['text'] ?? $c['texto'] ?? null,
+                    'likes'    => $c['likeCount'] ?? $c['likes'] ?? null,
+                    'dislikes' => $c['dislikes'] ?? null,
+                    'dt'       => $c['publishedAt'] ?? $c['dt'] ?? null,
+                    'tox'      => $c['tox'] ?? null,
+                ];
+            }, $ordenados));
+
+            // (5) exibir no componente
+            $this->comentarios[$videoId] = $ordenados;
+        }
     }
 
+
+
+
+
+
+
+    protected function getVideoInfo(string $videoId): array
+    {
+        $apiKey = env('YOUTUBE_API_KEY');
+
+        // 1) Dados do vídeo
+        $urlVideo = 'https://www.googleapis.com/youtube/v3/videos?' . http_build_query([
+            'key'   => $apiKey,
+            'id'    => $videoId,
+            'part'  => 'snippet,statistics,contentDetails', // o necessário
+            // topicDetails/etc. não é essencial aqui
+        ]);
+
+        $respV = @file_get_contents($urlVideo);
+        $jV    = json_decode($respV, true);
+        $item  = $jV['items'][0] ?? null;
+        if (!$item) return [];
+
+        $snip    = $item['snippet'] ?? [];
+        $stats   = $item['statistics'] ?? [];
+        $details = $item['contentDetails'] ?? [];
+
+        $channelId    = $snip['channelId'] ?? null;
+        $channelTitle = $snip['channelTitle'] ?? null;
+
+        // 2) Dados do canal (para inscritos/views totais, país etc.)
+        $ch = [];
+        if ($channelId) {
+            $urlCh = 'https://www.googleapis.com/youtube/v3/channels?' . http_build_query([
+                'key'  => $apiKey,
+                'id'   => $channelId,
+                'part' => 'snippet,statistics,brandingSettings,contentDetails',
+            ]);
+            $respC = @file_get_contents($urlCh);
+            $jC    = json_decode($respC, true);
+            $chI   = $jC['items'][0] ?? null;
+
+            if ($chI) {
+                $chSnip  = $chI['snippet'] ?? [];
+                $chStats = $chI['statistics'] ?? [];
+                $branding = $chI['brandingSettings']['channel'] ?? [];
+
+                $ch = [
+                    'channelSubs'    => isset($chStats['subscriberCount']) ? (int)$chStats['subscriberCount'] : null,
+                    'channelViews'   => isset($chStats['viewCount']) ? (int)$chStats['viewCount'] : null,
+                    'channelVideos'  => isset($chStats['videoCount']) ? (int)$chStats['videoCount'] : null,
+                    'channelCategory' => $chSnip['country'] ?? null, // usa país como proxy de "categoria/local"
+                    'channelHandle'  => $branding['unsubscribedTrailer'] ?? null, // não há handle oficial aqui; deixa null
+                ];
+            }
+        }
+
+        // 3) Monta retorno no formato esperado pelo storage
+        return array_merge([
+            'channelId'        => $channelId,
+            'channelTitle'     => $channelTitle,
+            'title'            => $snip['title'] ?? null,
+            'description'      => $snip['description'] ?? null,
+            'keywords'         => null, // a API não entrega keywords de SEO; deixe null
+            'commentCount'     => isset($stats['commentCount']) ? (int)$stats['commentCount'] : null,
+            'likeCount'        => isset($stats['likeCount']) ? (int)$stats['likeCount'] : null,
+            'viewCount'        => isset($stats['viewCount']) ? (int)$stats['viewCount'] : null,
+            'duration_seconds' => $this->ISO8601ToSeconds($details['duration'] ?? null),
+            'lang'             => $snip['defaultAudioLanguage'] ?? ($snip['defaultLanguage'] ?? null),
+            'publishedAt'      => $snip['publishedAt'] ?? null,
+            // campos específicos seus (quando não vindos da API, deixam-se null)
+            'monet_min'        => null,
+            'monet_max'        => null,
+            'engagement'       => null,
+            'upload_frequency' => null,
+            'avg_length'       => null,
+        ], $ch);
+    }
+
+
+
+
+
+
+
+
+    // Tarefa1.php (dentro da classe)
+
+    protected function fetchVideosByIds444444444444444444(array $ids): array
+    {
+        $ids = array_values(array_unique(array_filter($ids)));
+        if (empty($ids)) return [];
+
+        $apiKey = env('YOUTUBE_API_KEY');
+        $chunks = array_chunk($ids, 50); // API permite até 50 IDs por chamada
+        $out = [];
+
+        foreach ($chunks as $pack) {
+            $url = "https://www.googleapis.com/youtube/v3/videos"
+                . "?part=snippet,statistics,contentDetails&id=" . implode(',', $pack)
+                . "&key={$apiKey}";
+
+            $resp = @file_get_contents($url);
+            if ($resp === false) continue;
+
+            $json  = json_decode($resp, true);
+            $items = $json['items'] ?? [];
+
+            foreach ($items as $v) {
+                $id      = $v['id'] ?? null;
+                $snip    = $v['snippet'] ?? [];
+                $stats   = $v['statistics'] ?? [];
+                $details = $v['contentDetails'] ?? [];
+
+                $out[] = [
+                    'videoId'   => $id,
+                    'title'     => $snip['title'] ?? '',
+                    'channel'   => $snip['channelTitle'] ?? '',
+                    'published' => $snip['publishedAt'] ?? '',
+                    'thumbnail' => $snip['thumbnails']['default']['url'] ?? '',
+                    'views'     => $stats['viewCount'] ?? null,
+                    'likes'     => $stats['likeCount'] ?? null,
+                    'comments'  => $stats['commentCount'] ?? 0,
+                    'duration'  => $this->ISO8601ToSeconds($details['duration'] ?? null),
+                ];
+            }
+        }
+
+        return $out;
+    }
+
+
+
+
     // No componente Tarefa1
-    public function getIrProperty()
+    public function getIrProperty3333333333333()
     {
         // indexa buscas por videoId para pegar o total de comentários
         $buscasById = collect($this->buscas)->keyBy('videoId');
@@ -64,61 +348,25 @@ class Tarefa1 extends Component
         return $map; // acessível na blade como $this->ir
     }
 
+    
 
 
-
-    function nlp(string $texto): ?float
+    protected function parseVideoId(string $ref): ?string
     {
-        if (empty(trim($texto))) return null;
+        $ref = trim($ref);
+        // aceita 3 formatos: ID cru, youtu.be/ID, ...watch?v=ID...
+        if (preg_match('~^[A-Za-z0-9_-]{11}$~', $ref)) return $ref;
 
-        $url = 'https://api.gotit.ai/NLU/v1.5/Analyze';
-        $basic = env('GOTIT_API_KEY') . ':' . env('GOTIT_SECRET_KEY');
+        // youtu.be/ID
+        if (preg_match('~youtu\.be/([A-Za-z0-9_-]{11})~i', $ref, $m)) return $m[1];
 
-        $payload = json_encode([
-            "T" => $texto,
-            "S" => true,
-            "EM" => true,
-        ]);
+        // watch?v=ID  (pega exatamente 11 chars após v=)
+        if (preg_match('~[?&]v=([A-Za-z0-9_-]{11})~i', $ref, $m)) return $m[1];
 
-        $headers = [
-            "Content-Type: application/json",
-            "Authorization: Basic " . base64_encode($basic),
-        ];
+        // fallback (últimos 11 que parecem ID)
+        if (preg_match('~([A-Za-z0-9_-]{11})$~', $ref, $m)) return $m[1];
 
-        $ch = curl_init($url);
-
-        curl_setopt_array($ch, [
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_POST => true,
-            CURLOPT_POSTFIELDS => $payload,
-            CURLOPT_HTTPHEADER => $headers,
-            CURLOPT_CONNECTTIMEOUT => 5,
-            CURLOPT_SSL_VERIFYHOST => 0,
-            CURLOPT_SSL_VERIFYPEER => 0,
-        ]);
-
-        $result = curl_exec($ch);
-
-        #dd($result);
-
-        if (curl_errno($ch)) {
-            dd('Erro cURL NLP: ' . curl_error($ch));
-            curl_close($ch);
-            return null;
-        }
-
-        curl_close($ch);
-
-        $res = json_decode($result, true);
-
-
-        if (!is_array($res) || empty($res['sentiment']['score'])) {
-            dump($res);
-            dd('Resposta inválida da API NLP');
-            return null;
-        }
-
-        return round($res['sentiment']['score'], 2) ?? null;
+        return null;
     }
 
 
@@ -128,42 +376,56 @@ class Tarefa1 extends Component
         $url = "https://www.googleapis.com/youtube/v3/commentThreads";
 
         $params = [
-            'key' => env('YOUTUBE_API_KEY'),
-            'part' => 'snippet',
+            'key'        => env('YOUTUBE_API_KEY'),
+            'part'       => 'snippet',
             'maxResults' => 100,
-            'videoId' => $videoId,
+            'videoId'    => $videoId,
+            'textFormat' => 'plainText',
+            'order'      => 'time', // opcional
         ];
-
-        if ($pageToken) {
-            $params['pageToken'] = $pageToken;
-        }
+        if ($pageToken) $params['pageToken'] = $pageToken;
 
         $call = $url . '?' . http_build_query($params);
-
-        $response = file_get_contents($call);
+        $response = @file_get_contents($call);
         $data = json_decode($response, true);
 
-        $comentarios = collect($data['items'] ?? [])->map(function ($item) {
-            $snippet = $item['snippet']['topLevelComment']['snippet'];
-            return [
-                'text' => $snippet['textDisplay'],
-                'publishedAt' => $snippet['publishedAt'],
-                'likeCount' => $snippet['likeCount'] ?? 0,
-                'toxicity' => $this->setTox($snippet['textDisplay']), // aqui chamamos o Perspective
+        $lote = collect($data['items'] ?? [])->map(function ($item) {
+            $top = $item['snippet']['topLevelComment'] ?? [];
+            $sn  = $top['snippet'] ?? [];
 
+            // id do comentário top-level:
+            $commentId = $top['id'] ?? null; // preferível
+            if (!$commentId) {
+                // fallback (não deveria precisar):
+                $commentId = $item['id'] ?? null;
+            }
+
+            return [
+                'cod'  => $commentId,                          // <- usado como unique
+                'user' => $sn['authorDisplayName'] ?? null,
+                'texto' => $sn['textDisplay'] ?? '',
+                'likes' => $sn['likeCount'] ?? 0,
+                'dislikes' => null,                            // YT não traz
+                'dt'   => $sn['publishedAt'] ?? null,
+                'tox'  => $this->setTox($sn['textDisplay'] ?? ''), // Perspective
             ];
         })->toArray();
 
         // recursão se houver próxima página
         if (!empty($data['nextPageToken'])) {
             return array_merge(
-                $comentarios,
+                $lote,
                 $this->getAllComentarios($videoId, $data['nextPageToken'])
             );
         }
 
-        return $comentarios;
+        return $lote;
     }
+
+
+
+
+
 
 
     function setTox($txt)
@@ -210,9 +472,6 @@ class Tarefa1 extends Component
             return;
         }
 
-        #dd($res);
-
-        #$tox = round($res['attributeScores']['TOXICITY']['summaryScore']['value'], 3) ?? null;
 
         if (isset($res['attributeScores']['TOXICITY']['summaryScore']['value'])) {
             $tox = round($res['attributeScores']['TOXICITY']['summaryScore']['value'], 3);
@@ -240,7 +499,8 @@ class Tarefa1 extends Component
         $apiKey = env('YOUTUBE_API_KEY');
 
         // 1. Buscar vídeos por termo
-        $url = "https://www.googleapis.com/youtube/v3/search?part=snippet&q=" . urlencode($query) . "&type=video&maxResults=20&key=$apiKey";
+        $url = "https://www.googleapis.com/youtube/v3/search?part=snippet&q=" . 
+        urlencode($query) . "&type=video&maxResults=20&key=$apiKey";
         $response = file_get_contents($url);
         $data = json_decode($response, true);
 
@@ -280,9 +540,6 @@ class Tarefa1 extends Component
                     'likes'      => $stats['likeCount'] ?? null,
                     'comments'   => $stats['commentCount'] ?? 0,
                     'duration'   => $this->ISO8601ToSeconds($duration),
-
-                    #'title_sentiment' => $this->nlp($item['snippet']['title']),
-                    #'description_sentiment' => $this->nlp($item['snippet']['description'] ?? ''),
 
                 ];
             })
