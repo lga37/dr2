@@ -4,6 +4,9 @@
 use Illuminate\Support\Str;
 
 
+
+
+
 function datetimeTZtoDateMysql(string $datetimeTZ)
 {
     $timestamp = new \DateTimeImmutable($datetimeTZ);

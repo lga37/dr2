@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\Canal;
+use App\Models\Tarefa;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Database\Migrations\Migration;
@@ -15,18 +16,19 @@ return new class extends Migration
         Schema::create('monets', function (Blueprint $table) {
             $table->id();
 
-                   
+
             $table->unsignedInteger('vlr')->nullable();
 
             $table->datetime('dt');
             $table->text('obs')->nullable();
 
-            
+
             $table->foreignIdFor(Canal::class);
 
-            $table->unique(['canal_id','dt']);
+            $table->unique(['canal_id', 'dt']);
 
             $table->timestamps();
+            $table->foreignIdFor(Tarefa::class)->nullable();
         });
     }
 

@@ -2,25 +2,32 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 
 class Video extends Model
 {
     use HasFactory;
 
-    // protected $fillable = ['nome','slug','canal_id','busca_id',
-    //     'desc','dt','lang','categ_id','views','likes','dislikes','favorites','comments','duration','caption',
-    // ];
+   
     protected $guarded = [];
 
     // app/Models/Video.php
     protected $casts = [
-        'keywords' => 'array',
-        'parse'    => 'bool',
+        'hashtags' => 'array',
         'dt'       => 'datetime',
     ];
 
+    public function tarefa(): BelongsTo
+    {
+        return $this->belongsTo(Tarefa::class);
+    }
+
+    public function canal(): BelongsTo
+    {
+        return $this->belongsTo(Canal::class);
+    }
 
     # neste caso coloquei comments para nao dar pau aqui na table
     public function comentarios()

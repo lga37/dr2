@@ -1,8 +1,10 @@
 <?php
 
-use Illuminate\Database\Migrations\Migration;
-use Illuminate\Database\Schema\Blueprint;
+use App\Models\Tarefa;
+use App\Models\User;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Database\Migrations\Migration;
 
 return new class extends Migration
 {
@@ -14,9 +16,17 @@ return new class extends Migration
         Schema::create('buscas', function (Blueprint $table) {
             $table->id();
             $table->string('q');
-            $table->string('slug')->unique();
-            $table->boolean('parse')->default(false);
+            $table->string('slug');
+
+            #$table->timestamp('added_by_url_at')->nullable();
+
+            #$table->boolean('parse')->default(false);
+
+            $table->foreignIdFor(Tarefa::class)->nullable();
+
             $table->timestamps();
+
+            $table->unique(['slug', 'tarefa_id']);
         });
     }
 

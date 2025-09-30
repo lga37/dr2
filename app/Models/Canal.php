@@ -2,16 +2,13 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 
 class Canal extends Model
 {
     use HasFactory;
-
-    // protected $fillable = ['nome','slug','busca_id',
-    // 'dt','local','categ',
-    // 'videos','desc','score','inscritos','views','min','max','engagement','frequency','length'];
 
     protected $guarded = [];
 
@@ -24,42 +21,26 @@ class Canal extends Model
     // }
 
 
-    // protected $fillable = [
-    //     'nome',
-    //     'slug',
-    //     'cod',
-    //     'youtube_id',
-    //     'desc',
-    //     'links',
-    //     'parse',
-    //     'verificado',
-    //     'inscritos',
-    //     'views',
-    //     'dt',
-    //     'local',
-    //     'categ',
-    //     'videos',
-    //     'score',
-    //     'min',
-    //     'max',
-    //     'engagement',
-    //     'frequency',
-    //     'length',
-    //     'busca_id'
-    // ];
-
-    // app/Models/Canal.php
     protected $casts = [
-        'links'      => 'array',
-        'parse'      => 'bool',
-        'verificado' => 'bool',
+        'keywords'      => 'array',
         'dt'         => 'date',
     ];
 
 
 
+    public function tarefa(): BelongsTo
+    {
+        return $this->belongsTo(Tarefa::class);
+    }
+    public function busca(): BelongsTo
+    {
+        return $this->belongsTo(Busca::class);
+    }
 
-
+    public function video(): BelongsTo
+    {
+        return $this->belongsTo(Video::class);
+    }
 
     public function videos()
     {
@@ -71,12 +52,6 @@ class Canal extends Model
         return $this->hasMany(Arxiv::class);
     }
 
-
-
-    public function busca()
-    {
-        return $this->belongsTo(Busca::class);
-    }
 
 
     public function scopeSearch($query, $search)

@@ -2,105 +2,653 @@
 
 namespace App\Livewire;
 
+use Log;
+use Carbon\Carbon;
+use App\Traits\Comum;
+use App\Models\Tarefa;
 use Livewire\Component;
-use Livewire\Attributes\Url;
 use Livewire\Attributes\Layout;
-use App\Services\YoutubeStorage;
-use Livewire\Attributes\Computed;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Session;
-
 
 class Tarefa1 extends Component
 {
 
-    public $buscas = []; // para armazenar os vídeos
+    use Comum;
+
+    public $buscas = []; #aqui entra os resultados da busca query
     public array $comentarios = [];
     public array $selecionados = [];
-
     public string $addInput = '';
+    public ?string $maisToxico = null;
+    public array $toxMediaArray = [];   // [videoId => float]
+    public ?string $maisToxicoReal = null; // videoId com maior média (ou null em empate)
+    public ?bool $acertou = null;       // null antes de validar, true/false depois
+    public string $feedback = '';       // textarea
+    public bool $mostrarAvaliacao = false;   // controla a renderização do bloco
+    public bool $mostrarFeedback = false;
 
-    #[Url()]
-    public $query = '';
+
+    public array $chart = [];
+    public array $samples = [];
+    #public array $toxMediaArray = [];
 
 
     public function mount()
     {
-        // carrega seleção persistida
         $this->selecionados = Session::get('sel_videos', []);
-    }
+        $this->comentarios  = Session::get('t1_comentarios', []);
+        $this->maisToxico   = Session::get('tarefa1_mais_toxico');
+        $this->query        = Session::get('t1_query', '');
 
-
-    protected function persistSelecionados(): void
-    {
-        // normaliza: únicos e sem vazios
-        $this->selecionados = array_values(array_unique(array_filter($this->selecionados)));
-        Session::put('sel_videos', $this->selecionados);
-    }
-
-    public function add(string $videoId): void
-    {
-        if (!in_array($videoId, $this->selecionados, true)) {
-            $this->selecionados[] = $videoId;
-            $this->persistSelecionados(); // já salva na sessão
+        // Se havia uma query, tenta reidratar resultados do cache de 1 dia
+        if ($this->query !== '') {
+            $cacheKey = 'yt:search:v2:' . md5(mb_strtolower($this->query));
+            $this->buscas = Cache::get($cacheKey, []);
+            // fallback: se não tiver no cache, refaz a busca (usa sua função já cacheada)
+            if (!$this->buscas) {
+                $this->buscas = $this->getVideos(false);
+            }
         }
+
+        $this->montarGraficoComentarios($this->selecionados);
+
+        #dd($this->chart);
     }
 
 
+
+    function getTipoTarefa(): string
+    {
+        return 't1';
+    }
+
+
+    public function salvarFeedback(): void
+    {
+
+        $tarefa_id = $this->getTarefaId();
+
+        $dados = [
+            'feedback'          => $this->feedback,
+            'tox_media'         => Session::get('t1_result')['tox_media'],
+            'mais_toxico'       => Session::get('t1_result')['mais_toxico'],
+            'mais_toxico_real'  => Session::get('t1_result')['mais_toxico_real'],
+            'acertou'           => Session::get('t1_result')['acertou'],
+
+        ];
+        $status             = 1;
+        $finished_at        = now();
+
+        $t = Tarefa::find($tarefa_id)->update(compact('dados', 'status', 'finished_at'));
+
+        $msg = $t ? 'Obrigado! Sua tarefa #' . $tarefa_id . ' foi concluída COM SUCESSO.' : 'Erro ao completar tarefa #' . $tarefa_id;
+
+        $this->clearSelecionados();
+        $this->msg($msg, 'info');
+
+        #dd($t);
+    }
 
 
     public function clearSelecionados(): void
     {
-        $this->selecionados = [];
+        // Volta as props aos valores default declarados na classe
+        $this->reset([
+            'buscas',
+            'comentarios',
+            'selecionados',
+            'addInput',
+            'maisToxico',
+            'toxMediaArray',
+            'maisToxicoReal',
+            'acertou',
+            'feedback',
+            'mostrarAvaliacao',
+            'mostrarFeedback',
+            'query',
+        ]);
+
+        #$this->tarefa = null;  // se quiser limpar o objeto em memória
+        #$this->forget('T1');
+
+        // limpa caches de tela
+        Session::forget([
+            'sel_videos',
+            't1_comentarios',
+            'tarefa1_mais_toxico',
+            't1_query',            // aproveita e zera a query salva
+        ]);
+    }
+
+
+    public function escolherMaisToxico(string $videoId): void
+    {
+        if (!isset($this->selecionados[$videoId])) return;
+
+        $this->maisToxico = $videoId;
+        Session::put('tarefa1_mais_toxico', $videoId);
+
+        $this->acertou = null;
+    }
+
+
+
+    public function validarTarefa1()
+    {
+        $this->selecionados = Session::get('sel_videos', $this->selecionados);
         $this->comentarios  = [];
-        Session::forget('sel_videos');
+        $this->mostrarFeedback = true;
+
+        if (!$this->maisToxico) {
+            $this->msg('Vc deve selecionar um registro');
+            return;
+        }
+        // reset do cache desta tela (opcional)
+        Session::forget('t1_comentarios');
+        $sessComentarios = [];
+        $tarefa = $this->getTarefa();
+
+        $this->montarGraficoComentarios($this->selecionados);
+
+        foreach ($this->selecionados as $videoId => $raw) {
+            $q = $raw['busca'] ?? '[erro]';
+            $buscaBD = $this->upsertBusca($q, $tarefa);
+            #dump($buscaBD);
+
+            #dd($raw);
+
+            $ch = [
+                'youtube_id' => $raw['channelId'],
+                'nome'       => $raw['channelTitle'] ?? null,
+                'keywords'   => $raw['channelKeywords'] ?? [],
+                'handle'     => $raw['channelHandle'] ?? null,
+                'inscritos'  => $raw['channelSubs'] ?? null,
+                'views'      => $raw['channelViews'] ?? null,
+                'videos'     => $raw['channelVideos'] ?? null,
+                'dt'         => $raw['channelDt'] ?? null,
+                'local'      => $raw['channelCountry'] ?? null,
+                #'categ'      => $raw['channelCategory'] ?? null,
+                'desc'       => $raw['channelDesc'] ?? null,
+            ];
+
+            $canalBD = $this->upsertCanal($ch, $tarefa, $buscaBD);
+            #dump($canalBD);
+
+            $vd = [
+                'cod'      => $raw['videoId'],
+                'nome'     => $raw['videoTitle'] ?? null,
+                'desc'     => $raw['videoDesc'] ?? null,
+                'hashtags' => $raw['videoTags'] ?? [],
+                'comments' => $raw['commentCount'] ?? null,
+                'likes'    => $raw['likeCount'] ?? null,
+                'views'    => $raw['viewCount'] ?? null,
+
+                'duration' => $raw['duration'] ?? null,
+                'lang'     => $raw['lang'] ?? null,
+                'dt'       => $raw['published'] ?? null,
+                'categ_id' => $raw['videoCategId'] ?? null,
+            ];
+
+            #dump($vd);
+            $videoBD = $this->upsertVideo($vd, $tarefa, $canalBD, $buscaBD);
+
+            #$comentarios = $this->getAllComments($videoId, $raw['commentCount'], $raw['published']);
+
+            dd($this->chart);
+
+            #$this->carregarComentarios($videoId, $raw['commentCount'], $raw['published']);
+            #dd($comentarios);
+
+            foreach ($comentarios as $comm) {
+                $commBD = $this->upsertComentario($comm, $videoBD, $tarefa);
+                #dump($commBD);
+            }
+
+            $ordenados = collect($comentarios)
+                ->filter(fn($c) => !empty($c['cod']))
+                ->sortBy(fn($c) => $c['dt'])
+                ->values()
+                ->toArray();
+
+            $this->comentarios[$videoId] = $ordenados;
+            $sessComentarios[$videoId] = $ordenados;
+        }
+        // salva tudo na sessão (1 gravação só)
+        Session::put('t1_comentarios', $sessComentarios);
+
+        $this->recalcularMedias();
+        $this->maisToxicoReal = $this->pickMaisToxico($this->toxMediaArray);
+
+        $this->acertou = ($this->maisToxicoReal && $this->maisToxico)
+            ? $this->maisToxicoReal === $this->maisToxico
+            : false;
+
+        #dd($this->acertou);
+
+        Session::put('t1_result', [
+            'selecionados'      => $this->selecionados,
+            'tox_media'         => $this->toxMediaArray,
+            'mais_toxico'       => $this->maisToxico,
+            'mais_toxico_real'  => $this->maisToxicoReal,
+            'acertou'           => $this->acertou,
+            'comentarios'       => $this->comentarios,
+            'buscas'            => $this->buscas,
+
+        ]);
     }
 
-    public function removeSelecionado(string $videoId): void
+
+
+
+
+
+
+    /**
+     * Pontos para o gráfico com X absoluto:
+     * - x = dias desde $globalStart (inteiro)
+     * - y = tox (%) 0..100
+     * - label = 15 primeiros chars
+     * Também retorna:
+     * - videoStartDay: dia do upload do vídeo (desde o globalStart)
+     * - videoEndDay:   último dia com comentário (ou today), desde o globalStart
+     */
+    protected function buildPointsForVideoAbs(array $comments, string $uploadAtIso, string $globalStartIso): array
     {
-        $this->selecionados = array_values(array_diff($this->selecionados, [$videoId]));
-        $this->persistSelecionados();
+        $globalStart = Carbon::parse($globalStartIso)->startOfDay();
+        $upload      = Carbon::parse($uploadAtIso)->startOfDay();
+
+        $pts = [];
+        $minDay = PHP_INT_MAX;
+        $maxDay = PHP_INT_MIN;
+
+        $videoStartDay = max(0, $globalStart->diffInDays($upload));
+        $lastDate = $upload;
+
+        foreach ($comments as $c) {
+            $tox = $c['tox'] ?? null;
+            $dt  = $c['dt']  ?? null;
+            if (!is_numeric($tox) || !$dt) continue;
+
+            $d   = Carbon::parse($dt)->startOfDay();
+            $day = max(0, $globalStart->diffInDays($d));
+
+            $minDay = min($minDay, $day);
+            $maxDay = max($maxDay, $day);
+            if ($d->gt($lastDate)) $lastDate = $d;
+
+            $pts[] = [
+                'x'     => $day,
+                'y'     => round(((float)$tox) * 100, 2),
+                'label' => mb_substr(trim((string)($c['texto'] ?? '')), 0, 15),
+            ];
+        }
+
+        if ($minDay === PHP_INT_MAX) {
+            $minDay = $videoStartDay;
+            $maxDay = $videoStartDay;
+        }
+        $videoEndDay = max($videoStartDay, $globalStart->diffInDays($lastDate));
+
+        return [
+            'points'        => $pts,
+            'minDay'        => $minDay,
+            'maxDay'        => $maxDay,
+            'videoStartDay' => $videoStartDay,
+            'videoEndDay'   => $videoEndDay,
+        ];
     }
 
 
-    #[Computed]
-    public function getSessaoVideosProperty33333333333333(): array
+
+    public function montarGraficoComentarios(array $videos)
     {
-        $idsSessao = \Illuminate\Support\Facades\Session::get('sel_videos', []);
-        if (empty($idsSessao)) return [];
+        // menor published entre os vídeos = início global do eixo X
+        $globalStart = collect($videos)->min(fn($v) => $v['published']);
+        $globalMin = PHP_INT_MAX;
+        $globalMax = PHP_INT_MIN;
 
-        // cache local da busca atual
-        $cacheAtual = collect($this->buscas ?? [])->keyBy('videoId');
+        $series = [];
+        foreach ($videos as $vid => $v) {
+            $count = (int) $v['commentCount'];
+            $upIso = $v['published'];
 
-        $prontos = [];
-        $faltantes = [];
+            $buck = $this->getCommentsByBucketsRelevance($vid, $count, $upIso);
+            $all  = $this->flattenCommentsFromBuckets($buck);
 
-        foreach ($idsSessao as $id) {
-            if ($cacheAtual->has($id)) {
-                $prontos[] = $cacheAtual->get($id);
-            } else {
-                $faltantes[] = $id;
+            $this->samples[$vid] = $this->sampleComments($all, 20);
+            $avg = $this->toxMedia($all);
+            $this->toxMediaArray[$vid] = $avg;
+
+            $built = $this->buildPointsForVideoAbs($all, $upIso, $globalStart);
+
+            $series[$vid] = [
+                'points'        => $built['points'],
+                'avg'           => $avg !== null ? round($avg * 100, 2) : null,
+                'min'           => $built['minDay'],
+                'max'           => $built['maxDay'],
+                'startDay'      => $built['videoStartDay'],
+                'endDay'        => $built['videoEndDay'],
+                'title'         => $v['title'] ?? $vid,
+            ];
+
+            $globalMin = min($globalMin, $built['minDay']);
+            $globalMax = max($globalMax, $built['maxDay']);
+        }
+        if ($globalMin === PHP_INT_MAX) {
+            $globalMin = 0;
+            $globalMax = 0;
+        }
+
+        $this->chart = [
+            'globalStart' => $globalStart, // ISO — usaremos para formatar ticks
+            'min'         => $globalMin,
+            'max'         => $globalMax,
+            'series'      => $series,
+        ];
+    }
+
+
+
+    ##############################################################
+
+
+
+    /** Junta todos os itens dos buckets de um vídeo. */
+    protected function flattenCommentsFromBuckets(array $bucketed): array
+    {
+        $all = [];
+        foreach ($bucketed as $b) {
+            foreach (($b['items'] ?? []) as $it) $all[] = $it;
+        }
+        return $all;
+    }
+
+    /** Amostra N comentários aleatórios e estáveis (embaralha e pega N). */
+    protected function sampleComments(array $comments, int $n = 20): array
+    {
+        if (count($comments) <= $n) return $comments;
+        $idx = array_rand($comments, $n);
+        if (!is_array($idx)) $idx = [$idx];
+        return array_values(array_intersect_key($comments, array_flip($idx)));
+    }
+
+    /** Média de toxicidade (0..1) de um conjunto de comentários. */
+    protected function toxMedia(array $comments): ?float
+    {
+        $vals = array_values(array_filter(
+            array_map(fn($c) => $c['tox'] ?? null, $comments),
+            'is_numeric'
+        ));
+        if (!$vals) return null;
+        return array_sum($vals) / count($vals);
+    }
+
+    /**
+     * Mapeia comentários de 1 vídeo para pontos do gráfico:
+     * - x = dias desde o upload (inteiro)
+     * - y = tox em porcentagem (0..100)
+     * - label = primeiros 15 caracteres do comentário
+     * Retorna também minDay/maxDay (para unificar o eixo X entre vídeos).
+     */
+    protected function buildPointsForVideo(array $comments, string $uploadAtIso): array
+    {
+        $upload = Carbon::parse($uploadAtIso)->startOfDay();
+        $pts = [];
+        $minDay = PHP_INT_MAX;
+        $maxDay = PHP_INT_MIN;
+
+        foreach ($comments as $c) {
+            $tox = $c['tox'] ?? null;
+            $dt  = $c['dt']  ?? null;
+            if (!is_numeric($tox) || !$dt) continue;
+
+            $d   = Carbon::parse($dt)->startOfDay();
+            $day = max(0, $upload->diffInDays($d));  // D+0, D+1, ...
+            $minDay = min($minDay, $day);
+            $maxDay = max($maxDay, $day);
+
+            $label = mb_substr(trim((string)($c['texto'] ?? '')), 0, 15);
+
+            $pts[] = [
+                'x'     => $day,
+                'y'     => round(((float)$tox) * 100, 2), // %
+                'label' => $label,
+            ];
+        }
+
+        if ($minDay === PHP_INT_MAX) {
+            $minDay = 0;
+            $maxDay = 0;
+        }
+
+        return ['points' => $pts, 'minDay' => $minDay, 'maxDay' => $maxDay];
+    }
+
+
+    protected function getCommentsByBucketsRelevance(
+        string $videoId,
+        int $commentCount,
+        string $uploadAtIso,
+        int $perBucket = 100,      // normalmente 100
+        bool $withTox = true,
+        bool $forceRefresh = false
+        ): array {
+        $videoId = trim($videoId);
+        if ($videoId === '' || $commentCount < 0) return [];
+
+        $apiKey  = env('YOUTUBE_API_KEY');
+        $baseCT  = 'https://www.googleapis.com/youtube/v3/commentThreads';
+
+        $uploadAt = Carbon::parse($uploadAtIso);
+        $now      = now();
+
+        // 1) Quantos buckets/páginas (régua por contagem)
+        $pages = 1;
+        if ($commentCount > 500 && $commentCount <= 2000)       $pages = 2;
+        elseif ($commentCount <= 5000)                          $pages = 3;
+        elseif ($commentCount <= 10000)                         $pages = 4;
+        elseif ($commentCount > 10000)                          $pages = 5;
+
+        // 2) Cache diário
+        $cacheKey = sprintf(
+            'yt:comments:buckets:relevance:v1:%s:%s:%d:%d:%d',
+            $videoId,
+            $uploadAt->toDateString(),
+            $pages,
+            $perBucket,
+            (int) floor($now->timestamp / 86400)
+        );
+        if (!$forceRefresh && Cache::has($cacheKey)) {
+            return Cache::get($cacheKey);
+        }
+
+        // 3) Janelas temporais iguais (uploadAt..now), tamanho = $pages
+        $windows = [];
+        $totalSec = max(1, $uploadAt->diffInSeconds($now));
+        for ($i = 0; $i < $pages; $i++) {
+            $start = $uploadAt->copy()->addSeconds((int) floor($totalSec * ($i / $pages)));
+            $end   = $uploadAt->copy()->addSeconds((int) floor($totalSec * (($i + 1) / $pages)));
+            $windows[] = ['after' => $start, 'before' => $end];
+        }
+
+        // 4) Coletar N páginas por relevância (≈100 por página)
+        $order     = 'relevance';
+        $pageSize  = 100;
+        $nextToken = null;
+        $seen      = [];
+        $col       = [];
+
+        for ($p = 0; $p < $pages; $p++) {
+            $params = [
+                'key'        => $apiKey,
+                'part'       => 'snippet',
+                'maxResults' => $pageSize,
+                'videoId'    => $videoId,
+                'textFormat' => 'plainText',
+                'order'      => $order,
+            ];
+            if ($nextToken) $params['pageToken'] = $nextToken;
+
+            $url = $baseCT . '?' . http_build_query($params);
+            Log::info('YT API (relevance, page ' . ($p + 1) . '): ' . $url);
+
+            $resp  = file_get_contents($url);
+            if ($resp === false) break;
+
+            $data  = json_decode($resp ?: '[]', true);
+            $items = $data['items'] ?? [];
+            if (!$items) break;
+
+            foreach ($items as $it) {
+                $top = $it['snippet']['topLevelComment'] ?? [];
+                $sn  = $top['snippet'] ?? [];
+                $cid = $top['id'] ?? ($it['id'] ?? null);
+                if (!$cid || isset($seen[$cid])) continue;
+                $seen[$cid] = true;
+
+                $dtIso = $sn['publishedAt'] ?? null;
+                if (!$dtIso) continue;
+
+                $txt   = (string)($sn['textDisplay'] ?? '');
+                $plain = strip_tags($txt);
+
+                $col[] = [
+                    'cod'      => $cid,
+                    'username' => $sn['authorDisplayName'] ?? null,
+                    'texto'    => $plain,
+                    'likes'    => (int)($sn['likeCount'] ?? 0),
+                    'dt'       => $dtIso,
+                    'tox'      => $withTox ? $this->setTox($plain) : null,
+                ];
+            }
+
+            $nextToken = $data['nextPageToken'] ?? null;
+            if (!$nextToken) break;
+        }
+
+        // 5) Particionar por janela e ordenar cronologicamente dentro do bucket
+        $bucketRows = array_fill(0, $pages, []);
+        foreach ($col as $row) {
+            $dt = Carbon::parse($row['dt']);
+            $idx = null;
+            foreach ($windows as $i => $w) {
+                if ($dt->gte($w['after']) && $dt->lt($w['before'])) {
+                    $idx = $i;
+                    break;
+                }
+            }
+            if ($idx === null) $idx = $pages - 1; // bordas vão pro último
+            $bucketRows[$idx][] = $row;
+        }
+
+        $out = [];
+        for ($i = 0; $i < $pages; $i++) {
+            // ordena por tempo asc
+            usort($bucketRows[$i], fn($a, $b) => strcmp($a['dt'] ?? '', $b['dt'] ?? ''));
+            // garante até $perBucket por janela (se vier menos que 100, tudo bem)
+            $items = array_slice($bucketRows[$i], 0, $perBucket);
+
+            $out[] = [
+                'bucket'          => $i + 1,
+                'publishedAfter'  => $windows[$i]['after']->toIso8601String(),
+                'publishedBefore' => $windows[$i]['before']->toIso8601String(),
+                'items'           => array_values($items),
+            ];
+        }
+
+        Cache::put($cacheKey, $out, now()->addDay());
+        return $out;
+    }
+
+
+    #############################################################################
+    protected function recalcularMedias(): void
+    {
+        $medias = [];
+        foreach ($this->comentarios as $vid => $lista) {
+            // aceita chave 'tox' ou 'toxicity', dependendo de onde veio
+            $avg = collect($lista)
+                ->map(function ($c) {
+                    return $c['tox'] ?? null;
+                })
+                ->filter(fn($v) => is_numeric($v))
+                ->avg();
+
+            $medias[$vid] = is_numeric($avg) ? (float) $avg : null;
+        }
+        $this->toxMediaArray = $medias;
+    }
+
+    protected function pickMaisToxico(array $medias): ?string
+    {
+        // mantém só valores numéricos
+        $valid = array_filter($medias, static fn($v) => is_numeric($v));
+        if (!$valid)
+            return null; // sem dados
+
+        $max = max($valid);
+        $EPS = 1e-9; // tolerância para ponto flutuante
+
+        // devolve o PRIMEIRO id (na ORDEM ORIGINAL) que atinge o máximo
+        foreach ($medias as $id => $v) {
+            if (is_numeric($v) && abs($v - $max) <= $EPS) {
+                return $id;
             }
         }
 
-        if (!empty($faltantes)) {
-            $mais = $this->fetchVideosByIds($faltantes);
-            $prontos = array_merge($prontos, $mais);
-        }
-
-        // manter a ordem dos IDs na sessão
-        $byId = collect($prontos)->keyBy('videoId');
-        return collect($idsSessao)->map(fn($id) => $byId->get($id))->filter()->values()->toArray();
+        $this->msg('Erro nao achou o video mais toxico', 'error');
+        return false;
     }
-    
-    
+
+    public function add(string $videoId): void
+    {
+        if (!isset($this->selecionados[$videoId])) {
+            $tem = false;
+            foreach ($this->buscas as $reg_video_canal) {
+                if ($reg_video_canal['videoId'] == $videoId) {
+                    $data = $reg_video_canal;
+                    $tem = true;
+                    break;
+                }
+            }
+            if (!$tem) {
+                $data = $this->hydrateSingleVideo($videoId);
+            }
+            if (is_array($data) && !empty($data)) {
+                $this->selecionados[$videoId] = $data;
+                $this->persistSelecionados();
+                $this->msg('Registro ' . $videoId . ' adicionado corretamente', 'success');
+            }
+        } else {
+            $this->msg('Nao adicionado pois já consta', 'error');
+        }
+    }
+
+
+    #comum
+    protected function persistSelecionados(): void
+    {
+
+        $this->selecionados = array_filter(
+            $this->selecionados,
+            static fn($value, $key) => is_string($key) && is_array($value) && !empty($value),
+            ARRAY_FILTER_USE_BOTH
+        );
+
+        if (empty($this->selecionados)) {
+            Session::forget('sel_videos');
+        } else {
+            Session::put('sel_videos', $this->selecionados);
+        }
+    }
+
     public function addVideoByInput(): void
     {
         $input = trim($this->addInput);
         if ($input === '') return;
 
-        #$id = null;
         $id = $this->parseVideoId($input);
-
 
         if (preg_match('~(?:v=|youtu\.be/)([A-Za-z0-9_-]{11})~', $input, $m)) {
             $id = $m[1];
@@ -109,330 +657,34 @@ class Tarefa1 extends Component
         }
 
         if ($id && !in_array($id, $this->selecionados, true)) {
-            $this->selecionados[] = $id;
-            $this->persistSelecionados();
+            $this->add($id);
         }
 
-        // limpa o campo após adicionar
         $this->addInput = '';
     }
 
 
-    public function buscarComentarios()
+
+    public function avaliarVideos(): void
     {
-        $this->selecionados = Session::get('sel_videos', $this->selecionados);
-        $this->comentarios = [];
+        // Se quiser, dá pra exigir pelo menos 2 vídeos:
+        if (count($this->selecionados) < 2)
+            return;
 
-        $storage = app(YoutubeStorage::class);
+        $this->mostrarAvaliacao = true;
+        $this->comentarios  = [];
+        $this->maisToxico = null;
+        #$this->toxMediaArray = [];   // [videoId => float]
 
-        // (1) registra/recupera a busca atual
-        $busca = $storage->upsertBusca($this->query ?? '(manual)');
+        Session::forget(['t1_comentarios', 'tarefa1_mais_toxico']); // limpa ambos
 
-        foreach ($this->selecionados as &$vid) {
-            $vid = $this->parseVideoId($vid) ?: $vid;
-        }
-
-        foreach ($this->selecionados as $videoId) {
-            // (2) garantir canal + vídeo no BD
-            $raw = $this->getVideoInfo($videoId); // sua função já existente
-            // mapeia canal
-            $canal = $storage->upsertCanal([
-                'cod'        => $raw['channelId'],               // UC...
-                'nome'       => $raw['channelTitle'] ?? null,
-                'youtube_id' => $raw['channelHandle'] ?? null,   // se tiver
-                'links'      => [
-                    'yt'    => "https://www.youtube.com/channel/{$raw['channelId']}",
-                    'vidiq' => "https://vidiq.com/youtube-stats/channel/{$raw['channelId']}",
-                ],
-                'inscritos'  => $raw['channelSubs'] ?? null,
-                'views'      => $raw['channelViews'] ?? null,
-                'videos'     => $raw['channelVideos'] ?? null,
-                'dt'         => now(),
-                'categ'      => $raw['channelCategory'] ?? null,
-                'min'        => $raw['monet_min'] ?? null,
-                'max'        => $raw['monet_max'] ?? null,
-                'engagement' => $raw['engagement'] ?? null,
-                'frequency'  => $raw['upload_frequency'] ?? null,
-                'length'     => $raw['avg_length'] ?? null,
-            ], $busca);
-
-            // mapeia vídeo
-            $video = $storage->upsertVideo($canal, [
-                'cod'        => $videoId,
-                'nome'       => $raw['title'] ?? null,
-                'desc'       => $raw['description'] ?? null,
-                'keywords'   => $raw['keywords'] ?? null,
-                'comments'   => $raw['commentCount'] ?? null,
-                'likes'      => $raw['likeCount'] ?? null,
-                'views'      => $raw['viewCount'] ?? null,
-                'duration'   => $raw['duration_seconds'] ?? null,
-                'lang'       => $raw['lang'] ?? null,
-                'dt'         => $raw['publishedAt'] ?? null,
-            ], $busca);
-
-            // (3) coletar comentários e ordenar
-            $comentarios = $this->getAllComentarios($videoId); // precisa devolver 'cod'
-            $ordenados = collect($comentarios)
-                ->sortBy(fn($c) => $c['dt'] ?? $c['publishedAt'] ?? now())
-                ->values()
-                ->toArray();
-
-            // (4) persistir
-            $storage->upsertComentarios($video, array_map(function ($c) {
-                return [
-                    'cod'      => $c['id'] ?? $c['cod'] ?? null, // commentId
-                    'user'     => $c['author'] ?? $c['user'] ?? null,
-                    'texto'    => $c['text'] ?? $c['texto'] ?? null,
-                    'likes'    => $c['likeCount'] ?? $c['likes'] ?? null,
-                    'dislikes' => $c['dislikes'] ?? null,
-                    'dt'       => $c['publishedAt'] ?? $c['dt'] ?? null,
-                    'tox'      => $c['tox'] ?? null,
-                ];
-            }, $ordenados));
-
-            // (5) exibir no componente
-            $this->comentarios[$videoId] = $ordenados;
-        }
     }
-
-
-
-
-
-
-
-    protected function getVideoInfo(string $videoId): array
-    {
-        $apiKey = env('YOUTUBE_API_KEY');
-
-        // 1) Dados do vídeo
-        $urlVideo = 'https://www.googleapis.com/youtube/v3/videos?' . http_build_query([
-            'key'   => $apiKey,
-            'id'    => $videoId,
-            'part'  => 'snippet,statistics,contentDetails', // o necessário
-            // topicDetails/etc. não é essencial aqui
-        ]);
-
-        $respV = @file_get_contents($urlVideo);
-        $jV    = json_decode($respV, true);
-        $item  = $jV['items'][0] ?? null;
-        if (!$item) return [];
-
-        $snip    = $item['snippet'] ?? [];
-        $stats   = $item['statistics'] ?? [];
-        $details = $item['contentDetails'] ?? [];
-
-        $channelId    = $snip['channelId'] ?? null;
-        $channelTitle = $snip['channelTitle'] ?? null;
-
-        // 2) Dados do canal (para inscritos/views totais, país etc.)
-        $ch = [];
-        if ($channelId) {
-            $urlCh = 'https://www.googleapis.com/youtube/v3/channels?' . http_build_query([
-                'key'  => $apiKey,
-                'id'   => $channelId,
-                'part' => 'snippet,statistics,brandingSettings,contentDetails',
-            ]);
-            $respC = @file_get_contents($urlCh);
-            $jC    = json_decode($respC, true);
-            $chI   = $jC['items'][0] ?? null;
-
-            if ($chI) {
-                $chSnip  = $chI['snippet'] ?? [];
-                $chStats = $chI['statistics'] ?? [];
-                $branding = $chI['brandingSettings']['channel'] ?? [];
-
-                $ch = [
-                    'channelSubs'    => isset($chStats['subscriberCount']) ? (int)$chStats['subscriberCount'] : null,
-                    'channelViews'   => isset($chStats['viewCount']) ? (int)$chStats['viewCount'] : null,
-                    'channelVideos'  => isset($chStats['videoCount']) ? (int)$chStats['videoCount'] : null,
-                    'channelCategory' => $chSnip['country'] ?? null, // usa país como proxy de "categoria/local"
-                    'channelHandle'  => $branding['unsubscribedTrailer'] ?? null, // não há handle oficial aqui; deixa null
-                ];
-            }
-        }
-
-        // 3) Monta retorno no formato esperado pelo storage
-        return array_merge([
-            'channelId'        => $channelId,
-            'channelTitle'     => $channelTitle,
-            'title'            => $snip['title'] ?? null,
-            'description'      => $snip['description'] ?? null,
-            'keywords'         => null, // a API não entrega keywords de SEO; deixe null
-            'commentCount'     => isset($stats['commentCount']) ? (int)$stats['commentCount'] : null,
-            'likeCount'        => isset($stats['likeCount']) ? (int)$stats['likeCount'] : null,
-            'viewCount'        => isset($stats['viewCount']) ? (int)$stats['viewCount'] : null,
-            'duration_seconds' => $this->ISO8601ToSeconds($details['duration'] ?? null),
-            'lang'             => $snip['defaultAudioLanguage'] ?? ($snip['defaultLanguage'] ?? null),
-            'publishedAt'      => $snip['publishedAt'] ?? null,
-            // campos específicos seus (quando não vindos da API, deixam-se null)
-            'monet_min'        => null,
-            'monet_max'        => null,
-            'engagement'       => null,
-            'upload_frequency' => null,
-            'avg_length'       => null,
-        ], $ch);
-    }
-
-
-
-
-
-
-
-
-    // Tarefa1.php (dentro da classe)
-
-    protected function fetchVideosByIds444444444444444444(array $ids): array
-    {
-        $ids = array_values(array_unique(array_filter($ids)));
-        if (empty($ids)) return [];
-
-        $apiKey = env('YOUTUBE_API_KEY');
-        $chunks = array_chunk($ids, 50); // API permite até 50 IDs por chamada
-        $out = [];
-
-        foreach ($chunks as $pack) {
-            $url = "https://www.googleapis.com/youtube/v3/videos"
-                . "?part=snippet,statistics,contentDetails&id=" . implode(',', $pack)
-                . "&key={$apiKey}";
-
-            $resp = @file_get_contents($url);
-            if ($resp === false) continue;
-
-            $json  = json_decode($resp, true);
-            $items = $json['items'] ?? [];
-
-            foreach ($items as $v) {
-                $id      = $v['id'] ?? null;
-                $snip    = $v['snippet'] ?? [];
-                $stats   = $v['statistics'] ?? [];
-                $details = $v['contentDetails'] ?? [];
-
-                $out[] = [
-                    'videoId'   => $id,
-                    'title'     => $snip['title'] ?? '',
-                    'channel'   => $snip['channelTitle'] ?? '',
-                    'published' => $snip['publishedAt'] ?? '',
-                    'thumbnail' => $snip['thumbnails']['default']['url'] ?? '',
-                    'views'     => $stats['viewCount'] ?? null,
-                    'likes'     => $stats['likeCount'] ?? null,
-                    'comments'  => $stats['commentCount'] ?? 0,
-                    'duration'  => $this->ISO8601ToSeconds($details['duration'] ?? null),
-                ];
-            }
-        }
-
-        return $out;
-    }
-
-
-
-
-    // No componente Tarefa1
-    public function getIrProperty3333333333333()
-    {
-        // indexa buscas por videoId para pegar o total de comentários
-        $buscasById = collect($this->buscas)->keyBy('videoId');
-
-        $map = [];
-        foreach ($this->selecionados ?? [] as $vid) {
-            $threads = $this->comentarios[$vid] ?? []; // só existe se já buscou comentários
-            $top     = is_countable($threads) ? count($threads) : 0;
-            $total   = data_get($buscasById, "$vid.comments");
-
-            $map[$vid] = ($total !== null && $top > 0)
-                ? round(($total - $top) / $top, 2)
-                : null; // ainda não dá pra calcular
-        }
-        return $map; // acessível na blade como $this->ir
-    }
-
-    
-
-
-    protected function parseVideoId(string $ref): ?string
-    {
-        $ref = trim($ref);
-        // aceita 3 formatos: ID cru, youtu.be/ID, ...watch?v=ID...
-        if (preg_match('~^[A-Za-z0-9_-]{11}$~', $ref)) return $ref;
-
-        // youtu.be/ID
-        if (preg_match('~youtu\.be/([A-Za-z0-9_-]{11})~i', $ref, $m)) return $m[1];
-
-        // watch?v=ID  (pega exatamente 11 chars após v=)
-        if (preg_match('~[?&]v=([A-Za-z0-9_-]{11})~i', $ref, $m)) return $m[1];
-
-        // fallback (últimos 11 que parecem ID)
-        if (preg_match('~([A-Za-z0-9_-]{11})$~', $ref, $m)) return $m[1];
-
-        return null;
-    }
-
-
-
-    protected function getAllComentarios($videoId, $pageToken = null): array
-    {
-        $url = "https://www.googleapis.com/youtube/v3/commentThreads";
-
-        $params = [
-            'key'        => env('YOUTUBE_API_KEY'),
-            'part'       => 'snippet',
-            'maxResults' => 100,
-            'videoId'    => $videoId,
-            'textFormat' => 'plainText',
-            'order'      => 'time', // opcional
-        ];
-        if ($pageToken) $params['pageToken'] = $pageToken;
-
-        $call = $url . '?' . http_build_query($params);
-        $response = @file_get_contents($call);
-        $data = json_decode($response, true);
-
-        $lote = collect($data['items'] ?? [])->map(function ($item) {
-            $top = $item['snippet']['topLevelComment'] ?? [];
-            $sn  = $top['snippet'] ?? [];
-
-            // id do comentário top-level:
-            $commentId = $top['id'] ?? null; // preferível
-            if (!$commentId) {
-                // fallback (não deveria precisar):
-                $commentId = $item['id'] ?? null;
-            }
-
-            return [
-                'cod'  => $commentId,                          // <- usado como unique
-                'user' => $sn['authorDisplayName'] ?? null,
-                'texto' => $sn['textDisplay'] ?? '',
-                'likes' => $sn['likeCount'] ?? 0,
-                'dislikes' => null,                            // YT não traz
-                'dt'   => $sn['publishedAt'] ?? null,
-                'tox'  => $this->setTox($sn['textDisplay'] ?? ''), // Perspective
-            ];
-        })->toArray();
-
-        // recursão se houver próxima página
-        if (!empty($data['nextPageToken'])) {
-            return array_merge(
-                $lote,
-                $this->getAllComentarios($videoId, $data['nextPageToken'])
-            );
-        }
-
-        return $lote;
-    }
-
-
-
-
-
-
 
     function setTox($txt)
     {
+        return mt_rand() / mt_getrandmax();
 
         $apiKey = env("PERSPECTIVE_API");
-
         $url = 'https://commentanalyzer.googleapis.com/v1alpha1/comments:analyze?key=' . $apiKey;
 
         $payload = [
@@ -444,7 +696,6 @@ class Tarefa1 extends Component
         ];
 
         $json = json_encode($payload);
-
         $ch = curl_init($url);
 
         curl_setopt_array($ch, [
@@ -465,13 +716,11 @@ class Tarefa1 extends Component
         }
 
         curl_close($ch);
-
         $res = json_decode($response, true);
 
         if (!is_array($res)) {
-            return;
+            return null;
         }
-
 
         if (isset($res['attributeScores']['TOXICITY']['summaryScore']['value'])) {
             $tox = round($res['attributeScores']['TOXICITY']['summaryScore']['value'], 3);
@@ -481,84 +730,114 @@ class Tarefa1 extends Component
         return $tox;
     }
 
-    public function updatedQuery($value)
+
+
+
+
+    ####################################################################################
+    public function getVideos(bool $forceRefresh = false): array
     {
-        $this->getVideos();
-    }
-
-
-    ##[Computed()]
-    public function getVideos()
-    {
-
-        if (empty($this->query)) {
+        $q = trim((string) $this->query);
+        if ($q === '') {
             return $this->buscas;
         }
 
-        $query = $this->query;
+        $cacheKey = 'yt:search:v2:' . md5(mb_strtolower($q));
+        if (!$forceRefresh && Cache::has($cacheKey)) {
+            return $this->buscas = Cache::get($cacheKey);
+        }
+
         $apiKey = env('YOUTUBE_API_KEY');
 
-        // 1. Buscar vídeos por termo
-        $url = "https://www.googleapis.com/youtube/v3/search?part=snippet&q=" . 
-        urlencode($query) . "&type=video&maxResults=20&key=$apiKey";
-        $response = file_get_contents($url);
-        $data = json_decode($response, true);
+        $url = 'https://www.googleapis.com/youtube/v3/search?' . http_build_query([
+            'key'        => $apiKey,
+            'part'       => 'snippet',
+            'q'          => $q,
+            'type'       => 'video',
+            'maxResults' => 50,
+        ]);
+        Log::info('YT API:' . __CLASS__ . ' / ' . __FUNCTION__ . '()', ['url' => $url]);
 
+        $resp  = file_get_contents($url);
+        $json  = json_decode($resp ?? '[]', true);
+        $items = collect($json['items'] ?? [])->values()->all();
 
-        if (!isset($data['items'])) {
-            $this->buscas = [];
-            return;
-        } else {
-            // 2. Extrair IDs
-            $videoIds = collect($data['items'])->pluck('id.videoId')->filter()->toArray();
-            if (empty($videoIds)) {
-                $this->buscas = [];
-                return;
-            }
+        $result = $items ? $this->hydrateVideosFromSearchResults($items) : [];
 
-            // 3. Buscar estatísticas
-            $videoUrl = "https://www.googleapis.com/youtube/v3/videos?part=statistics,contentDetails&id=" . implode(',', $videoIds) . "&key=$apiKey";
+        // 👉 indexa por videoId e adiciona a query 'q' em cada registro
+        $result = collect($result)
+            ->filter(fn($row) => !empty($row['videoId'])) // por segurança
+            ->map(fn($row) => $row + ['q' => $q])
+            ->keyBy('videoId')
+            ->toArray();
 
-            $videoResponse = file_get_contents($videoUrl);
-            $videoData = json_decode($videoResponse, true);
+        Cache::put($cacheKey, $result, now()->addDay());
 
-            // 4. Indexar por ID
-            $statsById = collect($videoData['items'] ?? [])->keyBy('id');
+        return $this->buscas = $result;
+    }
 
-            $this->buscas = collect($data['items'])->map(function ($item) use ($statsById) {
-                $id = $item['id']['videoId'] ?? null;
-                $stats = $statsById[$id]['statistics'] ?? [];
-                $duration = $statsById[$id]['contentDetails']['duration'] ?? null;
-
-                return [
-                    'videoId'    => $id,
-                    'title'      => $item['snippet']['title'] ?? '',
-                    'channel'    => $item['snippet']['channelTitle'] ?? '',
-                    'published'  => $item['snippet']['publishedAt'] ?? '',
-                    'thumbnail'  => $item['snippet']['thumbnails']['default']['url'] ?? '',
-                    'views'      => $stats['viewCount'] ?? null,
-                    'likes'      => $stats['likeCount'] ?? null,
-                    'comments'   => $stats['commentCount'] ?? 0,
-                    'duration'   => $this->ISO8601ToSeconds($duration),
-
-                ];
-            })
-                ->filter(fn($video) => $video['comments'] > 0)
-                ->values() // reindexa os índices
-                ->toArray();
-
-            return $this->buscas;
+    // se quiser um helper para invalidar:
+    public function clearSearchCache(): void
+    {
+        $q = trim((string) $this->query);
+        if ($q !== '') {
+            Cache::forget('yt:search:v2:' . md5(mb_strtolower($q)));
         }
     }
 
-
-    protected function ISO8601ToSeconds($duration)
+    public function hydrateSingleVideo(string $videoId): ?array
     {
-        if (!$duration) return null;
+        $det = $this->getVideoDetailsByListVideoIds([$videoId]);
+        if (!$det) return null;
 
-        $interval = new \DateInterval($duration);
-        return ($interval->h * 3600) + ($interval->i * 60) + $interval->s;
+        $v = $det[0];
+        $chId = $v['channelId'] ?? null;
+
+        if ($chId) {
+            $canais = $this->getCanaisDetailsByListCanaisIds([$chId]);
+            $ch = $canais[$chId] ?? null;
+            if ($ch) {
+                return array_merge($v, $ch);
+            }
+        }
+        return $v;
     }
+
+    public function hydrateVideosFromSearchResults(array $searchItems): array
+    {
+        // $searchItems são os items do search? (id.videoId + snippet.*)
+        // Extraia ids de vídeo E de canal:
+        $videoIds   = collect($searchItems)->pluck('id.videoId')->filter()->values()->all();
+        $channelIds = collect($searchItems)->pluck('snippet.channelId')->filter()->unique()->values()->all();
+
+        // 1) detalhes dos vídeos
+        $videos = $this->getVideoDetailsByListVideoIds($videoIds);
+        $byVid  = collect($videos)->keyBy('videoId');
+
+        // 2) detalhes dos canais
+        $canais = $this->getCanaisDetailsByListCanaisIds($channelIds);
+
+        // 3) monta retorno “hidratado”, preservando a ordem da busca:
+        $out = [];
+        foreach ($searchItems as $it) {
+            $vid = $it['id']['videoId'] ?? null;
+            if (!$vid) continue;
+
+            $v = $byVid[$vid] ?? null;
+            if (!$v) continue;
+
+            $chId = $v['channelId'] ?? null;
+            $ch   = $chId ? ($canais[$chId] ?? null) : null;
+
+            // merge “plano” (mantém suas chaves padrão)
+            $out[] = array_merge($v, $ch ?? []);
+        }
+
+        return $out; // cada item já com video* + channel*
+    }
+
+
+
 
 
 

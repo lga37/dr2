@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\Canal;
+use App\Models\Tarefa;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Database\Migrations\Migration;
@@ -15,7 +16,7 @@ return new class extends Migration
         Schema::create('arxivs', function (Blueprint $table) {
             $table->id();
 
-                   
+
             $table->unsignedInteger('views')->nullable();
             $table->unsignedInteger('subscribers')->nullable();
 
@@ -23,12 +24,13 @@ return new class extends Migration
             $table->datetime('ts');
             $table->string('url')->nullable();
             $table->text('obs')->nullable();
-            $table->boolean('parsed')->default(0);
-            
+            #$table->boolean('parsed')->default(0);
+
             $table->foreignIdFor(Canal::class);
 
-            $table->unique(['canal_id','ts']);
+            $table->unique(['canal_id', 'ts']);
             $table->timestamps();
+            $table->foreignIdFor(Tarefa::class)->nullable();
         });
     }
 

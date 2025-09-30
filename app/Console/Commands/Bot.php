@@ -2,886 +2,430 @@
 
 namespace App\Console\Commands;
 
-use DateTime;
-use DateTimeZone;
-use App\Models\Canal;
-use App\Models\Video;
-use DOM\HtmlDocument;
-use DateTimeImmutable;
 use Illuminate\Support\Str;
 use HeadlessChromium\Dom\Node;
+use Illuminate\Support\Carbon;
 use Illuminate\Console\Command;
-use Illuminate\Support\Facades\DB;
 use HeadlessChromium\BrowserFactory;
 use Illuminate\Support\Facades\Http;
-use HeadlessChromium\Exception\OperationTimedOut;
-use HeadlessChromium\Exception\ElementNotFoundException;
+use HeadlessChromium\Communication\Message;
 
 class Bot extends Command
 {
 
     protected $signature = 'bot {acao?}';
-    protected $browser;
 
-
-
-
-
-
-
-    public function list()
+    protected function curlGetWithTimeout(string $url, int $timeout = 10, int $connectTimeout = 5, int $retries = 2): ?string
     {
-
-        $url = 'https://www.youtube.com/results?search_query=aborto';
-
-        try {
-
-            $this->initBrowser(true);
-            $page = $this->browser->createPage();
-
-            dump('URL: ' . $url);
-            $page->navigate($url);
-
-            sleep(5);
-
-            $pags = 3;
-            for ($i = 1; $i <= $pags; $i++) {
-                sleep(1);
-                $page->evaluate("window.scrollTo(0, document.body.scrollHeight || document.documentElement.scrollHeight);");
-
-                $ytds = $page->dom()->querySelectorAll('ytd-video-renderer');
-                dump(count($ytds));
-            }
-            $ids = [];
-            $re2 = '\/watch\?v=([a-zA-Z0-9_-]+)';
-
-            foreach ($ytds as $ytd) {
-                $html = $ytd->getHtml();
-                $html = limpaEspacosTabs($html);
-
-                if (preg_match('/' . $re2 . '/', $html, $res)) {
-                    dump($res[1]);
-                    $ids[] = Str::wrap($res[1], before: 'https://www.youtube.com/watch?v=', after: '');
-                }
-            }
-
-            dump($ids);
-
-            $tot = $err = 0;
-            foreach ($ids as $cod) {
-                dump($cod);
-                $parse = 0;
-                $busca_id = 3;
-                $cod = compact('cod');
-                $v = compact('busca_id');
-                $res = Video::updateOrCreate(
-                    $cod,
-                    $v
-                );
-
-                $res ? $tot++ : $err++;
-            }
-            dump("Total upserts: $tot - Erros: $err");
-        } catch (OperationTimedOut $e) {
-            echo '::::1111' . $e->getMessage();
-        } catch (\Exception $e) {
-            echo '::::22222 ' . dump($e);
-        } finally {
-
-            $this->closeBrowser();
-        }
-    }
-
-
-    public function vidiq($id, $youtube_id)
-    {
-
-        $url = "https://vidiq.com/youtube-stats/channel/$youtube_id/";
-
-        try {
-
-            $this->initBrowser(true);
-            $page = $this->browser->createPage();
-
-            dump('URL: ' . $url);
-            $page->navigate($url);
-
-            sleep(5);
-
-            $dt = $local = $categ = $videos = $inscritos = $score = $views = $min = $max = $engagement = $frequency = $length = null;
-
-            $re_esqs = [
-                'dt' => 'Joined<\/p><\/div><p class="mb-0 text-right text-white">(.+) (\d{1,2}), (\d{4})<\/p><\/div>',
-                'local' => 'Location<\/p><\/div><p class="mb-0 text-right text-white">(.+?)<\/p><\/div>',
-                'categ' => 'Category<\/p><\/div><p class="mb-0 text-right text-white">(.+?)<\/p><\/div>',
-                'videos' => 'Videos<\/p><\/div><p class="mb-0 text-right text-white">(.+?)<\/p><\/div>',
-                'inscritos' => 'Subscribers<\/p><\/div><p class="mb-0 text-right text-white">(.+?)<\/p><\/div>',
-            ];
-
-
-            $re_dirs = [
-                'score' => 'Overall Score:<\/p><p class.+>(\w{1})<\/span><\/p>',
-                'views' => 'Video Views:<\/p><p .+">([\d\.KMB]+)<\/p>',
-                'min_max' => '\$<!-- -->([\d\.KM]+)<!-- --> - \$<!-- -->([\d\.KM]+)<\/p>',
-                'frequency' => 'Video Upload Frequency:<\/p>.+>([\d\.]+)<!-- --> \/ <!-- -->week<\/p>',
-                'length' => 'Average Video Length:<\/p>.+>([\d\.]+)<!-- --> <!-- -->minutes<\/p>',
-                'engagement' => 'Engagement Rate:<\/p>.+>([\d\.]+)<!-- -->%<\/p>',
-            ];
-
-            $seletor_esq = 'body > main > section > div > div.mx-auto.max-w-\[1172px\].overflow-x-hidden.px-4 > div.flex.flex-col.items-start.justify-between.gap-4.lg\:flex-row.lg\:gap-6 > div.order-2.flex.w-full.flex-col.gap-4.lg\:order-1.lg\:w-1\/4.lg\:gap-6';
-            $seletor_dir = 'body > main > section > div > div.mx-auto.max-w-\[1172px\].overflow-x-hidden.px-4 > div.flex.flex-col.items-start.justify-between.gap-4.lg\:flex-row.lg\:gap-6 > div.order-1.flex.w-full.flex-col.gap-4.lg\:w-\[calc\(75\%-24px\)\].lg\:gap-6 > div:nth-child(1)';
-
-            $esq = $page->dom()->querySelector($seletor_esq);
-
-            #dd($esq);
-            if ($esq instanceof Node) {
-                $esq = $esq->getHtml();
-                $esq = limpaEspacosAcentuacao($esq);
-                foreach ($re_esqs as $key => $re) {
-                    if (preg_match('/' . $re . '/', $esq, $res)) {
-                        if ($key == 'dt') {
-                            $mes = $res[1];
-                            $mes = retornaMes($mes);
-                            $dia = $res[2];
-                            $ano = $res[3];
-                            $dt = $ano . '-' . $mes . '-' . $dia;
-                        } else {
-                            $$key = $res[1];
-                        }
-                    }
-                }
-            } else {
-                echo "erro no crawling";
-            }
-
-            $dir = $page->dom()->querySelector($seletor_dir);
-
-            if ($dir instanceof Node) {
-                $dir = $dir->getHtml();
-                $dir = limpaEspacosAcentuacao($dir);
-                foreach ($re_dirs as $key => $re) {
-                    if (preg_match('/' . $re . '/', $dir, $res)) {
-                        if ($key == 'min_max') {
-                            $min = $res[1];
-                            $max = $res[2];
-                        } else {
-                            $$key = $res[1];
-                        }
-                    }
-                }
-            } else {
-                echo "erro no crawling";
-            }
-
-            $videos = return_kmb_to_integer($videos);
-            $inscritos = return_kmb_to_integer($inscritos);
-            $views = return_kmb_to_integer($views);
-
-            $min = return_kmb_to_integer($min);
-            $max = return_kmb_to_integer($max);
-            $length = return_kmb_to_integer($length);
-
-            $categ = urldecode($categ);
-
-
-
-
-            $campos = compact('dt', 'local', 'categ', 'videos', 'inscritos', 'score', 'views', 'min', 'max', 'engagement', 'frequency', 'length');
-
-            #dd($campos);
-
-            $canal = Canal::findOrFail($id);
-            $res = $canal->update($campos);
-            echo "\n---------- canal numero $id atualizado com " . $res ? 'sucesso' : 'erro';
-
-            dump($canal);
-        } catch (OperationTimedOut $e) {
-            echo '::::1111' . $e->getMessage();
-        } catch (ElementNotFoundException $e) {
-            echo '::::33333' . $e->getMessage();
-        } catch (\Exception $e) {
-            echo '::::22222 ' . dump($e);
-        } finally {
-
-            $this->closeBrowser();
-        }
-    }
-
-
-
-    public function canal($id, $cod)
-    {
-
-        #$url = 'https://www.youtube.com/watch?v=ZJwL6oLbvPg';
-
-
-        $url = 'https://www.youtube.com' . urldecode($cod);
-
-        $youtube_id = $dt = $local = $links = $nome = $desc = $slug = $lang = null;
-
-        try {
-
-            $this->initBrowser(false);
-            $page = $this->browser->createPage();
-
-            dump('URL: ' . $url);
-            $page->navigate($url);
-
-            sleep(6);
-
-
-            $metas = $page->dom()->querySelectorAll('meta');
-            foreach ($metas as $meta) {
-                if ($meta->getAttribute('itemprop') == 'identifier') {
-                    $youtube_id = $meta->getAttribute('content'); #cuidado, nao e bom usar canal_id p causa das fk do laravel
-                }
-                if ($meta->getAttribute('itemprop') == 'name') {
-                    $nome = $meta->getAttribute('content');
-                    $slug = Str::slug($nome);
-                }
-                if ($meta->getAttribute('itemprop') == 'description') {
-                    $desc = $meta->getAttribute('content');
-                    $desc = limpaEspacosTabs($desc);
-                }
-            }
-            // <meta itemprop="identifier" content="UCsra3f6ogpXhIZbSUe2OoaA">
-
-            $seletor_mais = '#page-header > yt-page-header-renderer > yt-page-header-view-model > div > div.page-header-view-model-wiz__page-header-headline > div > yt-description-preview-view-model > truncated-text > button > span > span';
-
-            $page->evaluate("document.querySelector('" . $seletor_mais . "').click();");
-            sleep(2);
-
-
-
-
-            $res = [
-                'videos' => '<td class="style-scope ytd-about-channel-renderer">([\d\.]+?) videos<\/td>',
-                'views' => '<td class="style-scope ytd-about-channel-renderer">([\d\.]+) visualizacoes<\/td>',
-                'dt' => '>Inscreveu-se em (\d{1,2}) de (.+) de (\d{4})<\/span>',
-                'local' => '<td class="style-scope ytd-about-channel-renderer">([\w\s]+)<\/td> <\/tr> <\/tbody>',
-                'inscritos' => '<td class="style-scope ytd-about-channel-renderer">([\d,]+)\s(.+) inscritos<\/td> <\/tr>',
-
-            ];
-
-            $re_links = [
-                'link' => '>([\d\w\/\.]+)<\/a><\/span><\/div><\/yt-channel-external-link-view-model>',
-                'nome_link' => '>([\d\w\s]+)<\/span>',
-            ];
-
-            $seletor_modal = '#about-container';
-            $modal = $page->dom()->querySelector($seletor_modal);
-            if ($modal) {
-                $modal = $modal->getHtml();
-                $modal = limpaEspacosAcentuacao($modal);
-
-
-                foreach ($res as $key => $re) {
-
-                    if (preg_match('/' . $re . '/', $modal, $res)) {
-
-                        dump($key, $res);
-                        if ($key == 'dt') {
-                            $mes = $res[2];
-                            $mes = filtraLetras($mes);
-                            $mes = retornaMes($mes);
-                            $$key = $res[3] . '-' . $mes . '-' . $res[1];
-                        } else {
-                            $$key = $res[1];
-                        }
-                    }
-                }
-            }
-
-            $inscritos = filtraDigitos($inscritos);
-            $views = filtraDigitos($views);
-            $videos = filtraDigitos($videos);
-
-            $campos = compact('views', 'inscritos', 'videos', 'nome', 'desc', 'slug', 'youtube_id', 'dt', 'local');
-
-            #dd($campos);
-
-            $canal = Canal::findOrFail($id);
-            $res = $canal->update($campos);
-            echo "\n---------- canal numero $id atualizado com " . $res ? 'sucesso' : 'erro';
-
-            dump($canal);
-        } catch (OperationTimedOut $e) {
-            echo '::::1111' . $e->getMessage();
-        } catch (ElementNotFoundException $e) {
-            echo '::::33333' . $e->getMessage();
-        } catch (\Exception $e) {
-            echo '::::22222 ' . dump($e);
-        } finally {
-
-            $this->closeBrowser();
-        }
-    }
-
-
-
-    /* get de video */
-    public function getVideo($id, $cod)
-    {
-
-        #$url = 'https://www.youtube.com/watch?v=ZJwL6oLbvPg';
-
-
-        $url = $cod;
-
-        #dd($url);
-        #atencao ........... id esta sendo sobrescrito la embaixo
-        $video_id = $id;
-
-        $hashtags = $canal_id = $views = $likes = $dislikes = $dt = $desc = $nome = $slug = $caption = $comments = $hashtags = $categ_id = $lang = null;
-
-        try {
-
-            $this->initBrowser(true);
-            $page = $this->browser->createPage();
-
-            dump('URL: ' . $url);
-            $page->navigate($url);
-
-            sleep(5);
-
-            // $nome = $page->dom()->querySelector('yt-formatted-string.style-scope.ytd-watch-metadata');
-            // if ($nome) {
-            //     $nome = $nome->getText();
-            //     $nome = limpaEspacosAcentuacao($nome);
-            //     $slug = Str::slug($nome);
-            // }
-            # melhor usar as metas
-
-            $metas = $page->dom()->querySelectorAll('meta');
-            foreach ($metas as $meta) {
-                if ($meta->getAttribute('name') == 'title') {
-                    $nome = $meta->getAttribute('content');
-                    $slug = Str::slug($nome);
-                }
-                if ($meta->getAttribute('name') == 'description') {
-                    $desc = $meta->getAttribute('content');
-                }
-                if ($meta->getAttribute('name') == 'keywords') {
-                    $keywords = $meta->getAttribute('content');
-                }
-            }
-
-
-
-            $canal_url = $page->dom()->querySelector('ytd-video-owner-renderer > a.yt-simple-endpoint.style-scope.ytd-video-owner-renderer');
-            if ($canal_url) {
-                $cod = $canal_url->getAttribute('href');
-
-                $parse = 0;
-                $busca_id = 3;
-                $v = compact('busca_id', 'parse');
-
-                $canal = Canal::updateOrCreate(
-                    ['cod' => $cod],
-                    $v
-                );
-                $canal_id = $canal->id;
-                #dd($res);
-            }
-            #dump($canal_url);
-
-            $likes = $page->dom()->querySelector('#top-level-buttons-computed > segmented-like-dislike-button-view-model > yt-smartimation > div > div > like-button-view-model > toggle-button-view-model > button-view-model > button > div.yt-spec-button-shape-next__button-text-content');
-            if ($likes) {
-                $likes = $likes->getText();
-                $likes = limpaEspacosAcentuacao($likes);
-            }
-            dump($likes);
-
-
-            $re = '#([^\s]+)';
-            $desc = $page->dom()->querySelector('#description-inner');
-            if ($desc) {
-                $desc = $desc->getText();
-                $desc = limpaEspacosAcentuacao($desc);
-                if (preg_match_all('/' . $re . '/', $desc, $res)) {
-                    #dump($res);
-                    $hashtags = array_unique($res[1]);
-                }
-            }
-            dump($desc);
-
-            sleep(8); #sem essa porra nao vai
-            $seletor = '#count > yt-formatted-string > span:nth-child(1)';
-            $comments = $page->dom()->querySelector($seletor);
-            if ($comments) {
-                $comments = $comments->getText();
-                $comments = limpaEspacosAcentuacao($comments);
-                $comments = filtraDigitos($comments);
-            }
-            #dd($comments);
-
-
-            $page->evaluate("document.querySelector('#expand').click();");
-            sleep(2);
-            $page->evaluate("document.querySelector('#primary-button > ytd-button-renderer > yt-button-shape > button > yt-touch-feedback-shape > div > div.yt-spec-touch-feedback-shape__fill').click();");
-            sleep(4);
-
-
-            $legendas = $page->dom()->querySelectorAll('#segments-container > ytd-transcript-segment-renderer');
-            $re = '^((\d\d?):(\d\d))\s(.+)$';
-            $caption = '';
-            foreach ($legendas as $legenda) {
-                $legenda = $legenda->getText();
-                $legenda = limpaEspacosAcentuacao($legenda);
-                if (preg_match('/' . $re . '/', $legenda, $res)) {
-                    $min = $res[2];
-                    $sec = $res[3];
-                    $txt = $res[4];
-                    $caption .= ' ' . $txt;
-                }
-            }
-            dump($caption);
-
-
-            $res = $this->apiGratis($url);
-            if (is_array($res)) {
-                #extract($res); #id,dateCreated,likes,rawDislikes,rawLikes,dislikes,rating,viewCount,deleted **** id e o problema
-                $dt = datetimeTZtoDateMysql($res['dateCreated']);
-                $views = $res['viewCount'];
-                $likes = $res['likes'];
-                $dislikes = $res['dislikes'];
-            }
-
-
-            $campos = compact('dt', 'hashtags', 'canal_id', 'views', 'likes', 'dislikes', 'desc', 'nome', 'slug', 'caption', 'comments', 'hashtags', 'categ_id', 'lang');
-
-            $video = Video::findOrFail($video_id);
-            $res = $video->update($campos);
-            echo "\n---------- Video numero $id atualizado com " . $res ? 'sucesso' : 'erro';
-
-            dump($video);
-        } catch (OperationTimedOut $e) {
-            echo '::::1111' . $e->getMessage();
-        } catch (ElementNotFoundException $e) {
-            echo '::::33333' . $e->getMessage();
-        } catch (\Exception $e) {
-            echo '::::22222 ' . dump($e);
-        } finally {
-            $this->closeBrowser();
-        }
-    }
-
-
-
-    function crawl($url, $httpHeaders = [], $prompt = '', $verb = 'GET')
-    {
-
-        $curl = curl_init();
-
-        if (!empty($prompt) && $verb == 'POST') {
-            $post_fields = [
-                "model" => "gpt-3.5-turbo",
-                "messages" => [
-                    [
-                        "role" => "user",
-                        "content" => $prompt
-                    ]
+        $attempt = 0;
+        $backoffMs = 400;
+
+        while ($attempt < $retries) {
+            $attempt++;
+
+            $ch = curl_init();
+            curl_setopt_array($ch, [
+                CURLOPT_URL            => $url,
+
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_FOLLOWLOCATION => true,     // Wayback redireciona
+                CURLOPT_MAXREDIRS      => 5,
+                CURLOPT_CONNECTTIMEOUT => $connectTimeout, // tempo p/ conectar (DNS+TCP+TLS)
+                CURLOPT_TIMEOUT        => $timeout,        // tempo total p/ resposta
+                #CURLOPT_LOW_SPEED_LIMIT => 1024,    // se cair < 1KB/s...
+                #CURLOPT_LOW_SPEED_TIME => 5,       // ...por 5s, aborta (timeout)
+                CURLOPT_ENCODING       => '',      // aceita gzip/deflate/br
+                CURLOPT_USERAGENT      => 'Mozilla/5.0 (compatible; GarimpIA/1.0)',
+                CURLOPT_HTTPHEADER     => [
+                    #'Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+                    'Accept: application/json', // CDX responde JSON
+                    'Accept-Language: en-US,en;q=0.9,pt-BR;q=0.8',
                 ],
-            ];
-            $postFields = json_encode($post_fields);
-        } else {
-            $postFields = null;
-        }
+                // Opcional (mantém TLS padrão):
+                #CURLOPT_SSL_VERIFYHOST => 2,
+                #CURLOPT_SSL_VERIFYPEER => true,
+                // Keep-alive (se libcurl suportar):
+                // CURLOPT_TCP_KEEPALIVE => 1, CURLOPT_TCP_KEEPIDLE => 30, CURLOPT_TCP_KEEPINTVL => 10,
+            ]);
 
-        curl_setopt_array($curl, [
-            CURLOPT_URL => $url,
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
-            CURLOPT_CUSTOMREQUEST => $verb,
-            CURLOPT_POSTFIELDS => $postFields,
 
-            CURLOPT_HTTPHEADER => $httpHeaders,
+            // PROXY HTTP com CONNECT (Bright Data)
+            #######curl_setopt($ch, CURLOPT_PROXY, 'brd.superproxy.io:33335');
+            #curl_setopt($ch, CURLOPT_PROXYTYPE, CURLPROXY_HTTP);
+            #curl_setopt($ch, CURLOPT_HTTPPROXYTUNNEL, true); // HTTPS via CONNECT
+            ########curl_setopt($ch, CURLOPT_PROXYUSERPWD, 'brd-customer-hl_6b96b01d-zone-residential_proxy1:d95jqk7ho7at');
 
-            CURLOPT_HEADER         => false,            // don't return headers
-            CURLOPT_FOLLOWLOCATION => true,             // follow redirects
-            CURLOPT_ENCODING       => '',               // handle all encodings
-            CURLOPT_USERAGENT      => 'Mozilla/4.0 (compatible; MSIE 6.0; Windows NT 5.1; .NET CLR 1.1.4322)',      // who am i
-            CURLOPT_AUTOREFERER    => true,             // set referer on redirect
-            CURLOPT_CONNECTTIMEOUT => 30,              // timeout on connect
-            CURLOPT_TIMEOUT        => 30,              // timeout on response
-            CURLOPT_MAXREDIRS      => 5,                // stop after 5 redirects
 
-        ]);
 
-        $res = curl_exec($curl);
-        #dump($res);
+            $body = curl_exec($ch);
+            $errno = curl_errno($ch);
+            $err   = curl_error($ch);
+            $code  = (int) curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
+            curl_close($ch);
 
-        if (!curl_errno($curl)) {
-            switch ($httpcode = curl_getinfo($curl, CURLINFO_HTTP_CODE)) {
-                case 200:  # OK
-                    break;
-                default:
-                    echo 'Unexpected HTTP code: ', $httpcode, "\n";
+            // Sucesso
+            if ($errno === 0 && $code >= 200 && $code < 400 && is_string($body) && $body !== '') {
+                return $body;
             }
-        }
-        curl_close($curl);
-        return ($httpcode >= 200 && $httpcode < 300) ? $res : false;
-    }
 
+            // Se 429/5xx ou timeout -> retry com backoff
+            $retryable =
+                $errno === CURLE_OPERATION_TIMEDOUT ||
+                $errno === CURLE_COULDNT_CONNECT   ||
+                $errno === CURLE_COULDNT_RESOLVE_HOST ||
+                $code === 429 || ($code >= 500 && $code < 600);
 
-    function getChatGptFromText($prompt)
-    {
-
-        $url = 'https://api.openai.com/v1/chat/completions';
-        $key = env('OPENAI_API_KEY');
-        $httpHeaders = [
-            'Content-Type: application/json',
-            'Authorization: Bearer ' . $key,
-        ];
-
-        $res = $this->crawl($url, $httpHeaders, $prompt, 'POST');
-
-        #dump($res);
-        $json = json_decode($res, true);
-        #$completion = $json->choices[0]->message->content;
-        if (isset($json['choices'][0]['message']['content'])) {
-            $completion = $json['choices'][0]['message']['content'];
-            $res = json_decode($completion, true);
-            #dd($resp);
-            return $res;
-        } else {
-            return false;
-        }
-    }
-
-
-
-    function apiGratis($url)
-    {
-
-        $ped = preg_replace('/https:\/\/www\.youtube\.com\/watch\?v=/', '', $url);
-
-
-        $url = 'https://returnyoutubedislikeapi.com/votes?videoId=' . $ped;
-        $res = $this->crawl($url);
-
-        $arr = json_decode($res, true);
-        #dd($arr);
-        if (is_array($arr)) {
-
-            return $arr;
-        } else {
-            return false;
-        }
-    }
-
-
-
-    function initBrowser($headless = true)
-    {
-        $browserFactory = new BrowserFactory();
-
-        $browser = $browserFactory->createBrowser([
-            'headless' => $headless,
-            'windowSize'   => [1920, 1080],
-            'noSandbox' => true,
-            'customFlags' => ['--lang=pt-BR'],
-
-            #'customFlags' => ['--proxy-server=http://104.207.54.209:3128'],
-        ]);
-        $this->browser = $browser;
-    }
-
-    function closeBrowser()
-    {
-        $this->browser->close();
-    }
-
-
-
-
-    function patternsFromChannelId(string $channelId): array
-    {
-
-        $apiKey = env('YOUTUBE_API_KEY');
-        $patterns = [];
-        $patterns[] = "https://www.youtube.com/channel/$channelId/*";
-
-        // --- 1) Tenta via API: snippet.customUrl ---
-        $apiUrl = 'https://www.googleapis.com/youtube/v3/channels?part=snippet&id=' . urlencode($channelId) . '&key=' . urlencode($apiKey);
-        $res = @json_decode(@file_get_contents($apiUrl), true);
-        $customUrl = $res['items'][0]['snippet']['customUrl'] ?? null;
-
-        if ($customUrl) {
-            if ($customUrl[0] === '@') {
-                // handle atual
-                $handle = ltrim($customUrl, '@');
-                $patterns[] = "https://www.youtube.com/@$handle/*";
-            } else {
-                // custom antigo
-                $patterns[] = "https://www.youtube.com/c/$customUrl/*";
-                $patterns[] = "https://www.youtube.com/$customUrl/*";
+            if ($retryable && $attempt < $retries) {
+                usleep(($backoffMs + random_int(50, 250)) * 1000);
+                $backoffMs *= 2;
+                continue;
             }
+
+            // Falha final
+            echo 'url:' . $url . 'attempt:' . $attempt . 'errno' . $errno . 'error' . $err . 'code' . $code;
+            return null;
         }
 
-        // --- 2) Tenta via redirect do /channel/UC... para descobrir rota “viva” ---
-        $finalUrl = $this->resolveFinalYoutubeUrl("https://www.youtube.com/channel/$channelId");
-        if ($finalUrl) {
-            // Extrai caminho base
-            $path = parse_url($finalUrl, PHP_URL_PATH) ?? '';
-            // Normaliza e adiciona os possíveis padrões
-            // Exemplos de $path: /@handle , /user/xyz , /c/Custom , /Custom
-            if (preg_match('#^/@([A-Za-z0-9._-]+)$#', $path, $m)) {
-                $patterns[] = "https://www.youtube.com/@{$m[1]}/*";
-            } elseif (preg_match('#^/user/([A-Za-z0-9._-]+)$#', $path, $m)) {
-                $patterns[] = "https://www.youtube.com/user/{$m[1]}/*";
-            } elseif (preg_match('#^/c/([A-Za-z0-9._-]+)$#', $path, $m)) {
-                $patterns[] = "https://www.youtube.com/c/{$m[1]}/*";
-                $patterns[] = "https://www.youtube.com/{$m[1]}/*";
-            } elseif (preg_match('#^/([A-Za-z0-9._-]+)$#', $path, $m)) {
-                // “seco” (direto na raiz)
-                $patterns[] = "https://www.youtube.com/{$m[1]}/*";
-            }
-        }
-
-        // Únicos e ordenados
-        $patterns = array_values(array_unique(array_filter($patterns)));
-        return $patterns;
-    }
-
-    function resolveFinalYoutubeUrl(string $url, int $timeout = 10): ?string
-    {
-        $ch = curl_init($url);
-        curl_setopt_array($ch, [
-            CURLOPT_NOBODY        => true,  // HEAD (rápido); mude p/ false se precisar do HTML
-            CURLOPT_FOLLOWLOCATION => true,
-            CURLOPT_MAXREDIRS      => 10,
-            CURLOPT_TIMEOUT        => $timeout,
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_HEADER         => true,
-            CURLOPT_SSL_VERIFYPEER => true,
-            CURLOPT_SSL_VERIFYHOST => 2,
-            CURLOPT_USERAGENT      => 'Mozilla/5.0',
-        ]);
-        curl_exec($ch);
-        $effective = curl_getinfo($ch, CURLINFO_EFFECTIVE_URL);
-        $httpCode  = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
-
-        if ($effective && $httpCode >= 200 && $httpCode < 400) {
-            return $effective;
-        }
         return null;
     }
 
-    function cdxList(string $pattern): array
+
+
+    private function montaURLParamsCDXList(string $url, int $ano, int $limit = 10, bool $prefix = false): string
     {
         $base = 'https://web.archive.org/cdx/search/cdx';
 
-        // monta params básicos
+        // Intervalo do ano (1 a 14 dígitos é aceito; usamos o máximo de precisão)
+        $from = sprintf('%04d0101', $ano); // YYYY-01-01 00:00:00
+        $to   = sprintf('%04d1231', $ano); // YYYY-12-31 23:59:59
+
+        // Se quiser capturar subcaminhos, habilite prefix:
+        if ($prefix && !str_ends_with($url, '/*')) {
+            $url = rtrim($url, '/') . '/*';
+        }
+
+        // Params “normais” via http_build_query
         $params = [
-            'url'    => $pattern,                        // ex.: https://www.youtube.com/@opovo/*  (use /*!)
-            'output' => 'json',
-            'fields' => 'timestamp,original,statuscode,mimetype',
-            'limit'  => '100000',
+            'url'      => $url,
+            'output'   => 'json',
+            'fl'       => 'timestamp,original,statuscode',
+            'from'     => $from,
+            'to'       => $to,
+            'collapse' => 'digest',
+            'showDupeCount' => true,
+            'limit'    => $limit,         // 3 ou 4 como você pediu
+            'matchType' => $prefix ? 'prefix' : 'exact', // opcional; com /* já vira prefix
+            // 'gzip' => 'false', // só se você for baixar com cURL cru e não quiser lidar com gzip
         ];
 
-        // query base
+        // Monta a query base
         $q = http_build_query($params, '', '&', PHP_QUERY_RFC3986);
 
-        // filtros (por padrão, mantém só 200)
-        $filters = array_merge(['statuscode:200'], ['mimetype:text/html']); // ex.: ['mimetype:text/html']
-        foreach ($filters as $f) {
+        // Anexa filtros como “filter=...” repetidos (sem colchetes)
+        #foreach (['statuscode:200', 'mimetype:text/html'] as $f) {
+        foreach (['statuscode:200',] as $f) {
             $q .= '&filter=' . rawurlencode($f);
         }
 
-        // chamada
-        $json = @file_get_contents("$base?$q");
-        $rows = json_decode($json, true) ?: [];
+        return $base . '?' . $q;
+    }
 
-        // Remover header se vier (pode ser ['timestamp','original',...] ou ['urlkey','timestamp',...])
-        if ($rows && is_array($rows[0]) && (in_array('timestamp', $rows[0], true) || in_array('urlkey', $rows[0], true))) {
-            array_shift($rows);
+
+
+
+
+
+    /**
+     * Converte a saída CDX (texto) em uma lista de snapshots id_ prontos para crawl.
+     *
+     * @param string   $cdxText  Texto do CDX (linhas como as que você colou)
+     * @param int|null $ano      Se informado, mantém só capturas desse ano
+     * @param int      $limit    Máximo de snapshots a retornar
+     * @param bool     $onlyChannelUrlkey  Se true, filtra urlkey começando com com,youtube)/channel/
+     * @return array   Lista de strings (snapshots id_) + rows filtradas (opcional)
+     */
+    private function cdxPlainToSnapshots(string $cdxText, ?int $ano = null, int $limit = 6, bool $onlyChannelUrlkey = true): array
+    {
+        $rows = [];
+
+        foreach (preg_split('/\R+/', trim($cdxText)) as $line) {
+            $line = trim($line);
+            if ($line === '' || $line[0] === '[' || $line[0] === '{') continue; // ignora json
+            // Quebra em no máx. 7 partes: urlkey ts original mimetype status digest length
+            $parts = preg_split('/\s+/', $line, 7);
+            if (count($parts) < 6) continue;
+
+            [$urlkey, $ts, $orig, $mime, $status, $digest] = array_slice($parts, 0, 6);
+
+            // (opcional) só linhas de canal /channel/
+            if ($onlyChannelUrlkey && stripos($urlkey, 'com,youtube)/channel/') !== 0) {
+                continue;
+            }
+            // ano
+            if ($ano !== null && substr($ts, 0, 4) !== (string)$ano) {
+                continue;
+            }
+            // filtros principais
+            if ($status !== '200') continue;
+            if (stripos($mime, 'text/html') !== 0) continue;
+
+            // Normaliza original: garante esquema
+            if (!preg_match('~^https?://~', $orig)) {
+                $orig = 'http://' . ltrim($orig, '/');
+            }
+
+            $rows[] = [
+                'urlkey' => $urlkey,
+                'ts'     => $ts,
+                'orig'   => $orig,
+                'mime'   => $mime,
+                'status' => $status,
+                'digest' => $digest,
+            ];
         }
 
         if (!$rows) return [];
 
+        // Colapsa por digest (última ocorrência vence; troque se quiser “primeira”)
+        $byDigest = [];
+        foreach ($rows as $r) {
+            $byDigest[$r['digest']] = $r;
+        }
+        $rows = array_values($byDigest);
 
-
-        // Caso 7 colunas (padrão: urlkey,timestamp,original,mimetype,statuscode,digest,length)
-        if (isset($rows[0]) && count($rows[0]) === 7) {
-            return array_map(function ($r) {
-                return [
-                    'ts'        => $r[1],           // YYYYMMDDhhmmss
-                    'original'  => $r[2],           // URL
-                    'status'    => (int)$r[4],      // statuscode
-                    'mimetype'  => $r[3],           // mimetype
-                ];
-            }, $rows);
+        // Ordena: por proximidade do meio do ano, senão por timestamp crescente
+        if ($ano !== null) {
+            $target = (int) sprintf('%04d0701000000', $ano);
+            usort($rows, function ($a, $b) use ($target) {
+                return abs((int)$a['ts'] - $target) <=> abs((int)$b['ts'] - $target);
+            });
+        } else {
+            usort($rows, fn($a, $b) => strcmp($a['ts'], $b['ts']));
         }
 
-        // Caso 4 colunas (timestamp,original,statuscode,mimetype)
-        return array_map(function ($r) {
-            return [
-                'ts'        => $r[0],
-                'original'  => $r[1],
-                'status'    => (int)$r[2],
-                'mimetype'  => $r[3],
-            ];
+        // Limita N
+        $rows = array_slice($rows, 0, $limit);
+
+        // Monta snapshots id_
+        $snapshots = array_map(function ($r) {
+            // Garante id_ (independe de js_/im_/etc.)
+            return preg_replace(
+                '~^https?://web\.archive\.org/web/(\d{1,14})(?:[a-z]{1,3}_|\*)?/(.+)$~',
+                #'https://web.archive.org/web/$1id_/$2',
+                'https://web.archive.org/web/$1/$2',
+                "https://web.archive.org/web/{$r['ts']}/{$r['orig']}"
+            );
         }, $rows);
-    }
 
-
-    function mergeTimestamps(array $patterns): array
-    {
-        $seen = [];
-        foreach ($patterns as $p) {
-            foreach ($this->cdxList($p) as $row) {
-                $seen[$row['ts']] = $row; // dedupe por timestamp
-            }
-        }
-        ksort($seen); // ordem cronológica
-        return array_values($seen);
-    }
-
-
-    // 4) Amostra ~k pontos regularmente espaçados no tempo (quantis temporais)
-    function sampleEvenlyByTime(array $captures, int $k = 10): array
-    {
-        $n = count($captures);
-        if ($n <= $k) return $captures;
-
-        // mapeia ts -> unix
-        $pairs = [];
-        foreach ($captures as $row) {
-            $ts = $row['ts'];
-            $dt = DateTimeImmutable::createFromFormat('YmdHis', $ts, new DateTimeZone('UTC'));
-            if ($dt === false) continue;
-            $pairs[] = ['unix' => $dt->getTimestamp(), 'row' => $row];
-        }
-        if (!$pairs) return [];
-
-        // já devem vir ordenados, mas garantimos
-        usort($pairs, fn($a, $b) => $a['unix'] <=> $b['unix']);
-
-        $min = $pairs[0]['unix'];
-        $max = $pairs[count($pairs) - 1]['unix'];
-        if ($max <= $min) {
-            // tudo no mesmo instante — pega head, alguns do meio e tail por índice
-            $step = ($n - 1) / max(1, $k - 1);
-            $out = [];
-            for ($i = 0; $i < $k; $i++) {
-                $idx = (int) round($i * $step);
-                $out[] = $captures[$idx];
-            }
-            return $out;
-        }
-
-        // targets por quantil no tempo
-        $out = [];
-        $j = 0; // ponteiro no array de pairs
-        for ($i = 0; $i < $k; $i++) {
-            $target = $min + ($i * ($max - $min) / max(1, $k - 1));
-            while ($j < count($pairs) - 1 && $pairs[$j]['unix'] < $target) {
-                $j++;
-            }
-            $out[] = $pairs[$j]['row'];
-        }
-
-        // dedupe caso pegue o mesmo vizinho em alvos próximos
-        $seen = [];
-        $uniq = [];
-        foreach ($out as $r) {
-            $key = $r['ts'] . '|' . $r['original'];
-            if (!isset($seen[$key])) {
-                $seen[$key] = true;
-                $uniq[] = $r;
-            }
-        }
-
-        // se por acaso ficou com menos que k (por dedupe), preenche por step de índice
-        if (count($uniq) < $k) {
-            $step = ($n - 1) / max(1, $k - 1);
-            for ($i = 0; $i < $k && count($uniq) < $k; $i++) {
-                $idx = (int) round($i * $step);
-                $cand = $captures[$idx];
-                $key  = $cand['ts'] . '|' . $cand['original'];
-                if (!isset($seen[$key])) {
-                    $seen[$key] = true;
-                    $uniq[] = $cand;
-                }
-            }
-            // reordena pela data
-            usort($uniq, fn($a, $b) => strcmp($a['ts'], $b['ts']));
-        }
-
-        return $uniq;
-    }
-
-
-
-    // Usa seu headless atual para retornar o HTML da página
-    function http_get(string $url, int $timeoutMs = 15000, int $extraSleepMs = 0): ?string
-    {
-        try {
-            // você já tem esses helpers
-            $this->initBrowser(true);
-            $page = $this->browser->createPage();
-
-            // navega e espera carregamento
-            $page->navigate($url);
-            try {
-                // espere LOAD; se sua lib tiver NETWORK_IDLE, melhor ainda
-                $page->waitForNavigation(\HeadlessChromium\Page::LOAD, $timeoutMs);
-            } catch (\Throwable $e) {
-                // fallback bruto
-                usleep(min(20000, $timeoutMs) * 1000);
-            }
-
-            if ($extraSleepMs > 0) usleep($extraSleepMs * 1000);
-
-            // pega HTML “do DOM” (mais confiável que getHtml())
-            $eval   = $page->evaluate('document.documentElement.outerHTML');
-            $result = $eval->getReturnValue();
-
-            return is_string($result) && $result !== '' ? $result : null;
-        } catch (\Throwable $e) {
-            // log se quiser
-            return null;
-        } finally {
-            // importante: feche a page; se quiser reusar o browser, não mate o browser aqui
-            try {
-                isset($page) && $page->close();
-            } catch (\Throwable $e) {
-            }
-            $this->closeBrowser();
-        }
+        return $snapshots; // se quiser, retorne ['snapshots'=>$snapshots, 'rows'=>$rows]
     }
 
 
 
 
 
-
-    // ---- Wayback fetch (tenta id_/plain) ----
-    function wayback_fetch_html(string $ts, string $original, ?string &$snapshotUrl = null): ?string
+    private function preparaSnapshotsEspacados(string $cdxHtml, int $ano, int $limit = 3, int $minMonthsGap = 4): array
     {
-        $candidates = [
-            #"https://web.archive.org/web/{$ts}id_/{$original}",
-            "https://web.archive.org/web/{$ts}/{$original}",
+        // 1) Extrai o JSON de dentro do <pre> (ou do próprio HTML)
+        $jsonStr = trim($cdxHtml);
+        if ($jsonStr === '') return [];
+
+        if ($jsonStr[0] !== '[') {
+            if (preg_match('~<pre[^>]*>\s*(\[.*\])\s*</pre>~', $jsonStr, $m)) {
+                $jsonStr = html_entity_decode($m[1], ENT_QUOTES | ENT_HTML5, 'UTF-8');
+            } else {
+                // fallback: do primeiro [ ao último ]
+                $p1 = strpos($jsonStr, '[');
+                $p2 = strrpos($jsonStr, ']');
+                if ($p1 === false || $p2 === false || $p2 <= $p1) return [];
+                $jsonStr = html_entity_decode(substr($jsonStr, $p1, $p2 - $p1 + 1), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+            }
+        }
+
+        $rows = json_decode($jsonStr, true);
+        if (!is_array($rows) || count($rows) < 2) return [];
+
+        // 2) Descobre o índice das colunas
+        $header = $rows[0];
+        $idxTs   = array_search('timestamp', $header, true);
+        $idxOrig = array_search('original',  $header, true);
+        $idxCode = array_search('statuscode', $header, true);
+        if ($idxTs === false || $idxOrig === false || $idxCode === false) return [];
+
+        // 3) Filtra: ano + status 200. Ordena por timestamp asc e dedup por ts.
+        $items = [];
+        for ($i = 1; $i < count($rows); $i++) {
+            $ts   = (string) ($rows[$i][$idxTs]   ?? '');
+            $orig = (string) ($rows[$i][$idxOrig] ?? '');
+            $code = (string) ($rows[$i][$idxCode] ?? '');
+
+            if ($ts === '' || $orig === '' || $code !== '200') continue;
+            if (substr($ts, 0, 4) !== (string)$ano) continue;
+
+            $items[$ts] = [ // dedup por TS
+                'ts'      => $ts,
+                'date'    => Carbon::createFromFormat('YmdHis', str_pad($ts, 14, '0'), 'UTC')->toDateString(),
+                'original' => $orig,
+            ];
+        }
+
+        if (!$items) return [];
+
+        // ordena por TS asc
+        $items = array_values($items);
+        usort($items, fn($a, $b) => strcmp($a['ts'], $b['ts']));
+
+        // 4) Seleciona até 3 com espaçamento mínimo de 4 meses (~120 dias)
+        $minDays = (int) round($minMonthsGap * 30); // aproximação boa p/ espaçamento
+        $picked = [];
+
+        foreach ($items as $row) {
+            if (count($picked) === 0) {
+                $picked[] = $row;
+                if (count($picked) >= $limit) break;
+                continue;
+            }
+            $last = end($picked);
+            $d1 = Carbon::createFromFormat('YmdHis', str_pad($last['ts'], 14, '0'), 'UTC');
+            $d2 = Carbon::createFromFormat('YmdHis', str_pad($row['ts'],  14, '0'), 'UTC');
+
+            if ($d1->diffInDays($d2) >= $minDays) {
+                $picked[] = $row;
+                if (count($picked) >= $limit) break;
+            }
+        }
+
+        // Caso só tenham 2 registros no ano:
+        // - se a diferença >= 4 meses, fica 2; senão, mantemos 1 (o mais cedo).
+        if (count($picked) === 1 && count($items) === 2) {
+            $d1 = Carbon::createFromFormat('YmdHis', str_pad($items[0]['ts'], 14, '0'), 'UTC');
+            $d2 = Carbon::createFromFormat('YmdHis', str_pad($items[1]['ts'], 14, '0'), 'UTC');
+            if ($d1->diffInDays($d2) >= $minDays) {
+                $picked = [$items[0], $items[1]];
+            }
+        }
+
+        // 5) Monta snapshots id_
+        foreach ($picked as &$p) {
+            $p['snapshot'] = preg_replace(
+                '~^https?://web\.archive\.org/web/(\d{1,14})(?:[a-z]{1,3}_|\*)?/(.+)$~',
+                #'https://web.archive.org/web/$1id_/$2',
+                'https://web.archive.org/web/$1/$2',
+                "https://web.archive.org/web/{$p['ts']}/{$p['original']}"
+            );
+        }
+        unset($p);
+
+        return $picked;
+    }
+
+
+
+
+
+    ######################################################################
+
+
+    // protected function fetchSubsFromWayback(string $url, int $ano)
+    // {
+
+    //     $seletor1 = 'span.yt-subscription-button-subscriber-count-branded-horizontal.yt-uix-tooltip';
+    //     $seletor2 = 'span.yt-subscription-button-subscriber-count-branded-horizontal.subscribed.yt-uix-tooltip';
+    //     $seletor3 = 'span.yt-core-attributed-string.yt-content-metadata-view-model-wiz__metadata-text yt-core-attributed-string--white-space-pre-wrap.yt-core-attributed-string--link-inherit-color';
+    //     $seletor4 = 'span.yt-core-attributed-string.yt-content-metadata-view-model-wiz__metadata-text yt-core-attributed-string--white-space-pre-wrap.yt-core-attributed-string--link-inherit-color > span';
+    //     $seletor5 = '#subscriber-count.style-scope.ytd-c4-tabbed-header-renderer'; // aria-label
+    //     $seletor6 = 'span.yt-subscription-button-subscriber-count-branded-horizontal.subscribed'; // gettext
+
+    //     $subscribers = null;
+
+    //     // if ($elem = $page->dom()->querySelector($seletor1)) {
+    //     //     $subscribers = $this->subs_to_int($elem->getAttribute('title'));
+    //     // } elseif ($elem = $page->dom()->querySelector($seletor2)) {
+    //     //     $subscribers = $this->subs_to_int($elem->getAttribute('title'));
+    //     // } elseif ($elem = $page->dom()->querySelector($seletor3)) {
+    //     //     $subscribers = $this->subs_to_int($elem->getText());
+    //     // } elseif ($elem = $page->dom()->querySelector($seletor4)) {
+    //     //     $subscribers = $this->subs_to_int($elem->getText());
+    //     // } elseif ($elem = $page->dom()->querySelector($seletor5)) {
+    //     //     $subscribers = $this->subs_to_int($elem->getAttribute('aria-label'));
+    //     // } elseif ($elem = $page->dom()->querySelector($seletor6)) {
+    //     //     $subscribers = $this->subs_to_int($elem->getText());
+    //     // } else {
+
+
+    //     $regexes = [
+    //         '"subscriberCountText":{"runs":\[{"text":"(.+?) subscribers"}',
+    //         '{"text":{"content":"([\d\.KkMm]+?) subscribers"}}',
+    //     ];
+
+    //     $regexes = [
+    //         // "subscriberCountText":{"runs":[{"text":"75,114 subscribers"}]}
+    //         '"subscriberCountText"\s*:\s*\{\s*"runs"\s*:\s*\[\s*\{\s*"text"\s*:\s*"([^"]+?)\s*(?:subscribers|inscritos)"',
+    //         // "subscriberCountText":{"simpleText":"75,114 subscribers"}
+    //         '"subscriberCountText"\s*:\s*\{\s*"simpleText"\s*:\s*"([^"]+?)\s*(?:subscribers|inscritos)"',
+    //         // {"text":{"content":"75,114 subscribers"}}
+    //         '"text"\s*:\s*\{\s*"content"\s*:\s*"([^"]+?)\s*(?:subscribers|inscritos)"',
+
+    //         // 2) Depois tenta HTML (atributos e conteúdo do span)
+    //         // aria-label="75,114 subscribers"  (também cobre "inscritos")
+    //         'aria-label="([\d\.,KkMm]+)\s*(?:subscribers|inscritos)"',
+    //         // data-tooltip-text="75,114"
+    //         'data-tooltip-text="([\d\.,KkMm]+)"',
+    //         // title="75,114"
+    //         'title="([\d\.,KkMm]+)"',
+    //         // <span class="... yt-subscription-button ...">75,114</span>
+    //         '<span[^>]*class="[^"]*yt-subscription-button[^"]*[^>]*>([\d\.,KkMm]+)\s*<\/span>',
+    //         // #subscriber-count aria-label="75,114 subscribers"
+    //         'id="subscriber-count"[^>]*aria-label="([\d\.,KkMm]+)\s*(?:subscribers|inscritos)"',
+    //         // #subscriber-count>75,114 (com ou sem palavra)
+    //         'id="subscriber-count"[^>]*>\s*([\d\.,KkMm]+)\s*(?:subscribers|inscritos)?\s*<\/span>',
+    //     ];
+    // }
+
+
+
+    protected function extractSubs(string $html)
+    {
+        $regexes = [
+            // aria-label no #subscriber-count
+            '~\bid="subscriber-count"[^>]*\saria-label="([\d\.\, \x{00A0}\x{202F}KkMm]+)\s*(?:subscribers|inscritos)\b"~iu',
+            // texto interno do yt-formatted-string
+            '~<yt-formatted-string[^>]*\bid="subscriber-count"[^>]*>\s*([\d\.\, \x{00A0}\x{202F}KkMm]+)\s*(?:subscribers|inscritos)?\s*</yt-formatted-string>~iu',
         ];
-        foreach ($candidates as $u) {
-            if ($html = $this->http_get($u)) {
-                // sanity check: precisa parecer HTML
-                if (stripos($html, '<html') !== false || stripos($html, 'ytInitial') !== false) {
-                    $snapshotUrl = $u;   // <-- AQUI guardamos a URL COMPLETA do Wayback
-                    return $html;
-                }
+
+        $htmlNorm = preg_replace("/\x{00A0}|\x{202F}/u", ' ', $html);
+        echo "\n\n\n$htmlNorm";
+
+
+        foreach ($regexes as $re) {
+            if (preg_match($re, $htmlNorm, $m)) {
+                dump($m);
+                $subs = $this->subs_to_int($m[1]);
+                if ($subs > 0)
+                    return $subs;
             }
         }
-        $snapshotUrl = null;
         return null;
-    }
 
+        // ## no HTML
+        // foreach ($regexes as $k => $re) {
+        //     if (preg_match($re, $htmlNorm, $m)) {
+        //         dump($m);
+        //         $subscribers = $this->subs_to_int($m[1]); // ex: "19.5K"
+        //         if ($subscribers > 0) {
+        //             echo "\nCaiu na regx HTML $k => {$re}";
+        //             return (int) $subscribers;
+        //         }
+        //     }
+        // }
+        // return null;
+    }
 
 
     function subs_to_int(string $txt): ?int
     {
+        echo "\n\nEntrando na subs_to_int=======================\n";
+        dump($txt);
         $s = trim(mb_strtolower($txt, 'UTF-8'));
         $s = html_entity_decode($s, ENT_QUOTES | ENT_HTML5, 'UTF-8');
         $s = preg_replace('/\x{00A0}+/u', ' ', $s); // nbsp
@@ -914,168 +458,435 @@ class Bot extends Command
                 }
                 $val  = (float)$num;
                 $mult = ['k' => 1_000, 'm' => 1_000_000, 'b' => 1_000_000_000][$suf] ?? 1;
-                return (int) round($val * $mult);
+                $res = (int) round($val * $mult);
+                echo "\n\nSaida da subs_to_int: $res";
+                return $res;
             } else {
                 $digits = preg_replace('/\D+/', '', $num);
-                if ($digits !== '' && ctype_digit($digits)) return (int)$digits;
+                if ($digits !== '' && ctype_digit($digits)) {
+                    $res = (int) $digits;
+                    echo "\n\nSaida da subs_to_int: $res";
+                    return $res;
+                }
             }
         }
         return null;
     }
 
-    function extract_subscribers(string $html): ?int
+
+    public function getAliasUrlChannelAndYears(string $cid)
     {
-        // --- 0) normalizações rápidas para facilitar matching ---
-        // decodifica entidades (&nbsp; etc.) uma vez
-        $htmlDec = html_entity_decode($html, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $apiKey = env('YOUTUBE_API_KEY');
+        $base   = 'https://www.googleapis.com/youtube/v3/channels';
 
-        // 1) JSON: "subscriberCountText":{"simpleText":"1.23M subscribers"}
-        if (preg_match('/"subscriberCountText"\s*:\s*\{\s*"simpleText"\s*:\s*"([^"]+)"/i', $htmlDec, $m)) {
-            if ($n = $this->subs_to_int($m[1])) {
-                echo "\n--1 (simpleText): $n\n";
-                return $n;
+        // Uma única chamada: pega customUrl (p/ @handle), publishedAt e subscriberCount
+        $resp = Http::get($base, [
+            'part'   => 'snippet,statistics',
+            'id'     => $cid,
+            'fields' => 'items(id,snippet(customUrl,publishedAt,title),statistics(subscriberCount))',
+            'key'    => $apiKey,
+        ]);
+
+        // URLs base (sempre inclui por ID)
+        $urls = [];
+        $push = function (string $u) use (&$urls) {
+            if (!in_array($u, $urls, true)) $urls[] = $u;
+        };
+
+        $push("https://www.youtube.com/channel/{$cid}");
+        // $push("https://www.youtube.com/channel/{$cid}/about");
+
+        if ($resp->ok()) {
+            $item = data_get($resp->json(), 'items.0');
+            $customUrl   = data_get($item, 'snippet.customUrl');       // pode vir "@handle" ou slug legado
+            $publishedAt = data_get($item, 'snippet.publishedAt');     // ISO8601
+            $subsToday   = data_get($item, 'statistics.subscriberCount'); // string numérica; pode não vir se oculto
+
+            // Se o customUrl já vier como "@handle", adiciona a URL por handle
+            if (is_string($customUrl) && Str::startsWith($customUrl, '@')) {
+                $handle = ltrim($customUrl, '@');
+                $push("https://www.youtube.com/@{$handle}");
+                // $push("https://www.youtube.com/@{$handle}/about");
             }
+
+            // Monta a série: criação (0) e hoje (subs atuais ou 0 se ausente)
+            $series = [];
+
+            if ($publishedAt) {
+                $d0 = Carbon::parse($publishedAt)->toDateString();
+                $series[] = [
+                    'data'      => $d0,
+                    'ano'       => (int) substr($d0, 0, 4),
+                    'inscritos' => 0,
+                    'url'       => '', // sem URL nos extremos, como pedido
+                ];
+            }
+
+            $today = Carbon::now()->toDateString();
+            $series[] = [
+                'data'      => $today,
+                'ano'       => (int) substr($today, 0, 4),
+                'inscritos' => isset($subsToday) ? (int) $subsToday : 0, // se oculto, cai pra 0
+                'url'       => '',
+            ];
+
+            return [
+                'urls'   => $urls,
+                'series' => $series,
+            ];
+        } else {
+            echo "\nErro na chamada API";
+        }
+    }
+
+
+
+    private function getHTMLFromHeadless(string $url, int $timer = 5, array $extraHeaders = [], ?string $userAgent = null): ?string
+    {
+        $browserFactory = new BrowserFactory();
+
+        $browser = $browserFactory->createBrowser([
+            'headless'    => true,
+            'windowSize'  => [1920, 1080],
+            'noSandbox'   => true,
+            'customFlags' => ['--lang=pt-BR'],
+            // 'customFlags' => ['--proxy-server=http://host:port'],
+        ]);
+
+        try {
+            $page = $browser->createPage();
+
+            // --- Habilita Network e define headers extras para TODAS as requests da página
+            $session = $page->getSession();
+            $session->sendMessageSync(new Message('Network.enable'));
+
+            // headers padrão + sobrescritos
+            $defaultHeaders = [
+                #'Accept'          => 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+
+
+                'Accept-Language' => 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
+                'Cache-Control'   => 'no-cache',
+                'Pragma'          => 'no-cache',
+            ];
+            $headers = array_merge($defaultHeaders, $extraHeaders);
+
+            $session->sendMessageSync(new Message('Network.setExtraHTTPHeaders', [
+                'headers' => $headers,
+            ]));
+
+            // --- (Opcional) Override do User-Agent (e idioma de aceitação)
+            if ($userAgent) {
+                $session->sendMessageSync(new Message('Emulation.setUserAgentOverride', [
+                    'userAgent'      => $userAgent,
+                    'acceptLanguage' => $headers['Accept-Language'] ?? 'pt-BR,pt;q=0.9,en-US;q=0.8',
+                    'platform'       => 'Windows', // ou 'Linux', 'MacIntel'
+                ]));
+            }
+
+            echo "\n\n\n{$url}\n\n";
+
+            // Navega e espera rede ficar ociosa (melhor que sleep puro)
+            $page->navigate($url);
+            // NETWORK_IDLE precisa do import HeadlessChromium\Page
+            #$nav->waitForNavigation(Page::NETWORK_IDLE, 15000); // 15s
+            // fallback se quiser
+            if ($timer > 0) {
+                sleep($timer);
+            }
+
+            echo "\nPassou - {$timer}s: {$url}";
+
+            $html = $page->getHtml();
+            return $html;
+        } catch (\Throwable $e) {
+            echo "\n\nException : " . $e->getMessage();
+            return null;
+        } finally {
+            $browser->close();
+        }
+    }
+
+
+    function ddmmFromWaybackUrl(string $url): ?string
+    {
+        // 1) tenta capturar o timestamp na URL do Wayback
+        if (preg_match('~^https?://web\.archive\.org/web/(\d{8,14})(?:[a-z]{1,3}_|\*)?/~i', $url, $m)) {
+            $ts = $m[1];
+        }
+        // 2) ou aceita um timestamp “seco”
+        elseif (preg_match('~^(\d{8,14})$~', $url, $m)) {
+            $ts = $m[1];
+        } else {
+            return null;
         }
 
-        // 2) JSON: "subscriberCountText":{"runs":[{"text":"1.23M"},{"text":" subscribers"}]}
-        if (preg_match('/"subscriberCountText"\s*:\s*\{\s*"runs"\s*:\s*\[(.*?)\]\s*\}/is', $htmlDec, $m)) {
-            preg_match_all('/"text"\s*:\s*"([^"]+)"/i', $m[1], $mm);
-            $joined = implode(' ', $mm[1] ?? []);
-            if ($n = $this->subs_to_int($joined)) {
-                echo "\n--2 (runs): $n\n";
-                return $n;
-            }
+        // precisa ter ao menos YYYYMMDD
+        if (strlen($ts) < 8) {
+            return null;
         }
 
-        // ------------------------------------------------------------------
-        // 3) BANCO DE REGEX (fácil de editar)
-        // Cada regex deve capturar em ( ... ) o TEXTO que contém "subscribers|inscritos"
-        // Você pode adicionar/remover itens aqui à vontade.
-        // ------------------------------------------------------------------
-        $regexBank = [
+        $dd = substr($ts, 6, 2);
+        $mm = substr($ts, 4, 2);
+        return "{$dd}-{$mm}";
+    }
 
-            // 3.1) yt-formatted-string com aria-label
-            // <yt-formatted-string id="subscriber-count" ... aria-label="433K subscribers">...</yt-formatted-string>
-            'yt_formatted_aria' =>
-            '/<yt-formatted-string[^>]+id="subscriber-count"[^>]*aria-label="([^"]*?(?:subscribers|inscritos)[^"]*)"/iu',
 
-            // 3.2) yt-formatted-string com texto interno
-            // <yt-formatted-string id="subscriber-count">279K subscribers</yt-formatted-string>
-            'yt_formatted_inner' =>
-            '/<yt-formatted-string[^>]+id="subscriber-count"[^>]*>(.*?)<\/yt-formatted-string>/isu',
+    private function getClosestURL(string $url, $ano)
+    {
 
-            // 3.3) bloco WIZ (span do core contendo "inscritos/subscribers")
-            // <span class="yt-core-attributed-string ...">1,36 mi de inscritos</span>
-            'wiz_core_span' =>
-            '/<span[^>]*class="[^"]*\byt-core-attributed-string\b[^"]*"[^>]*>\s*([^<]*?(?:subscribers|inscritos)[^<]*)\s*<\/span>/iu',
 
-            // 3.4) bloco WIZ mais focado (procura o container e, dentro, o span)
-            'wiz_row_span' =>
-            '/<div[^>]*class="[^"]*\byt-content-metadata-view-model-wiz__metadata-row\b[^"]*"[^>]*>.*?' .
-                '<span[^>]*class="[^"]*\byt-core-attributed-string\b[^"]*"[^>]*>\s*([^<]*?(?:subscribers|inscritos)[^<]*)\s*<\/span>/isu',
+        // Usa um timestamp no MEIO do ano para reduzir “closest” de anos vizinhos
+        $tsMid = sprintf('%04d0707000000', $ano); // 
+        $availableUrl = "https://archive.org/wayback/available?url=" . urlencode($url) . "&timestamp={$tsMid}&output=json";
 
-            // 3.5) marcações antigas com "subscriber-count" em classes genéricas
-            'legacy_class' =>
-            '/class="[^"]*subscriber[^"]*count[^"]*"[^>]*>([^<]*?(?:subscribers|inscritos)[^<]*)</iu',
+        $timer = 1;
+        $html_json = $this->getHTMLFromHeadless($availableUrl, $timer, ['Accept' => 'application/json,text/plain;q=0.9,*/*;q=0.8']);
+        dump($html_json);
 
-            // 3.6) JSON "metadataParts" no HTML (text.content)
-            // {"metadataParts":[{"text":{"content":"1.32M subscribers"},"accessibilityLabel":"1.32 million subscribers"}, ...]}
-            'metadata_parts_text' =>
-            '/"text"\s*:\s*\{\s*"content"\s*:\s*"([^"]*?(?:subscribers|inscritos)[^"]*)"/iu',
+        $html_curl = $this->curlGetWithTimeout($availableUrl);
+        dump($html_curl);
 
-            // 3.7) JSON "metadataParts" no HTML (accessibilityLabel)
-            'metadata_parts_a11y' =>
-            '/"accessibilityLabel"\s*:\s*"([^"]*?(?:subscribers|inscritos)[^"]*)"/iu',
+        return $html_json;
+        #dd($json);
+    }
 
-            // 3.8) fallback genérico: pega uma janela com número + sufixo perto de "subscribers/inscritos"
-            'generic_nearby' =>
-            '/.{0,120}(?:\b[\d\.,]+(?:\s*[kmb]|\s*(?:mil(?:hão|hoes|hões)?|million|billion|thousand))\b[^<>\n\r]*?(?:subscribers|inscritos)).{0,40}/iu',
-        ];
 
-        foreach ($regexBank as $label => $re) {
-            if (preg_match_all($re, $htmlDec, $matches)) {
-                // Alguns regex capturam múltiplos trechos; tente todos até achar um parseável
-                foreach ($matches[1] as $raw) {
-                    // Para casos com tags internas, remova-as
-                    $txt = trim(strip_tags($raw));
-                    if ($txt === '') continue;
+    private function validateClosest(string $availableHtml, int $ano): ?string
+    {
+        if (trim($availableHtml) === '') {
+            echo "\nvalidateClosest: vazio";
+            return null;
+        }
 
-                    if ($n = $this->subs_to_int($txt)) {
-                        echo "\n--RE[$label]: $n | '$txt'\n";
-                        return $n;
-                    }
+        $jsonStr = $availableHtml;
+
+        // 1) Se não parece JSON puro, tenta extrair do <pre>…</pre>
+        if ($jsonStr[0] !== '{') {
+            // Tenta pegar exatamente o conteúdo do <pre>
+            if (preg_match('~<pre[^>]*>\s*(\{.*\})\s*</pre>~is', $availableHtml, $m)) {
+                // Decodifica entidades HTML, caso venham escapadas
+                $jsonStr = html_entity_decode($m[1], ENT_QUOTES | ENT_HTML5, 'UTF-8');
+            } else {
+                // Fallback: pega do primeiro { até o último }
+                $p1 = strpos($availableHtml, '{');
+                $p2 = strrpos($availableHtml, '}');
+                if ($p1 !== false && $p2 !== false && $p2 > $p1) {
+                    $jsonStr = substr($availableHtml, $p1, $p2 - $p1 + 1);
+                    $jsonStr = html_entity_decode($jsonStr, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+                } else {
+                    echo "\nvalidateClosest: JSON não encontrado no HTML";
+                    return null;
                 }
             }
         }
 
-        return null;
-    }
- 
+        // 2) Sanitiza: remove BOM e XSSI guard
+        $jsonStr = preg_replace('/^\xEF\xBB\xBF/', '', $jsonStr);          // BOM
+        $jsonStr = ltrim($jsonStr);
+        $jsonStr = preg_replace('/^\)\]\}\'?,?/', '', $jsonStr);           // )]}'
 
-    // ---- Loop nos samples → [{ts, original, archive, subs}] ----
-    function scrape_samples_subscribers(array $samples, int $sleepMs = 0): array
-    {
-        $out = [];
-        foreach ($samples as $row) {
-            $ts  = $row['ts'];
-            $url = $row['original'];
-
-            $archiveUrl = null;
-            $html = $this->wayback_fetch_html($ts, $url, $archiveUrl);
-            $subs = $html ? $this->extract_subscribers($html) : null;
-
-            $out[] = [
-                'ts'       => $ts,
-                'original' => $url,
-                'archive'  => $archiveUrl,  // <-- URL completa do snapshot usada
-                'subs'     => $subs,        // null se não achar
-            ];
-
-            if ($sleepMs > 0) usleep($sleepMs * 1000);
+        // 3) Decodifica
+        $availableJson = json_decode($jsonStr, true);
+        if (!is_array($availableJson)) {
+            echo "\nvalidateClosest: json_decode falhou: " . json_last_error_msg();
+            return null;
         }
-        usort($out, fn($a, $b) => strcmp($a['ts'], $b['ts']));
-        return $out;
+
+        // 4) Valida presença do closest e disponibilidade
+        $closest = data_get($availableJson, 'archived_snapshots.closest');
+        if (!$closest || !data_get($closest, 'available')) {
+            echo "\nvalidateClosest: sem snapshot closest";
+            return null;
+        }
+
+        // 5) Valida ANO do timestamp
+        $closestTs = (string) data_get($closest, 'timestamp'); // ex: 20180227172601
+        if (!$closestTs || strlen($closestTs) < 4) {
+            echo "\nvalidateClosest: timestamp inválido";
+            return null;
+        }
+        $closestAno = (int) substr($closestTs, 0, 4);
+        if ($closestAno !== (int) $ano) {
+            echo "\nvalidateClosest: skip ts={$closestTs} (ano {$closestAno}) != {$ano}";
+            return null;
+        }
+
+        // 6) Retorna URL do snapshot
+        $closestSnapshotUrl = (string) data_get($closest, 'url');
+        if ($closestSnapshotUrl === '') {
+            echo "\nvalidateClosest: sem URL de snapshot";
+            return null;
+        }
+
+        return $closestSnapshotUrl;
     }
 
 
+    private function poeIdNaURL($url)
+    {
+
+        // se já está em id_, não faz nada
+        if (!preg_match('~^https?://web\.archive\.org/web/\d{1,14}id_/~', $url)) {
+            // força https e injeta id_
+            $url = preg_replace(
+                '~^https?://web\.archive\.org/web/(\d{1,14})(?:[a-z]{1,3}_|\*)?/(.+)$~',
+                'https://web.archive.org/web/$1id_/$2',
+                $url
+            );
+        }
+        return $url;
+    }
+
+
+    public function processaTodasURLs(array $urls_years): array
+    {
+        $urls   = $urls_years['urls']   ?? [];
+        $series = $urls_years['series'] ?? [];
+
+        // 1) Descobre ano de criação (menor data da série) e ano atual
+        $anoHoje = (int) Carbon::now()->year;
+        $ano0    = $anoHoje;
+
+        $anosJaNaSerie = [];
+        foreach ($series as $p) {
+            if (!empty($p['data'])) {
+                $y = (int) substr($p['data'], 0, 4);
+                $anosJaNaSerie[$y] = true;
+                if ($y < $ano0)
+                    $ano0 = $y;
+            }
+        }
+
+        // 2) Conjunto de anos faltantes (inclusive extremos); depois removemos os que já existem
+        $anosRestantes = array_fill_keys(range($ano0, $anoHoje), true);
+        foreach (array_keys($anosRestantes) as $y) {
+            if (isset($anosJaNaSerie[$y])) {
+                unset($anosRestantes[$y]);
+            }
+        }
+
+        if (empty($anosRestantes)) {
+            // Nada a preencher — só ordena e retorna
+            usort($series, fn($a, $b) => strcmp($a['data'], $b['data']));
+            return ['urls' => $urls, 'series' => $series];
+        }
+
+        // 3) Prioriza /channel/UC... antes de @handle
+        usort($urls, function ($a, $b) {
+            $rank = fn($u) => str_contains($u, '/channel/') ? 0 : (str_contains($u, '/@') ? 1 : 2);
+            return $rank($a) <=> $rank($b);
+        });
+
+        dump($anosRestantes);
+
+        // 4) Varre URLs; para cada URL, tenta apenas anos que ainda faltam
+        foreach ($urls as $url) {
+            if (empty($anosRestantes))
+                break;
+
+            foreach (array_keys($anosRestantes) as $ano) {
+
+                # ####################### linhas do closest ############
+                $availableHtml = $this->getClosestURL($url, $ano);
+                $url_to_crawl = $this->validateClosest($availableHtml, $ano);
+
+                $dd_mm = "12-12";
+                if ($url_to_crawl) {
+                    echo "\n$url_to_crawl";
+                }
+
+                $url_cdx_list = $this->montaURLParamsCDXList($url, $ano);
+                echo "\n$url_cdx_list";
+                #$jsonCdxList = $this->getHTMLFromHeadless($url_cdx_list);
+                $jsonCdxList = $this->curlGetWithTimeout($url_cdx_list);
+                #dump($jsonCdxList);
+                #$url_to_crawl = false;
+                // if ($jsonCdxList) {
+                //     $listaSnapshots = $this->cdxPlainToSnapshots($jsonCdxList);
+                //     dump($listaSnapshots);
+                // }
+
+
+              
+                if ($jsonCdxList) {
+                    $url_snapshots = $this->preparaSnapshotsEspacados($jsonCdxList, $ano);
+                    $timer = 40;
+                    dump($url_snapshots);
+                    foreach ($url_snapshots as $url_snapshot) {
+                        $url_to_crawl = $url_snapshot['snapshot'];
+                        dump($url_to_crawl);
+                        #$html = $this->curlGetWithTimeout($url_to_crawl);
+                        echo "\nurl_to_crawl:\n\n$url_to_crawl";
+                        $dd_mm = $this->ddmmFromWaybackUrl($url_to_crawl);
+
+                        $html = $this->getHTMLFromHeadless($url_to_crawl, $timer);
+
+                        if ($html) {
+                            $inscritos = $this->extractSubs($html);
+
+                            echo "\n\n\n\n$inscritos\n\n\n";
+
+                            if ($inscritos > 0) {
+                                #$snapUrl = $this->resolveSnapshotUrlSameYear($url, $ano); // comente para evitar chamada extra
+                                $series[] = [
+                                    'data'      => "{$ano}-{$dd_mm}", // ou use a data real do snapshot se quiser
+                                    'ano'       => $ano,
+                                    'inscritos' => $inscritos,
+                                    'url'       => $url_to_crawl, 
+                                ];
+                                unset($anosRestantes[$ano]); // “mata” o ano; não tenta em outras URLs
+                            }
+                            if (empty($anosRestantes))
+                                break;
+                        }
+                    }
+                }
+
+                // if ($url_to_crawl) {
+                //     $url_to_crawl = $this->poeIdNaURL($url_to_crawl);
+                //     echo "\n\n$url_to_crawl";
+                //     $timer = 5;
+                //     #$html = $this->getHTMLFromHeadless($url_to_crawl, $timer);
+                //     $html = $this->curlGetWithTimeout($url_to_crawl);
+                //     if ($html) {
+                //         $inscritos = $this->extractSubs($html);
+                //         if ($inscritos > 0) {
+                //             #$snapUrl = $this->resolveSnapshotUrlSameYear($url, $ano); // comente para evitar chamada extra
+                //             $series[] = [
+                //                 #'data'      => "{$ano}-12-31", // ou use a data real do snapshot se quiser
+                //                 'ano'       => $ano,
+                //                 'inscritos' => $inscritos,
+                //                 #'url'       => $snapUrl ?? '', // extremos ficam '', aqui podemos anexar o snapshot
+                //             ];
+                //             unset($anosRestantes[$ano]); // “mata” o ano; não tenta em outras URLs
+                //         }
+                //         if (empty($anosRestantes)) break;
+                //     }
+                // }
+
+            }
+        }
+
+        // 5) Ordena por data e retorna no mesmo formato
+        usort($series, fn($a, $b) => strcmp($a['data'], $b['data']));
+        return ['urls' => $urls, 'series' => $series];
+    }
 
 
     ############################################################################
     public function handle()
     {
 
-        $acao = $this->argument('acao');
+        $cid = "UCsra3f6ogpXhIZbSUe2OoaA"; #baster
+        $cid = "UC04BY9XdbTltt3PYOaGGMkA"; #bolinha
 
 
+        $urls_years = $this->getAliasUrlChannelAndYears($cid);
 
+        $res = $this->processaTodasURLs($urls_years);
+        #$res = $this->processaTodasURLsViaCDX($urls_years);
 
-        $cid = 'UCj-RTZE-V3Q6jleatRR9k2A';
-        $urls = $this->patternsFromChannelId($cid);
-        dump($urls);
-        $captures = $this->mergeTimestamps($urls);
-        $samples10 = $this->sampleEvenlyByTime($captures, 10);
-        $points  = $this->scrape_samples_subscribers($samples10, 200);
-        dd($points);
-
-
-        // $canals = Canal::where('parse', '=', 0)->get()->select('id', 'cod', 'youtube_id')->toArray();
-        // foreach ($canals as $canal) {
-        //     extract($canal); #id cod
-        //     if (!$cod)
-        //         continue;
-        //     #$this->canal($id, $cod);
-        //     $this->vidiq($id, $youtube_id);
-        // }
-
-        // dd('---------------------------------------------');
-
-        // $videos = Video::where('parse', '=', 0)->get()->select('id', 'cod')->toArray();
-
-        // foreach ($videos as $video) {
-        //     extract($video); #id cod
-        //     if (!$cod)
-        //         continue;
-        //     $this->get($id, $cod);
-        // }
+        dd($res);
     }
 }

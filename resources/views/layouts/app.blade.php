@@ -12,9 +12,10 @@
     <link rel="preconnect" href="https://fonts.bunny.net">
     <link href="https://fonts.bunny.net/css?family=figtree:400,500,600&display=swap" rel="stylesheet" />
 
-    <!-- Scripts -->
-    @vite(['resources/css/app.css', 'resources/js/app.js'])
 
+    @vite(['resources/css/app.css', 'resources/js/app.js'])
+    @livewireScripts
+    @stack('scripts')
 
     <style>
         tr:has(input[type="checkbox"]:checked) {
@@ -22,48 +23,8 @@
             /* Or any color you prefer */
         }
 
-
-        .grafico {
-            display: flex;
-            align-items: flex-end;
-            height: 300px;
-            border-left: 2px solid #444;
-            border-bottom: 2px solid #444;
-            padding: 10px;
-            gap: 5px;
-            overflow-x: auto;
-            max-width: 100%;
-            box-sizing: border-box;
-        }
-
-        .barra {
-            width: 40px;
-            background-color: steelblue;
-            text-align: center;
-            color: white;
-            font-size: 11px;
-            display: flex;
-            align-items: flex-end;
-            justify-content: center;
-            padding-bottom: 2px;
-            box-sizing: border-box;
-            position: relative;
-        }
-
-        .legenda {
-            writing-mode: vertical-rl;
-            transform: rotate(180deg);
-            font-size: 10px;
-            text-align: center;
-            margin-top: 5px;
-        }
-
-        .barra-wrapper {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            min-width: 50px;
-            /* importante para não colar */
+        [x-cloak] {
+            display: none !important;
         }
     </style>
 
@@ -75,16 +36,33 @@
 
         <!-- Page Heading -->
         @isset($header)
-        <header class="bg-white shadow">
-            <div class="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
-                {{ $header }}
-            </div>
-        </header>
+            <header class="bg-white shadow">
+                <div class="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
+                    {{ $header }}
+                </div>
+            </header>
         @endisset
 
         <!-- Page Content -->
         <main>
-            {{ $slot }}
+
+            @php
+                // Todas as telas de autenticação que usam o layout compacto
+                $authRoutes = ['login', 'register', 'password.*'];
+                // Se quiser incluir verificação de email etc.:  ['login','register','password.*','verification.*']
+            @endphp
+
+            @if (request()->routeIs($authRoutes))
+                <div class="flex flex-col sm:justify-center items-center pt-6 sm:pt-0 bg-gray-100 ">
+                    <div class="w-full sm:max-w-md mt-6 px-6 py-6 bg-white shadow-md overflow-hidden sm:rounded-lg">
+                        {{ $slot }}
+                    </div>
+                </div>
+            @else
+                {{ $slot }}
+            @endif
+
+
         </main>
     </div>
 </body>
@@ -93,5 +71,19 @@
 @livewire('wire-elements-modal')
 
 
-
 </html>
+
+
+@push('scripts')
+    <script>
+        document.addEventListener('alpine:init', () => {
+            Alpine.data('collapsible', (storageKey, defOpen = true) => ({
+                open: JSON.parse(localStorage.getItem(storageKey) ?? JSON.stringify(defOpen)),
+                toggle() {
+                    this.open = !this.open;
+                    localStorage.setItem(storageKey, JSON.stringify(this.open));
+                }
+            }));
+        });
+    </script>
+@endpush
