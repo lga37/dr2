@@ -208,18 +208,8 @@
                                         </div>
                                     </div>
 
-                                    {{-- TAGS DO VÍDEO (pills + "+N") --}}
-                                    @php
-                                        $allTags = collect(\Illuminate\Support\Arr::wrap($v['videoTags'] ?? []))
-                                            ->filter(fn($t) => filled($t))
-                                            ->values();
-                                        $tags = $allTags->take(8);
-                                        $more = max(0, $allTags->count() - $tags->count());
-                                    @endphp
+                                    <x-keywords :items="$v['videoTags'] ?? []" limit="8" rows="2" />
 
-                                    @if ($tags->isNotEmpty())
-                                        <x-keywords :items="$tags" :more="$more" rows="2" />
-                                    @endif
 
                                     <h4 class="text-lg font-semibold mt-4 mb-0">Dados do Vídeo</h4>
                                     <div class="mt-3 grid grid-cols-2 md:grid-cols-4 gap-2 text-sm">
@@ -244,16 +234,6 @@
                                         </div>
                                     </div>
 
-                                    {{-- KEYWORDS DO CANAL COMO PILLS --}}
-                                    @php
-
-                                        $kw = collect(\Illuminate\Support\Arr::wrap($v['channelKeywords'] ?? []))
-                                            ->filter(fn($t) => filled($t))
-                                            ->values();
-
-                                        $kwShow = $kw->take(8);
-                                        $kwMore = max(0, $kw->count() - $kwShow->count());
-                                    @endphp
 
                                     <h4 class="text-lg font-semibold mt-4 mb-1">
                                         Dados do Canal
@@ -263,9 +243,9 @@
                                         {{ isset($v['channelDt']) ? \Carbon\Carbon::parse($v['channelDt'])->format('d/m/Y') : '—' }}
                                     </h4>
 
-                                    @if ($kwShow->isNotEmpty())
-                                        <x-keywords :items="$kwShow" :more="$kwMore" rows="2" />
-                                    @endif
+                                    <x-keywords :items="$v['channelKeywords'] ?? []" limit="8" rows="2" />
+
+
 
                                     <div class="grid grid-cols-2 md:grid-cols-4 gap-2 text-sm">
                                         <div class="bg-gray-50 p-2 rounded">
@@ -325,13 +305,8 @@
                             <tr class="bg-gray-100 text-xs text-gray-700 text-center">
                                 @php
                                     #$comentariosSessao = session('t1_comentarios', []);
-                                    #$comentariosSessao = $comments114;
                                     $comentariosSessao = $samples;
 
-                                    dd($comentariosSessao);
-                                    #samples
-
-                                    #dd($comentariosSessao);
                                     $numComents = max(count($comentariosSessao), 1); // evita /0
                                     $colWidth = number_format(100 / ($numComents * 5), 2);
                                 @endphp
@@ -353,6 +328,11 @@
                                 @if ($i == 0)
                                     <tr
                                         class="border border-gray-300 w-[10px] font-bold text-center text-indigo-800 text-[10px] ">
+                                        <td>#</td>
+                                        <td>Comentário</td>
+                                        <td>Likes</td>
+                                        <td>Data</td>
+                                        <td>Tox</td>
                                         <td>#</td>
                                         <td>Comentário</td>
                                         <td>Likes</td>
@@ -467,10 +447,13 @@
                         </div>
                     </div>
 
-
-
-
                 </div>
+
+
+
+
+
+
             @endif
 
         </div>
@@ -478,67 +461,130 @@
 
 
 
-
-    <div class="mx-auto p-6 w-full max-w-[1400px]"> {{-- mais largo --}}
-        <h2 class="text-xl font-semibold mb-4">Toxicidade (0–100%) no tempo real</h2>
-        <div class="w-full" style="height: 820px;"> {{-- altura menor (ajuste aqui) --}}
-            <canvas id="toxMultiChart"></canvas>
+    <div class="mx-auto p-6 w-full max-w-[1400px]">
+        <h2 class="text-xl font-semibold mb-4">Toxicidade (0–100%) no tempo</h2>
+        <div class="w-full h-96 md:h-[420px]">
+            <canvas id="toxMultiChart" class="w-full h-full"></canvas>
         </div>
     </div>
 
-    @push('scripts')
-        <script>
-            document.addEventListener('DOMContentLoaded', () => {
-                const el = document.getElementById('toxMultiChart');
-                if (!el || !window.Chart) return;
 
-                const chartData =
-                    @json($chart); // {globalStart, min, max, series:{vid:{points,avg,startDay,endDay,title}}}
-                const globalStart = new Date(chartData.globalStart); // ISO -> Date
+</div>
 
-                // helpers
-                const addDays = (d, n) => {
-                    const x = new Date(d);
-                    x.setDate(x.getDate() + n);
-                    return x;
-                };
-                const fmt = (date) => {
-                    const dd = String(date.getDate()).padStart(2, '0');
-                    const mm = String(date.getMonth() + 1).padStart(2, '0');
-                    const yy = date.getFullYear();
-                    return `${dd}/${mm}/${yy}`;
-                };
+@push('scripts')
+    <script>
+        (function() {
+            // Registro global p/ evitar gráficos fantasma
+            if (!window._toxCharts) window._toxCharts = {};
 
-                const palette = [{
-                        pt: '#22c55e',
-                        line: '#15803d'
-                    }, // verde
-                    {
-                        pt: '#ef4444',
-                        line: '#991b1b'
-                    }, // vermelho
-                    {
-                        pt: '#3b82f6',
-                        line: '#1e40af'
-                    }, // azul
-                ];
+            // Plugin de linhas verticais
+            const verticalLines = {
+                id: 'verticalLines',
+                afterDatasetsDraw(chart, _args, opts) {
+                    const {
+                        ctx,
+                        scales: {
+                            x,
+                            y
+                        }
+                    } = chart;
+                    (opts?.markers || []).forEach(m => {
+                        if (typeof m.x !== 'number') return;
+                        const xp = x.getPixelForValue(m.x);
+                        ctx.save();
+                        ctx.strokeStyle = m.color || '#999';
+                        ctx.globalAlpha = 0.6;
+                        ctx.lineWidth = 1;
+                        ctx.setLineDash([2, 2]);
+                        ctx.beginPath();
+                        ctx.moveTo(xp, y.top);
+                        ctx.lineTo(xp, y.bottom);
+                        ctx.stroke();
+                        ctx.restore();
+                    });
+                }
+            };
 
+            // Helpers
+            const addDays = (d, n) => {
+                const x = new Date(d);
+                x.setDate(x.getDate() + n);
+                return x;
+            };
+            const fmt = (date) => {
+                const dd = String(date.getDate()).padStart(2, '0');
+                const mm = String(date.getMonth() + 1).padStart(2, '0');
+                const yy = date.getFullYear();
+                return `${dd}/${mm}/${yy}`;
+            };
+
+            // Paleta com mais cores (caso tenha >3 vídeos)
+            const palette = [{
+                    pt: '#22c55e',
+                    line: '#15803d'
+                }, // verde
+                {
+                    pt: '#ef4444',
+                    line: '#991b1b'
+                }, // vermelho
+                {
+                    pt: '#3b82f6',
+                    line: '#1e40af'
+                }, // azul
+                {
+                    pt: '#f59e0b',
+                    line: '#b45309'
+                }, // amber
+                {
+                    pt: '#8b5cf6',
+                    line: '#5b21b6'
+                }, // violet
+            ];
+
+            function renderChart(chartData, elId = 'toxMultiChart', attempts = 0) {
+                const el = document.getElementById(elId);
+                if (!el) return;
+
+                // Chart.js ainda não disponível? tenta novamente um pouco depois
+                if (!window.Chart) {
+                    if (attempts > 20) return; // evita loop infinito
+                    return setTimeout(() => renderChart(chartData, elId, attempts + 1), 150);
+                }
+
+                // Validação do payload
+                if (!chartData || !chartData.series || Object.keys(chartData.series).length === 0) {
+                    console.warn('chartData inválido ou vazio', chartData);
+                    return;
+                }
+
+                // Log correto (evita concatenar objeto em string)
+                console.log('chartData:', chartData);
+
+                // Destrói instância anterior
+                if (window._toxCharts[elId]) {
+                    try {
+                        window._toxCharts[elId].destroy();
+                    } catch (_) {}
+                    delete window._toxCharts[elId];
+                }
+
+                const globalStart = new Date(chartData.globalStart);
                 const vids = Object.keys(chartData.series);
                 const minX = chartData.min ?? 0;
                 const maxX = chartData.max ?? 0;
 
-                // datasets: pontos e linhas de média
+                // datasets + marcadores
                 const datasets = [];
-                const markers = []; // linhas verticais (x em dias) com cor
+                const markers = [];
 
                 vids.forEach((vid, idx) => {
-                    const s = chartData.series[vid];
+                    const s = chartData.series[vid] || {};
                     const color = palette[idx % palette.length];
 
                     datasets.push({
                         label: s.title || vid,
                         type: 'scatter',
-                        data: s.points || [], // [{x:days,y:%,label}]
+                        data: Array.isArray(s.points) ? s.points : [], // [{x:days,y:%,label}]
                         parsing: false,
                         showLine: false,
                         pointRadius: 3,
@@ -546,9 +592,11 @@
                         backgroundColor: color.pt,
                     });
 
-                    if (typeof s.avg === 'number') {
+                    if (typeof s.avg === 'number' && isFinite(s.avg)) {
                         datasets.push({
-                            label: (s.title || vid) + ' — média',
+                            label: ' — média ',
+                            //label: `${s.title || vid}\n— média`, // já com quebra
+
                             type: 'line',
                             data: [{
                                 x: minX,
@@ -565,53 +613,25 @@
                         });
                     }
 
-                    // marcadores de início e fim
-                    markers.push({
+                    // Marcadores só se forem números válidos
+                    if (typeof s.startDay === 'number' && isFinite(s.startDay)) markers.push({
                         x: s.startDay,
                         color: color.pt
                     });
-                    markers.push({
+                    if (typeof s.endDay === 'number' && isFinite(s.endDay)) markers.push({
                         x: s.endDay,
                         color: color.pt
                     });
                 });
 
-                // plugin simples para linhas verticais nos x marcados
-                const verticalLines = {
-                    id: 'verticalLines',
-                    afterDatasetsDraw(chart, args, opts) {
-                        const {
-                            ctx,
-                            scales: {
-                                x,
-                                y
-                            }
-                        } = chart;
-                        (opts.markers || []).forEach(m => {
-                            const xp = x.getPixelForValue(m.x);
-                            ctx.save();
-                            ctx.strokeStyle = m.color;
-                            ctx.globalAlpha = 0.6;
-                            ctx.lineWidth = 1;
-                            ctx.setLineDash([2, 2]);
-                            ctx.beginPath();
-                            ctx.moveTo(xp, y.top);
-                            ctx.lineTo(xp, y.bottom);
-                            ctx.stroke();
-                            ctx.restore();
-                        });
-                    }
-                };
-
-                new Chart(el, {
+                window._toxCharts[elId] = new Chart(el, {
                     plugins: [verticalLines],
                     data: {
                         datasets
                     },
                     options: {
                         responsive: true,
-                        maintainAspectRatio: false, // respeita a altura do container
-
+                        maintainAspectRatio: false, // respeita a altura do contêiner (Tailwind)
                         animation: false,
                         scales: {
                             x: {
@@ -624,7 +644,7 @@
                                 },
                                 ticks: {
                                     precision: 0,
-                                    callback: v => fmt(addDays(globalStart, Number(v))) // converte dia -> data
+                                    callback: v => fmt(addDays(globalStart, Number(v)))
                                 },
                                 grid: {
                                     drawTicks: true
@@ -633,11 +653,11 @@
                             y: {
                                 min: 0,
                                 max: 100,
+                                beginAtZero: true,
                                 title: {
                                     display: true,
                                     text: 'Toxicidade (%)'
-                                },
-                                beginAtZero: true
+                                }
                             }
                         },
                         plugins: {
@@ -652,21 +672,36 @@
                                     },
                                     label: (ctx) => {
                                         const d = ctx.raw || {};
-                                        return ` ${ctx.dataset.label}: ${Number(d.y).toFixed(1)}%` + (d
-                                            .label ? ` — ${d.label}` : '');
+                                        return `${Number(d.y).toFixed(1)}%` + (d.label ? ` — ${d.label}` :
+                                            '');
                                     }
                                 }
                             },
-                            // passa marcadores para o plugin
                             verticalLines: {
                                 markers
                             }
                         }
                     }
                 });
-            });
-        </script>
-    @endpush
+            }
+
+            // Boot: usa $chart do Blade, se houver
+            function boot() {
+                try {
+                    const chartData = @json($chart ?? null);
+                    if (chartData && chartData.series && Object.keys(chartData.series).length) {
+                        renderChart(chartData);
+                    }
+                } catch (e) {
+                    console.warn('Sem $chart ou JSON inválido', e);
+                }
+            }
 
 
-</div>
+            // Eventos que interessam ao Livewire/DOM
+            document.addEventListener('DOMContentLoaded', boot);
+
+
+        })();
+    </script>
+@endpush

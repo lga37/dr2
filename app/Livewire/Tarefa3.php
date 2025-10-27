@@ -33,395 +33,308 @@ class Tarefa3 extends Component
     public array $videos_dos_canais = [];
     public array $selecionados = [];
     public string $addInput = '';
-    public ?string $maisPolarizado = null;
+    public ?string $maisEconomizado = null;
     public array $polarizMediaArray = [];
-    public ?string $maisPolarizadoReal = null;
+    public ?string $maisEconomizadoReal = null;
     public ?bool $acertou = null;
     public string $feedback = '';       // textarea
-    public bool $mostrarAvaliacao = false;
+    public bool $mostrarAvaliacao = true;
+
     public bool $mostrarFeedback = false;
 
 
     protected array $sessionPrefixes = ['t3_query', 't3_canais']; // ajuste como preferir
 
 
-
-        public array $t3Charts = [];
-        public array $vidiqMeans = [];
-
-
     public array $subsChart = []; // -> vai para o Blade
 
 
-
-// thresholds
-const POI_YPP     = 5_000;       // ponto de início de monetização
-const POI_SILVER  = 100_000;
-const POI_GOLD    = 1_000_000;
-const POI_DIAMOND = 10_000_000;
-
-
-
-
-
-
-
-
-
-public function mount()
-{
-    $this->selecionados = Session::get('t3_canais', []);
-    $this->query        = Session::get('t3_query', '');
-
-    // hoje (fim do período), como data pura YYYY-MM-DD
-    $end = now()->startOfDay()->toDateString();
-
-    $channels = [];
-
-    foreach ($this->selecionados as $channelId => $raw) {
-        // normaliza criação e inscritos
-        $createdAt = \Carbon\Carbon::parse($raw['channelDt'] ?? null)->startOfDay()->toDateString();
-        $subsNow   = (int) preg_replace('/\D+/', '', (string)($raw['channelSubs'] ?? 0));
-
-
-        $pois = $this->buildPois($createdAt, $subsNow, $end);
-
-
-
- 
-
-
-// monetização média do vidIQ
-$meanUSD = $this->vidiqMeans[$channelId] ?? null;
-if ($meanUSD === null) {
-    $earn = $this->estimateMonthlyEarningsFromVidiq($channelId, false);
-    if (!empty($earn['ok']) && is_numeric($earn['mean'])) {
-        $meanUSD = (float) $earn['mean'];
-        $this->vidiqMeans[$channelId] = $meanUSD;
-    }
-}
-
-// ponto de início da monetização = data do POI YPP (se existir), senão createdAt
-$ypp = collect($pois)->firstWhere('label', 'like', 'YPP%');
-$earnStart = $ypp['x'] ?? $createdAt;
-
-
-
-
-// payload por canal
-$channels[] = [
-    'id'        => $channelId,
-    'label'     => $raw['channelTitle'] ?? $channelId,
-    'createdAt' => $createdAt,
-    'subsNow'   => $subsNow,
-    'pois'      => $pois,
-    'meanUSD'   => $meanUSD,             // pode ser null
-    'earnStart' => $earnStart,           // usado no gráfico de monetização
-    'vidiqUrl'  => "https://vidiq.com/youtube-stats/channel/{$channelId}/",
-];
-
-
-
-    }
-
-    $this->t3Charts = [
-        'end'      => $end,
-        'channels' => array_values($channels), // garante índice 0..N-1 (combina com subs-0/earn-0 no Blade)
-    ];
-}
-
-        
-
-
-
-private function buildPois(string $createdAtIso, int $subsNow, string $endIso): array
-{
-    $createdAt = \Carbon\Carbon::parse($createdAtIso)->startOfDay();
-    $end       = \Carbon\Carbon::parse($endIso)->startOfDay();
-    $days      = max(1, $createdAt->diffInDays($end));
-    $rate      = $subsNow / $days; // inscritos/dia
-
-    $make = function(int $targetSubs, string $label, string $color) use ($rate, $subsNow, $createdAt, $end) {
-        if ($rate <= 0 || $targetSubs > $subsNow) return null;
-        $d  = (int)ceil($targetSubs / $rate);
-        $dt = $createdAt->copy()->addDays($d);
-        if ($dt->gt($end)) return null;
-        return [
-            'x'     => $dt->toDateString(),
-            'y'     => $targetSubs,
-            'label' => $label,
-            'color' => $color,
-        ];
-    };
-
-    $pois = [];
-    // origem (criação)
-    $pois[] = ['x' => $createdAt->toDateString(), 'y' => 0, 'label' => 'Criação', 'color' => '#64748b'];
-
-    // marcos
-    foreach ([
-        [self::POI_YPP,     'YPP (5k)',   '#16a34a'],
-        [self::POI_SILVER,  'Silver 100k','#94a3b8'],
-        [self::POI_GOLD,    'Gold 1M',    '#eab308'],
-        [self::POI_DIAMOND, 'Diamond 10M','#60a5fa'],
-    ] as [$subs, $label, $color]) {
-        if ($poi = $make($subs, $label, $color)) $pois[] = $poi;
-    }
-    return $pois;
-}
-
-
-
-
-   
-
-public function estimateMonthlyEarningsFromVidiq(string $channelId, bool $forceRefresh = false): array
-{
-    $channelId = trim($channelId);
-    if ($channelId === '') return ['ok'=>false,'error'=>'channelId vazio'];
-
-    $cacheKey = "earnings:vidiq:v2:{$channelId}";
-    if (!$forceRefresh && Cache::has($cacheKey)) return Cache::get($cacheKey);
-
-    $url = "https://vidiq.com/youtube-stats/channel/{$channelId}/";
-    $ua  = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124 Safari/537.36';
-
-    $out = [
-        'ok'       => false,
-        'url'      => $url,
-        'currency' => 'USD',
-        'min'      => null,
-        'max'      => null,
-        'mean'     => null,
-        'raw'      => null,
-        'error'    => null,
-    ];
-
-    try {
-        $resp = Http::withHeaders([
-            'User-Agent'      => $ua,
-            'Accept-Language' => 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
-        ])->timeout(15)->retry(2, 400)->get($url);
-
-        if (!$resp->successful()) {
-            $out['error'] = "HTTP {$resp->status()}";
-        } else {
-            $html = $resp->body();
-
-            // Procura bloco "Est. Monthly Earnings" e captura "$13K - $40K"
-            $re = '~Est\.\s*Monthly\s*Earnings[\s\S]{0,500}?<span[^>]*>\s*\$([0-9.,]+[KMB]?)\s*[-–]\s*\$([0-9.,]+[KMB]?)\s*</span>~i';
-            if (preg_match($re, $html, $m)) {
-                $min = $this->parseUsdShort($m[1]);
-                $max = $this->parseUsdShort($m[2]);
-                if (is_numeric($min) && is_numeric($max)) {
-                    $out['ok']   = true;
-                    $out['min']  = $min;
-                    $out['max']  = $max;
-                    $out['mean'] = ($min + $max) / 2;
-                    $out['raw']  = [$m[1], $m[2]];
-                } else {
-                    $out['error'] = 'Falha ao normalizar min/max';
-                }
-            } else {
-                $out['error'] = 'Bloco "Est. Monthly Earnings" não encontrado';
-            }
-        }
-    } catch (\Throwable $e) {
-        $out['error'] = $e->getMessage();
-    }
-
-    Cache::put($cacheKey, $out, now()->addHours(12));
-    return $out;
-}
-
-/** '13K' | '1.2M' | '61' → float */
-protected function parseUsdShort(string $s): ?float
-{
-    $s = trim($s);
-    $s = ltrim($s, '$');
-    $s = str_replace(',', '', $s);
-    if ($s === '') return null;
-
-    if (preg_match('~^([0-9]*\.?[0-9]+)\s*([KMB])?$~i', $s, $m)) {
-        $num = (float)$m[1];
-        $suf = strtoupper($m[2] ?? '');
-        return match ($suf) {
-            'K' => $num * 1_000,
-            'M' => $num * 1_000_000,
-            'B' => $num * 1_000_000_000,
-            default => $num,
-        };
-    }
-    return null;
-}
-
-
-
-protected function buildSubsChartSimple(array $selecionados): array
-{
-    $out = [
-        'start'  => null,
-        'end'    => null,
-        'series' => [],
-    ];
-
-    $globalStart = null;
-    $globalEnd   = now()->startOfDay();
-
-    foreach ($selecionados as $channelId => $raw) {
-        $title     = $raw['channelTitle'] ?? $channelId;
-        $subsNow   = (int)($raw['channelSubs'] ?? 0);
-        $createdAt = \Carbon\Carbon::parse($raw['channelDt'])->startOfDay();
-        $today     = now()->startOfDay();
-
-        if (!$globalStart || $createdAt->lt($globalStart)) $globalStart = $createdAt;
-
-        $days = max(1, $createdAt->diffInDays($today));
-        $dailyRate = $subsNow / $days;
-
-        // Queremos no máx. 60 pontos
-        $maxPts = 60;
-        $stepDays = max(1, intdiv($days, $maxPts)); // pulo em dias
-        $points = [];
-        for ($d = 0; $d <= $days; $d += $stepDays) {
-            $dt = $createdAt->copy()->addDays($d);
-            $y  = (int) round($d * $dailyRate);
-            $points[] = ['x' => $dt->toDateString(), 'y' => $y];
-        }
-        // garante o último ponto exatamente em "hoje"
-        if (end($points)['x'] !== $today->toDateString()) {
-            $points[] = ['x' => $today->toDateString(), 'y' => $subsNow];
-        }
-
-        $out['series'][] = [
-            'label'  => $title,
-            'points' => $points,
-        ];
-    }
-
-    $out['start'] = $globalStart ? $globalStart->toDateString() : null;
-    $out['end']   = $globalEnd->toDateString();
-
-    return $out;
-}
-
-
-
-
-
-    // thresholds (pontos de interesse)
-    // const POI_YPP     = 4000;        // ajuste se quiser 5k
-    // const POI_SILVER  = 100_000;
-    // const POI_GOLD    = 1_000_000;
-    // const POI_DIAMOND = 10_000_000;
-
-    /**
-     * Chame isto após carregar $this->selecionados (ex.: no mount ou no botão “Avaliar canais”).
-     */
-    public function montarGraficoInscritos(): void
+    public function mount()
     {
-        if (!$this->selecionados) {
-            $this->subsChart = [];
-            return;
+        $this->selecionados = Session::get('t3_canais', []);
+        $this->query        = Session::get('t3_query', '');
+
+        $today = Carbon::createFromFormat('Y-m-d', '2025-10-01')->startOfDay();
+
+        foreach ($this->selecionados as $idx => $row) {
+            // if (isset($row['monetAvgUsd'], $row['minutagemTotal'])) {
+            //     continue;
+            // }
+
+            $canalId    = $row['channelId']      ?? null;
+            $createdIso = $row['channelDt']      ?? null;
+            $subsHoje   = (int)($row['channelSubs'] ?? 0);
+            if (!$canalId || !$createdIso) continue;
+
+            $start = Carbon::parse($createdIso)->startOfDay();
+            if ($start->greaterThan($today)) $start = (clone $today);
+
+            // === cálculos/consultas ===
+            $monetAvgUsd = $this->getVidIqMonthlyAvgUsd($canalId) ?? 0.0;
+
+            $yt         = $this->ytFetchChannelDurations($canalId);
+            $minTotSec  = $yt['total_seconds'] ?? 0;
+            $minTotFmt  = $this->fmtDuration($minTotSec);
+            $videosCont = $yt['count'] ?? 0;
+
+            [$dt5000, $diasMonetizados] = $this->calcDt5000EDias($start, $subsHoje, $today);
+
+            // === acrescenta APENAS os campos solicitados ao selecionado ===
+            $this->selecionados[$idx]['monetAvgUsd']       = $monetAvgUsd;
+            $this->selecionados[$idx]['minutagemTotal']    = $minTotSec;
+            $this->selecionados[$idx]['minutagemTotalFmt'] = $minTotFmt;
+            $this->selecionados[$idx]['videos']            = $videosCont;
+            $this->selecionados[$idx]['dt5000']            = $dt5000?->toDateString();
+            $this->selecionados[$idx]['diasMonetizados']   = $diasMonetizados;
         }
 
-        $globalStart = null;
-        $globalEnd   = now()->startOfDay();
-
-        $series = [];
-        foreach ($this->selecionados as $channelId => $raw) {
-            // dados base do canal
-            $title     = (string)($raw['channelTitle'] ?? $channelId);
-            $subsNow   = (int)($raw['channelSubs'] ?? 0);
-            $createdAt = Carbon::parse($raw['channelDt'] ?? now())->startOfDay();
-
-            $globalStart = $globalStart ? min($globalStart, $createdAt) : $createdAt;
-
-            // modelo linear simples: 0 → subsNow entre createdAt → hoje
-            $daysTotal = max(1, $createdAt->diffInDays($globalEnd));
-            $rate      = $subsNow / $daysTotal;
-
-            // pontos (x=date, y=subs) – ~1 ponto por mês (máx 24 p/ leve)
-            $ticks = min(24, max(6, (int)ceil($daysTotal / 30)));
-            $pts   = [];
-            for ($i = 0; $i <= $ticks; $i++) {
-                $d = $createdAt->copy()->addSeconds(
-                    (int) floor(($i / $ticks) * $createdAt->diffInSeconds($globalEnd))
-                );
-                $subsAtD = (int) round($d->diffInDays($createdAt) * $rate);
-                $pts[] = ['x' => $d->toDateString(), 'y' => $subsAtD];
-            }
-
-            // POIs por cruzamento do linear
-            $pois = $this->buildPOIsSubs($createdAt, $globalEnd, $rate, $subsNow, [
-                ['label' => 'Criação', 'subs' => 0,                  'color' => '#64748b'], // slate-500
-                ['label' => 'YPP',     'subs' => self::POI_YPP,      'color' => '#16a34a'], // emerald-600
-                ['label' => '100k',    'subs' => self::POI_SILVER,   'color' => '#94a3b8'], // slate-400
-                ['label' => '1M',      'subs' => self::POI_GOLD,     'color' => '#eab308'], // amber-500
-                ['label' => '10M',     'subs' => self::POI_DIAMOND,  'color' => '#60a5fa'], // sky-400
-            ]);
-
-            $series[] = [
-                'id'     => $channelId,
-                'label'  => $title,
-                'points' => $pts,
-                'pois'   => $pois,
-            ];
-        }
-
-        $this->subsChart = [
-            'start'  => $globalStart?->toDateString(),
-            'end'    => $globalEnd->toDateString(),
-            'series' => $series,
-        ];
+        // persiste de volta na sessão
+        Session::put('t3_canais', $this->selecionados);
     }
 
-    /** Calcula datas dos POIs em cima do modelo linear. */
-    protected function buildPOIsSubs(
-        Carbon $createdAt,
-        Carbon $today,
-        float $ratePerDay,
-        int $subsNow,
-        array $defs
-    ): array {
-        $out = [];
-        foreach ($defs as $d) {
-            $subs = (int)$d['subs'];
-            if ($subs <= 0) {
-                $out[] = [
-                    'x'     => $createdAt->toDateString(),
-                    'y'     => 0,
-                    'label' => $d['label'],
-                    'color' => $d['color'],
-                ];
-                continue;
+
+    private function ytFetchChannelDurations(string $channelId): array
+    {
+        $apiKey = config('services.youtube.key', env('YOUTUBE_API_KEY'));
+        if (!$apiKey) return ['count' => 0, 'total_seconds' => 0];
+
+        // Cache por 6h por canal
+        $cacheKey = "yt:uploads:durations:{$channelId}";
+        return Cache::remember($cacheKey, now()->addHours(6), function () use ($channelId, $apiKey) {
+
+            // 1) descobrir a playlist de uploads do canal
+            $uploadsId = $this->ytGetUploadsPlaylistId($channelId, $apiKey);
+            if (!$uploadsId) return ['count' => 0, 'total_seconds' => 0];
+
+            // 2) listar TODOS os videoIds da playlist (pagina em 50)
+            $videoIds = $this->ytListAllPlaylistVideoIds($uploadsId, $apiKey);
+
+            if (empty($videoIds)) return ['count' => 0, 'total_seconds' => 0];
+
+            // 3) buscar detalhes em lotes de 50 (durations + publishedAt)
+            $totalSec = 0;
+            $count    = 0;
+
+            foreach (array_chunk($videoIds, 50) as $chunk) {
+                $ids = implode(',', $chunk);
+                $res = Http::timeout(20)->get('https://www.googleapis.com/youtube/v3/videos', [
+                    'key'   => $apiKey,
+                    'part'  => 'contentDetails,snippet',
+                    'id'    => $ids,
+                    'maxResults' => 50,
+                ]);
+
+                if (!$res->ok()) continue;
+
+                foreach (($res['items'] ?? []) as $it) {
+                    $iso = $it['contentDetails']['duration'] ?? null;   // ex.: PT12M34S
+                    if (!$iso) continue;
+
+                    $sec = $this->iso8601ToSeconds($iso);
+                    $totalSec += $sec;
+                    $count++;
+                }
             }
-            // só marca se o degrau foi alcançado
-            if ($ratePerDay > 0 && $subs <= $subsNow) {
-                $days = (int)ceil($subs / $ratePerDay);
-                $dt   = $createdAt->copy()->addDays($days);
-                if ($dt->lte($today)) {
-                    $out[] = [
-                        'x'     => $dt->toDateString(),
-                        'y'     => $subs,
-                        'label' => $d['label'],
-                        'color' => $d['color'],
-                    ];
+
+            return [
+                'count'         => $count,
+                'total_seconds' => $totalSec,
+            ];
+        });
+    }
+
+    private function ytGetUploadsPlaylistId(string $channelId, string $apiKey): ?string
+    {
+        $res = Http::timeout(15)->get('https://www.googleapis.com/youtube/v3/channels', [
+            'key'  => $apiKey,
+            'part' => 'contentDetails',
+            'id'   => $channelId,
+            'maxResults' => 1,
+        ]);
+        if (!$res->ok()) return null;
+
+        return $res['items'][0]['contentDetails']['relatedPlaylists']['uploads'] ?? null;
+    }
+
+    private function ytListAllPlaylistVideoIds(string $playlistId, string $apiKey): array
+    {
+        $ids = [];
+        $page = null;
+
+        do {
+            $res = Http::timeout(20)->get('https://www.googleapis.com/youtube/v3/playlistItems', [
+                'key'        => $apiKey,
+                'part'       => 'contentDetails',
+                'playlistId' => $playlistId,
+                'maxResults' => 50,
+                'pageToken'  => $page,
+            ]);
+            if (!$res->ok()) break;
+
+            foreach (($res['items'] ?? []) as $it) {
+                $vid = $it['contentDetails']['videoId'] ?? null;
+                if ($vid) $ids[] = $vid;
+            }
+
+            $page = $res['nextPageToken'] ?? null;
+        } while ($page);
+
+        return $ids;
+    }
+
+
+    private function calcDt5000EDias(Carbon $dataInicio, int $inscritosHoje, Carbon $hoje): array
+    {
+        if ($inscritosHoje <= 0) return [null, 0];
+
+        $minutosTot = $dataInicio->diffInMinutes($hoje);       // precisão boa
+        $proporcao  = 5000 / max(1, $inscritosHoje);
+        $minAte5k   = (int) round($minutosTot * $proporcao);
+
+        $dt5000 = (clone $dataInicio)->addMinutes($minAte5k);
+        $dias   = $dt5000->lessThan($hoje) ? $dt5000->diffInDays($hoje) : 0;
+        $dias = round($dias, 2);
+
+        return [$dt5000, $dias];
+    }
+
+
+    private function fmtDuration(int $seconds): string
+    {
+        $h = intdiv($seconds, 3600);
+        $m = intdiv($seconds % 3600, 60);
+        if ($h > 0)  return sprintf('%d h %02d min', $h, $m);
+        return sprintf('%d min', $m);
+    }
+
+
+    private function getVidIqMonthlyAvgUsd(string $channelId): ?float
+    {
+        $url = "https://vidiq.com/youtube-stats/channel/{$channelId}/";
+
+        try {
+            $res = Http::withHeaders([
+                'User-Agent'      => 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119 Safari/537.36',
+                'Accept-Language' => 'en-US,en;q=0.9',
+            ])->timeout(20)->get($url);
+
+            if (!$res->ok()) return null;
+
+            $html = $res->body();
+
+            // 1) DOM + XPath (mais seguro contra variações)
+            if ($val = $this->parseVidiqWithDom($html)) {
+                return $val;
+            }
+
+            // 2) Regex mais “estruturada” (fecha </p> e pega o <span> da mesma seção)
+            if (preg_match('~Est\.\s*Monthly\s*Earnings\s*</p>\s*<div[^>]*>\s*<span[^>]*>([^<]+)</span>~i', $html, $m)) {
+                if ($avg = $this->parseRangeToAvgUsd(trim($m[1]))) return $avg;
+            }
+
+            // 3) Regex ampla (qualquer <span> após o texto-chave)
+            if (preg_match('~Est\.\s*Monthly\s*Earnings.*?<span[^>]*>([^<]+)</span>~is', $html, $m2)) {
+                if ($avg = $this->parseRangeToAvgUsd(trim($m2[1]))) return $avg;
+            }
+
+            return null;
+        } catch (\Throwable $e) {
+            return null;
+        }
+    }
+
+    private function parseVidiqWithDom(string $html): ?float
+    {
+        $dom = new \DOMDocument();
+        libxml_use_internal_errors(true);
+        $dom->loadHTML($html);
+        libxml_clear_errors();
+
+        $xpath = new \DOMXPath($dom);
+
+        // acha o <p> cujo texto contém "Est. Monthly Earnings"
+        $nodes = $xpath->query("//p[contains(normalize-space(.), 'Est. Monthly Earnings')]");
+        if (!$nodes || $nodes->length === 0) return null;
+
+        // pega o primeiro <span> visível logo após (irmão/descendente na mesma seção)
+        $p = $nodes->item(0);
+        // sobe ao container
+        $container = $p->parentNode;
+        if (!$container) return null;
+
+        // tenta um span dentro do container
+        $spanNodes = (new \DOMXPath($dom))->query(".//span", $container);
+        foreach ($spanNodes as $sp) {
+            $text = trim($sp->textContent ?? '');
+            if ($text !== '') {
+                if ($avg = $this->parseRangeToAvgUsd($text)) {
+                    return $avg;
                 }
             }
         }
-        return $out;
+
+        // fallback: próximo span no DOM depois do <p>
+        $allSpans = (new \DOMXPath($dom))->query("//span");
+        $foundP = false;
+        foreach ($dom->getElementsByTagName('p') as $pnode) {
+            if (strpos($pnode->textContent ?? '', 'Est. Monthly Earnings') !== false) {
+                $foundP = true;
+                break;
+            }
+        }
+        if ($foundP && $allSpans && $allSpans->length > 0) {
+            foreach ($allSpans as $sp) {
+                $text = trim($sp->textContent ?? '');
+                if ($text !== '' && $this->parseRangeToAvgUsd($text)) {
+                    return $this->parseRangeToAvgUsd($text);
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /** Converte "$13K - $40K" / "$44 - $132" / "1.2M" em média USD (float) */
+    private function parseRangeToAvgUsd(string $rangeText): ?float
+    {
+        // normaliza entidades e espaços
+        $rangeText = html_entity_decode($rangeText, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $rangeText = preg_replace('/[^\S\r\n]+/u', ' ', $rangeText); // colapsa espaços
+
+        // formato "min - max"
+        if (preg_match('~\$?\s*([0-9][0-9\.,]*)\s*([KkMm])?\s*-\s*\$?\s*([0-9][0-9\.,]*)\s*([KkMm])?~', $rangeText, $mm)) {
+            $min = $this->toNumber($mm[1], $mm[2] ?? null);
+            $max = $this->toNumber($mm[3], $mm[4] ?? null);
+            if ($min !== null && $max !== null) {
+                return ($min + $max) / 2.0;
+            }
+        }
+
+        // formato único "$1.2K"
+        if (preg_match('~\$?\s*([0-9][0-9\.,]*)\s*([KkMm])?~', $rangeText, $ms)) {
+            return $this->toNumber($ms[1], $ms[2] ?? null);
+        }
+
+        return null;
+    }
+
+    private function toNumber(string $num, ?string $suffix): ?float
+    {
+        $n = str_replace([' ', ','], ['', '.'], $num);
+        if (!is_numeric($n)) return null;
+
+        $v = (float)$n;
+        if ($suffix) {
+            $s = strtolower($suffix);
+            if ($s === 'k') $v *= 1_000;
+            if ($s === 'm') $v *= 1_000_000;
+        }
+        return $v;
     }
 
 
-
-
-
-
-
-
-
-
+    ###########################################################
+    ###########################################################
 
     public function validarTarefa3()
     {
@@ -430,14 +343,14 @@ protected function buildSubsChartSimple(array $selecionados): array
         $this->mostrarFeedback = true;
 
 
-        if (!$this->maisPolarizado) {
+        if (!$this->maisEconomizado) {
             $this->msg('Vc deve selecionar um registro');
             return;
         }
         // reset do cache desta tela (opcional)
         Session::forget('t3_videos');
         $sessVideos = [];
-        $tarefa = $this->getTarefa('T2');
+
         #$storage = app(YoutubeStorage::class);
 
         foreach ($this->selecionados as $canalId => $raw) {
@@ -505,24 +418,24 @@ protected function buildSubsChartSimple(array $selecionados): array
         Session::put('t3_videos', $sessVideos);
 
         $this->recalcularMedias();
-        $arrayMaisPolarizados = $this->pickMaisPolariz($this->polarizMediaArray);
-        $mais_polarizado_posit = $arrayMaisPolarizados['mais_polarizado_posit']['id'];
-        $mais_polarizado_negat = $arrayMaisPolarizados['mais_polarizado_negat']['id'];
-        $this->maisPolarizadoReal = $arrayMaisPolarizados['mais_polarizado']['id'];
+        $arrayMaisEconomizados = $this->pickMaisPolariz($this->polarizMediaArray);
+        $mais_Economizado_posit = $arrayMaisEconomizados['mais_Economizado_posit']['id'];
+        $mais_Economizado_negat = $arrayMaisEconomizados['mais_Economizado_negat']['id'];
+        $this->maisEconomizadoReal = $arrayMaisEconomizados['mais_Economizado']['id'];
 
         //  if ($bestPosId !== null) {
-        //     $out['mais_polarizado_posit'] = ['id' => $bestPosId, 'score' => $bestPosVal];
+        //     $out['mais_Economizado_posit'] = ['id' => $bestPosId, 'score' => $bestPosVal];
         // }
         // if ($bestNegId !== null) {
-        //     $out['mais_polarizado_negat'] = ['id' => $bestNegId, 'score' => $bestNegVal];
+        //     $out['mais_Economizado_negat'] = ['id' => $bestNegId, 'score' => $bestNegVal];
         // }
         // if ($bestAbsId !== null) {
-        //     $out['mais_polarizado'] = ['id' => $bestAbsId, 'score' => $bestAbsScore];
+        //     $out['mais_Economizado'] = ['id' => $bestAbsId, 'score' => $bestAbsScore];
         // }
 
 
-        $this->acertou = ($this->maisPolarizadoReal && $this->maisPolarizado)
-            ? $this->maisPolarizadoReal === $this->maisPolarizado
+        $this->acertou = ($this->maisEconomizadoReal && $this->maisEconomizado)
+            ? $this->maisEconomizadoReal === $this->maisEconomizado
             : false;
 
         #dd($this->acertou);
@@ -530,8 +443,8 @@ protected function buildSubsChartSimple(array $selecionados): array
         Session::put('t3_result', [
             'selecionados'      => $this->selecionados,
             'polariz_media'         => $this->polarizMediaArray,
-            'mais_polarizado'       => $this->maisPolarizado,
-            'mais_polarizado_real'  => $this->maisPolarizadoReal,
+            'mais_Economizado'       => $this->maisEconomizado,
+            'mais_Economizado_real'  => $this->maisEconomizadoReal,
             'acertou'           => $this->acertou,
             'videos'       => $this->videos_dos_canais,
             'buscas'            => $this->buscas,
@@ -540,6 +453,22 @@ protected function buildSubsChartSimple(array $selecionados): array
     }
 
 
+
+
+    public function escolherMaisEconomizado(string $canalId): void
+    {
+        // aceita só A/B e evita qualquer reset inesperado
+        // if ($canal === 'A' || $canal === 'B') {
+        //     $this->maisEconomizado = $canal;
+        // }
+        if (!isset($this->selecionados[$canalId])) return;
+
+        $this->maisEconomizado = $canalId;
+        Session::put('tarefa3_mais_economizado', $canalId);
+
+        // limpa resultado anterior se o usuário mudar de ideia
+        $this->acertou = null;
+    }
 
 
 
@@ -552,7 +481,7 @@ protected function buildSubsChartSimple(array $selecionados): array
 
         $this->mostrarAvaliacao = true;
         $this->videos_dos_canais  = [];
-        $this->maisPolarizado = null;
+        $this->maisEconomizado = null;
         $this->polarizMediaArray = [];   // [videoId => float]
 
     }
@@ -611,7 +540,7 @@ protected function buildSubsChartSimple(array $selecionados): array
             ARRAY_FILTER_USE_BOTH
         );
 
-        // dump($this->selecionados);
+        #dump($this->selecionados);
 
         if (empty($this->selecionados)) {
             Session::forget('t3_canais');

@@ -167,246 +167,514 @@
             </div>
 
 
+            <div class="grid grid-cols-1">
+
+                @if ($mostrarAvaliacao)
+                    <div id="avaliacao" class="mt-8 px-4">
+                        <h3 class="text-lg font-semibold mb-3">Avaliação</h3>
 
 
-            {{-- INSCRITOS (lado a lado) --}}
-            <div class="mt-6">
-                <h3 class="font-semibold mb-3">Inscritos no tempo</h3>
-                <div id="subsGrid" class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    @foreach ($t3Charts['channels'] as $i => $ch)
-                        <div class="bg-white rounded-xl border p-4">
-                            <div class="flex items-center justify-between mb-2">
-                                <div class="font-medium">{{ $ch['label'] }} <span
-                                        class="text-slate-500 text-xs">({{ $ch['id'] }})</span></div>
-                                <a href="{{ $ch['vidiqUrl'] }}" class="text-xs underline text-slate-500"
-                                    target="_blank" rel="noopener">vidIQ</a>
+                        <div class="-mx-4 sm:-mx-6 lg:-mx-8">
+                            <div class="grid gap-6 auto-rows-fr"
+                                style="grid-template-columns: repeat(2, minmax(0,1fr));">
+
+                                @foreach ($selecionados as $id => $v)
+                                    @php
+                                        #dump($v);
+                                    @endphp
+                                    <article wire:key="{{ $id }}"
+                                        class="h-full flex flex-col rounded-xl border p-4 shadow-sm bg-white
+                                        {{ $maisEconomizado === $id ? 'ring-2 ring-indigo-500' : '' }}">
+
+                                        {{-- card-canal --}}
+
+                                        <x-cardcanal :v="$v" />
+                                        {{-- <div class="flex items-start">
+                                            <x-imagem :src="$v['channelThumb']" tipo="gde" class="shadow-sm" />
+                                            <div class="flex-1 ">
+                                                <x-linkcanal :canalId="$v['channelId']" :titulo="$v['channelTitle'] ?? ''" />
+
+                                                <div class="h-20 text-xs text-justify text-gray-500 mt-1 line-clamp-4">
+                                                    {{ $v['channelDesc'] ?? '' }}
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <h4 class="text-lg h-8 font-semibold mt-4 mb-1">
+                                            Dados do Canal
+                                            <x-linkcanal :canalId="$v['channelId']" :titulo="$v['channelTitle'] ?? ''" />
+
+                                            — criado em
+                                            {{ isset($v['channelDt']) ? \Carbon\Carbon::parse($v['channelDt'])->format('d/m/Y') : '—' }}
+                                        </h4>
+
+                                        <x-keywords :items="$v['channelKeywords'] ?? []" limit="8" rows="2" />
+
+
+                                        <div class="grid grid-cols-2 md:grid-cols-4 gap-2 text-sm">
+                                            <div class="bg-gray-50 p-2 rounded">
+                                                <div class="text-gray-500">Origem/Pais</div>
+                                                <div class="font-semibold">{{ $v['channelCountry'] ?? '-' }}</div>
+                                            </div>
+                                            <div class="bg-gray-50 p-2 rounded">
+                                                <div class="text-gray-500">Total Views</div>
+                                                <div class="font-semibold">
+                                                    {{ number_format($v['channelViews'] ?? 0, 0, ',', '.') }}</div>
+                                            </div>
+                                            <div class="bg-gray-50 p-2 rounded">
+                                                <div class="text-gray-500">Total Vídeos</div>
+                                                <div class="font-semibold">
+                                                    {{ number_format($v['channelVideos'] ?? 0, 0, ',', '.') }}</div>
+                                            </div>
+                                            <div class="bg-gray-50 p-2 rounded">
+                                                <div class="text-gray-500">Inscritos</div>
+                                                <div class="font-semibold">
+                                                    {{ number_format($v['channelSubs'] ?? 0, 0, ',', '.') }}</div>
+                                            </div>
+                                        </div> --}}
+
+                                        <!-- fim cardcanal -->
+
+
+                                        @php
+                                            // URLs externas
+                                            $url_vidiq = "https://vidiq.com/youtube-stats/channel/{$id}/";
+                                            $url_socialblade = "https://socialblade.com/youtube/channel/{$id}";
+                                        @endphp
+
+                                        <div class="mt-3 rounded-xl border bg-white/60 p-3">
+                                            <div class="flex flex-wrap items-center gap-4 md:gap-6">
+
+                                                {{-- Monetização estimada --}}
+                                                <div class="flex items-center gap-2 rounded-lg bg-zinc-50 px-3 py-2">
+                                                    <span class="text-xs font-semibold text-zinc-500">Monetiz. Est.
+                                                    </span>
+                                                    <span
+                                                        class="text-lg font-semibold text-green-700 md:text-xl">U$ {{ isset($v['monetAvgUsd']) ? $v['monetAvgUsd'].'.00 /mes': '' }}</span>
+                                                </div>
+
+                                                {{-- Dias monetizados (desde a data em que atingiu 5k) --}}
+                                                <div class="flex items-center gap-2 rounded-lg bg-zinc-50 px-3 py-2">
+                                                    <span class="text-xs font-semibold text-zinc-500">Dias
+                                                        monetizados</span>
+                                                    <span
+                                                        class="text-lg font-semibold md:text-xl">{{ $v['diasMonetizados'] ?? '' }}</span>
+                                                    @isset($dt5000)
+                                                        <span class="text-[11px] text-zinc-500">desde
+                                                            {{ \Carbon\Carbon::parse($dt5000)->format('d/m/Y') }}</span>
+                                                    @endisset
+                                                </div>
+
+                                                {{-- Minutagem total de vídeos --}}
+                                                <div class="flex items-center gap-2 rounded-lg bg-zinc-50 px-3 py-2">
+                                                    <span class="text-xs font-semibold text-zinc-500">Minutagem
+                                                        total</span>
+                                                    <span
+                                                        class="text-lg font-semibold md:text-xl">{{ $v['minutagemTotalFmt'] ?? '' }}</span> - 
+                                                    <span
+                                                        class="text-lg font-semibold md:text-xl">{{ $v['minutagemTotal'] ?? '' }}</span>
+
+
+                                                    {{-- ex.: "123 h 45 min" ou "7.430 min" --}}
+                                                </div>
+
+                                                {{-- Ações/Links --}}
+                                                <div class="ml-auto flex items-center gap-2">
+                                                    {{-- vidIQ (ciano/azul) --}}
+                                                    <a href="{{ $url_vidiq }}" target="_blank" rel="noopener"
+                                                        class="group inline-flex items-center gap-2 rounded-lg border border-cyan-600 bg-cyan-50
+            px-3 py-2 text-sm font-medium text-cyan-700 shadow-sm transition
+            hover:bg-cyan-100 hover:border-cyan-700 hover:text-cyan-800
+            focus:outline-none focus:ring-2 focus:ring-cyan-300">
+                                                        <svg class="h-4 w-4 transition-transform group-hover:translate-x-0.5"
+                                                            viewBox="0 0 24 24" fill="currentColor"
+                                                            aria-hidden="true">
+                                                            <path d="M3 12l7-9 4 6 7-3-7 15-4-6-7 3z" />
+                                                        </svg>
+                                                        vidIQ
+                                                    </a>
+
+                                                    {{-- SocialBlade (vermelho) --}}
+                                                    <a href="{{ $url_socialblade }}" target="_blank" rel="noopener"
+                                                        class="group inline-flex items-center gap-2 rounded-lg border border-rose-600 bg-rose-50
+            px-3 py-2 text-sm font-medium text-rose-700 shadow-sm transition
+            hover:bg-rose-100 hover:border-rose-700 hover:text-rose-800
+            focus:outline-none focus:ring-2 focus:ring-rose-300">
+                                                        <svg class="h-4 w-4 transition-transform group-hover:translate-x-0.5"
+                                                            viewBox="0 0 24 24" fill="currentColor"
+                                                            aria-hidden="true">
+                                                            <path d="M3 13h6l3-6 3 10 3-6h3v2h-2l-4 8-3-10-3 6H3z" />
+                                                        </svg>
+                                                        SocialBlade
+                                                    </a>
+                                                </div>
+
+
+                                            </div>
+                                        </div>
+
+
+
+
+
+                                        <div class="mt-auto pt-4">
+
+                                            <div class="mt-4" wire:ignore>
+                                                <canvas id="chart-{{ $v['channelId'] }}" class="h-96 w-full"
+                                                    data-titulo="Inscritos — {{ $v['channelTitle'] }}"
+                                                    data-data="{{ \Carbon\Carbon::parse($v['channelDt'])->format('Y-m-d') }}"
+                                                    data-inscritos="{{ $v['channelSubs'] ?? 0 }}">
+                                                </canvas>
+                                            </div>
+
+                                            <div class="pt-4">
+                                                <x-secondary-button
+                                                    wire:click="escolherMaisEconomizado('{{ $id }}')"
+                                                    :disabled="$maisEconomizado === $id">
+                                                    Marcar como mais Economizado
+                                                </x-secondary-button>
+                                                @if ($maisEconomizado === $id)
+                                                    <span
+                                                        class="ml-3 text-indigo-600 text-sm font-semibold">Selecionado</span>
+                                                @endif
+                                            </div>
+                                        </div>
+                                    </article>
+                                @endforeach
+
                             </div>
-                            <div class="h-72"><canvas id="subs-{{ $i }}"></canvas></div>
                         </div>
-                    @endforeach
-                </div>
+
+
+                        <x-primary-button class="w-full text-6xl p-10 mt-6 text-center " wire:click="validarTarefa3"
+                            wire:loading.attr="disabled" wire:target="validarTarefa3">
+                            Finalizar Avaliação de Monetizaçao
+
+                            <span class="invisible" wire:loading.class.remove="invisible"
+                                wire:target="validarTarefa2">
+                                <span class="text-sm text-yellow-500">Aguarde Processando ...</span>
+                            </span>
+                        </x-primary-button>
+
+
+                    </div>
+                @endif
+
             </div>
-
-            {{-- MONETIZAÇÃO (lado a lado) --}}
-            <div class="mt-10">
-                <h3 class="font-semibold mb-3">Monetização (média vidIQ)</h3>
-                <div id="earnGrid" class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    @foreach ($t3Charts['channels'] as $i => $ch)
-                        <div class="bg-white rounded-xl border p-4">
-                            <div class="font-medium mb-2">{{ $ch['label'] }}</div>
-                            <div class="h-72"><canvas id="earn-{{ $i }}"></canvas></div>
-                        </div>
-                    @endforeach
-                </div>
-            </div>
-
-
-         @push('scripts')
-<script>
-document.addEventListener('DOMContentLoaded', () => {
-  const payload = @json($t3Charts);
-  if (!payload?.channels?.length || typeof Chart === 'undefined') return;
-
-  const colors = ['#10b981', '#ef4444', '#3b82f6', '#f59e0b', '#8b5cf6'];
-
-  // ---------- helpers ----------
-  const fmt  = d => new Date(d).toISOString().slice(0,10);         // 'YYYY-MM-DD'
-  const ms   = d => new Date(d).getTime();
-  const lerp = (a,b,t) => a + (b-a)*t;
-
-  // 12 rótulos igualmente espaçados + fim (hoje)
-  function buildLabels(startDate, endDate) {
-    const t0 = ms(startDate), t1 = ms(endDate);
-    const N = 12, out = [];
-    for (let i=0;i<N;i++) out.push(fmt( lerp(t0,t1, i/(N-1)) ));
-    const endStr = fmt(endDate);
-    if (out.at(-1) !== endStr) out.push(endStr);
-    return out;
-  }
-
-  // reta 0 → yFinal em função do tempo
-  function seriesLinearZeroTo(labels, startDate, endDate, yFinal) {
-    const t0 = ms(startDate), t1 = ms(endDate);
-    return labels.map(lbl => {
-      const r = Math.min(1, Math.max(0, (ms(lbl)-t0)/Math.max(1, t1-t0)));
-      return +(yFinal * r).toFixed(2);
-    });
-  }
-
-  // Posição de um POI (em Y) sobre a reta 0→subsNow
-  // retorna {date, y} se existir no intervalo
-  function findPoiOnLinear(startDate, endDate, subsNow, poiY) {
-    if (!subsNow || poiY <= 0 || poiY > subsNow) return null;
-    const t0 = ms(startDate), t1 = ms(endDate);
-    const frac = poiY / subsNow;                      // fração do período
-    const tPoi = lerp(t0, t1, frac);
-    return { date: fmt(tPoi), y: poiY };
-  }
-
-  // guias (pontilhadas)
-  const guideV = (x, yMax, color) => ({
-    type: 'line', label: '_guide_v',
-    data: [{x, y:0}, {x, y:yMax}],
-    parsing: false, borderColor: color, borderWidth: 1,
-    borderDash: [5,4], pointRadius: 0, tension: 0
-  });
-
-  const guideH = (x0, x1, y, color) => ({
-    type: 'line', label: '_guide_h',
-    data: [{x:x0, y}, {x:x1, y}],
-    parsing: false, borderColor: color, borderWidth: 1,
-    borderDash: [5,4], pointRadius: 0, tension: 0
-  });
-
-  // POIs que queremos marcar
-  const POIS = [
-    { y:  5000,   label: 'YPP (5.000)',   color: '#16a34a' },
-    { y: 100000,  label: 'Silver (100k)', color: '#94a3b8' },
-  ];
-
-  payload.channels.forEach((ch, i) => {
-    const COLOR    = colors[i % colors.length];
-    const CREATED  = ch.createdAt;
-    const END      = payload.end;                         // "hoje" vindo do Laravel (YYYY-MM-DD)
-    const SUBSNOW  = Number(ch.subsNow) || 0;
-    const MEANUSD  = (ch.meanUSD==null ? null : Number(String(ch.meanUSD).replace(',', '.')));
-
-    // eixo X comum aos 2 gráficos
-    const labels   = buildLabels(CREATED, END);
-    const titleTxt = `De ${fmt(CREATED)} a ${fmt(END)} (hoje)`;
-
-    // ================= INSCRITOS =================
-    const subsData = seriesLinearZeroTo(labels, CREATED, END, SUBSNOW);
-
-    // POIs existentes neste canal
-    const pois = POIS.map(p => {
-      const hit = findPoiOnLinear(CREATED, END, SUBSNOW, p.y);
-      return hit ? {...p, hit} : null;
-    }).filter(Boolean);
-
-    const subsDs = [
-      {
-        label: ch.label,
-        data: subsData,
-        borderColor: COLOR,
-        borderWidth: 2,
-        tension: 0,
-        pointRadius: 0,
-        spanGaps: false
-      },
-      // ponto e tooltips
-      ...pois.map(p => ({
-        type: 'scatter',
-        label: 'POI',
-        parsing: false,
-        showLine: false,
-        data: [{ x: p.hit.date, y: p.y, _label: p.label }],
-        pointRadius: 5,
-        pointHoverRadius: 7,
-        backgroundColor: p.color,
-        borderColor: p.color
-      })),
-      // guias
-      ...pois.map(p => guideV(p.hit.date, Math.max(p.y, SUBSNOW), p.color)),
-      ...pois.map(p => guideH(labels[0], labels.at(-1), p.y, p.color)),
-    ];
-
-    const subsCtx = document.getElementById(`subs-${i}`)?.getContext('2d');
-    if (subsCtx) {
-      if (window[`__subs_${i}`]) try { window[`__subs_${i}`].destroy(); } catch {}
-      window[`__subs_${i}`] = new Chart(subsCtx, {
-        type: 'line',
-        data: { labels, datasets: subsDs },
-        options: {
-          responsive: true, maintainAspectRatio: false, animation: false,
-          scales: {
-            x: { type: 'category', ticks: { maxTicksLimit: 7 } },
-            y: { beginAtZero: true, ticks: { maxTicksLimit: 6 }, title: { display: true, text: 'Inscritos' } }
-          },
-          plugins: {
-            legend: { display: false },
-            title:  { display: true, text: titleTxt },
-            tooltip: {
-              callbacks: {
-                title: (items) => items?.[0]?.label ?? '',
-                label: (ctx) => {
-                  const r = ctx.raw || {};
-                  if (r._label) return r._label;
-                  return `Inscritos: ${ctx.parsed.y.toLocaleString()}`;
-                }
-              }
-            }
-          }
-        }
-      });
-    }
-
-    // ================= MONETIZAÇÃO =================
-    // começa em 0 no YPP e termina em meanUSD no "hoje"
-    const ypp = findPoiOnLinear(CREATED, END, SUBSNOW, 5000); // pode ser null
-
-    const earnDatasets = [];
-    if (MEANUSD != null && ypp) {
-      // reta única com 2 pontos; usar parsing:false e X iguais aos labels
-      earnDatasets.push({
-        label: 'US$ / mês (estimado)',
-        type: 'line',
-        parsing: false,
-        data: [{ x: ypp.date, y: 0 }, { x: fmt(END), y: MEANUSD }],
-        borderColor: COLOR,
-        borderWidth: 2,
-        tension: 0,
-        pointRadius: 0
-      });
-      // guia vertical no início da monetização
-      earnDatasets.push( guideV(ypp.date, MEANUSD, '#16a34a') );
-    } else {
-      // antes do YPP ou sem média → nada a mostrar
-      earnDatasets.push({
-        label: 'Sem dados',
-        data: labels.map(()=>null),
-        borderColor: COLOR,
-        borderWidth: 0,
-        pointRadius: 0
-      });
-    }
-
-    const earnCtx = document.getElementById(`earn-${i}`)?.getContext('2d');
-    if (earnCtx) {
-      if (window[`__earn_${i}`]) try { window[`__earn_${i}`].destroy(); } catch {}
-      window[`__earn_${i}`] = new Chart(earnCtx, {
-        type: 'line',
-        data: { labels, datasets: earnDatasets },
-        options: {
-          responsive: true, maintainAspectRatio: false, animation: false,
-          scales: {
-            x: { type: 'category', ticks: { maxTicksLimit: 7 } },
-            y: { beginAtZero: true, ticks: { maxTicksLimit: 6 }, title: { display: true, text: 'US$ / mês' } }
-          },
-          plugins: {
-            legend: { display: false },
-            title:  { display: true, text: titleTxt },
-            tooltip: {
-              callbacks: {
-                title: (items) => items?.[0]?.label ?? '',
-                label: (ctx) =>
-                  (ctx.parsed?.y == null)
-                    ? 'Sem dados (antes do YPP)'
-                    : `Estimado: $${Number(ctx.parsed.y).toLocaleString(undefined,{maximumFractionDigits:2})}`
-              }
-            }
-          }
-        }
-      });
-    }
-  });
-});
-</script>
-@endpush
-
-
-
-
         </div>
     </div>
 </div>
+
+@push('scripts')
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            if (!window.Chart) return;
+            const annotationPlugin = window['chartjs-plugin-annotation'];
+            if (annotationPlugin) Chart.register(annotationPlugin);
+
+            // === HELPERS ===
+            const toDate = v => (v instanceof Date ? v : new Date(v));
+            const addMonths = (d, m) => {
+                const x = new Date(d);
+                x.setMonth(x.getMonth() + m);
+                return x;
+            };
+            const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+            const dateAtY = (y, x0, y0, x1, y1) => {
+                const f = clamp((y - y0) / (y1 - y0), 0, 1);
+                const t = x0.getTime() + f * (x1.getTime() - x0.getTime());
+                return new Date(t);
+            };
+            const niceMaxY = raw => {
+                const pow = Math.pow(10, Math.floor(Math.log10(raw)));
+                for (const k of [1, 2, 2.5, 5, 10]) {
+                    const c = k * pow;
+                    if (c >= raw) return c;
+                }
+                return 10 * pow;
+            };
+
+            const fmtNum = new Intl.NumberFormat('pt-BR');
+
+            // === FUNÇÃO BASE (usa o teu mesmo código) ===
+            function makeChart(elId, titulo, dataInicio, inscritosFinal) {
+                const el = document.getElementById(elId);
+                if (!el) return;
+
+                // --- parâmetros dinâmicos ---
+                const x0 = toDate(dataInicio);
+                const x1 = new Date(); // hoje
+                const y0 = 0;
+                const y1 = Number(inscritosFinal || 0);
+
+
+
+                const fmt = (n) => Number(n).toLocaleString('pt-BR');
+                const POI_ABS = [5_000, 100_000];
+                const POIS = POI_ABS.map(v => ({
+                    y: v,
+                    name: `POI ${fmt(v)}`
+                }));
+
+
+                const mainLine = [{
+                        x: x0.toISOString(),
+                        y: y0
+                    },
+                    {
+                        x: x1.toISOString(),
+                        y: y1
+                    }
+                ];
+
+
+                //========================================
+                const poiData = POIS.map(p => {
+                    const d = (y1 > 0) ? dateAtY(p.y, x0, y0, x1, y1) : x0;
+                    return {
+                        ...p,
+                        x: d,
+                        xISO: d.toISOString()
+                    };
+                });
+
+                const farthestPoiDate = poiData.reduce((acc, p) => p.x > acc ? p.x : acc, x1);
+                const xMin = addMonths(x0, -3);
+                const xMax = addMonths(farthestPoiDate, 1); // garanta espaço à direita
+
+
+                const poiVerticalDatasets = poiData.map((p, idx) => ({
+                    label: p.name,
+                    data: [{
+                            x: p.xISO,
+                            y: 0
+                        },
+                        {
+                            x: p.xISO,
+                            y: p.y
+                        }
+                    ],
+                    showLine: true,
+                    fill: false,
+                    borderDash: [6, 6],
+                    borderWidth: 2,
+                    borderColor: idx === 0 ? '#ef4444' : '#7c3aed',
+                    pointRadius: 0,
+                    order: 9
+                }));
+
+
+
+                const poiDotsDataset = {
+                    label: 'POIs',
+                    data: poiData.map(p => ({
+                        x: p.xISO,
+                        y: p.y,
+                        name: p.name,
+                        isFirst: p.y === POIS[0].y
+                    })),
+                    parsing: {
+                        xAxisKey: 'x',
+                        yAxisKey: 'y'
+                    },
+                    showLine: false,
+                    pointRadius: ctx => ctx.raw?.isFirst ? 8 : 6,
+                    pointHoverRadius: ctx => ctx.raw?.isFirst ? 11 : 9,
+                    pointBackgroundColor: ctx => ctx.raw?.isFirst ? '#ef4444' : '#7c3aed',
+                    pointBorderColor: '#ffffff',
+                    pointBorderWidth: 2,
+                    order: 20
+                };
+
+
+
+
+
+                const annotations = {};
+                poiData.forEach((p, idx) => {
+                    const color = idx === 0 ? '#ef4444' : '#7c3aed';
+                    annotations[`v_${p.y}`] = {
+                        type: 'line',
+                        xMin: p.x,
+                        xMax: p.x,
+                        borderColor: color,
+                        borderWidth: 2,
+                        borderDash: [6, 6],
+                        z: 15,
+                        drawTime: 'afterDatasetsDraw'
+                    };
+                    annotations[`h_${p.y}`] = {
+                        type: 'line',
+                        yMin: p.y,
+                        yMax: p.y,
+                        borderColor: color,
+                        borderWidth: 2,
+                        borderDash: [6, 6],
+                        z: 15,
+                        drawTime: 'afterDatasetsDraw'
+                    };
+                    annotations[`pt_${p.y}`] = {
+                        type: 'point',
+                        xValue: p.x,
+                        yValue: p.y,
+                        radius: p.y === POIS[0].y ? 9 : 7,
+                        backgroundColor: color,
+                        borderColor: '#ffffff',
+                        borderWidth: 2,
+                        z: 20,
+                        drawTime: 'afterDatasetsDraw',
+                        label: {
+                            display: true,
+                            content: [p.name, `${fmtNum.format(p.y)} inscritos`],
+                            position: 'top',
+                            color: '#111827',
+                            backgroundColor: 'rgba(255,255,255,0.95)',
+                            padding: 6,
+                            borderRadius: 6
+                        },
+                        tooltip: {
+                            enabled: true,
+                            callbacks: {
+                                label: () => `${p.name}: ${fmtNum.format(p.y)} inscritos`
+                            }
+                        }
+                    };
+                });
+
+                const yMax = niceMaxY(y1 * 1.1);
+
+                const config = {
+                    type: 'line',
+                    data: {
+                        datasets: [{
+                                label: titulo,
+                                data: mainLine,
+                                showLine: true,
+                                fill: 'start',
+                                spanGaps: true,
+                                backgroundColor: 'rgba(14,165,233,0.12)',
+                                borderColor: '#0ea5e9',
+                                borderWidth: 2,
+                                pointBackgroundColor: '#0ea5e9',
+                                pointRadius: 4
+                            },
+                            ...poiVerticalDatasets,
+                            poiDotsDataset
+                        ]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: {
+                            x: {
+                                type: 'time',
+                                time: {
+                                    unit: 'month',
+                                    tooltipFormat: 'PP'
+                                },
+                                min: xMin.toISOString(),
+                                max: xMax.toISOString(),
+                                title: {
+                                    display: true,
+                                    text: 'Tempo'
+                                },
+                                grid: {
+                                    display: true
+                                }
+                            },
+                            y: {
+                                beginAtZero: true,
+                                min: 0,
+                                max: yMax,
+                                ticks: {
+                                    callback: v => fmtNum.format(v)
+                                },
+                                title: {
+                                    display: true,
+                                    text: 'Inscritos'
+                                },
+                                grid: {
+                                    display: true
+                                }
+                            }
+                        },
+                        plugins: {
+                            legend: {
+                                display: true
+                            },
+                            tooltip: {
+                                intersect: true,
+                                mode: 'nearest',
+                                callbacks: {
+                                    label: (ctx) => {
+                                        const y = ctx.parsed?.y;
+                                        const x = ctx.parsed?.x ? new Date(ctx.parsed.x) : null;
+                                        const when = x ? x.toLocaleDateString('pt-BR') : '';
+                                        const raw = ctx.raw || {};
+                                        const prefix = raw?.name ? `${raw.name}: ` : '';
+                                        return `${prefix}${fmtNum.format(y)} inscritos — ${when}`;
+                                    }
+                                }
+                            },
+                            annotation: {
+                                annotations
+                            }
+                        },
+                        elements: {
+                            line: {
+                                tension: 0
+                            }
+                        }
+                    }
+                };
+
+                new Chart(el.getContext('2d'), config);
+            }
+
+
+            // const charts = document.querySelectorAll('canvas[id^="chart-"]');
+
+            // charts.forEach(canvas => {
+            //     const elId = canvas.id;
+            //     const titulo = canvas.dataset.titulo;
+            //     const dataInicio = canvas.dataset.data;
+            //     const inscritos = Number(canvas.dataset.inscritos || 0);
+
+            //     // Chama a tua função existente
+            //     makeChart(elId, titulo, dataInicio, inscritos);
+            // });
+
+
+
+
+
+            // === Inicializa todos os canvases presentes na página ===
+            function initCharts() {
+                document.querySelectorAll('canvas[id^="chart-"]').forEach((canvas) => {
+                    if (canvas.dataset.chartInit === '1') return; // evita duplicar
+                    canvas.dataset.chartInit = '1';
+
+                    const elId = canvas.id;
+                    const titulo = canvas.dataset.titulo;
+                    const dataInicio = canvas.dataset.data;
+                    const inscritos = Number(canvas.dataset.inscritos || 0);
+                    makeChart(elId, titulo, dataInicio, inscritos);
+                });
+            }
+
+            // 1) na carga inicial
+            initCharts();
+
+            // 2) sempre que o Livewire re-renderizar algo
+            document.addEventListener('livewire:initialized', () => {
+                Livewire.hook('message.processed', () => {
+                    initCharts();
+                });
+            });
+
+
+
+
+        });
+    </script>
+@endpush

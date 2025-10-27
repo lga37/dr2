@@ -8,10 +8,13 @@
         "php": "^8.2",
         "chrome-php/chrome": "^1.11",
         "laravel/framework": "^11.9",
+        "laravel/sanctum": "^4.0",
         "laravel/tinker": "^2.9",
         "livewire/livewire": "^3.5",
         "maantje/charts": "^0.1.1",
+        "openai-php/client": "^0.10.3",
         "openai-php/laravel": "^0.10.1",
+        "twilio/sdk": "^8.8",
         "wire-elements/modal": "^2.0"
     },
     "require-dev": {

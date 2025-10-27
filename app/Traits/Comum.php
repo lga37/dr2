@@ -358,56 +358,7 @@ trait Comum
     #pode vir mais de 50 videos ele chunka por 50
     # 550 video_ids => 550 video_details --------- chunk 50 - 4 parts API YT
 
-    public function getVideoDetailsByListVideoIds333(array $ids): array
-    {
-        $apiKey = env('APIKEY');
-
-        $ids = array_values(array_unique(array_filter($ids)));
-        if (!$ids)
-            return [];
-
-        $out = [];
-        foreach (array_chunk($ids, 50) as $pack) {
-            $params = [
-                'key'  => $apiKey,
-                'id'   => implode(',', $pack),
-                'part' => 'snippet,statistics,contentDetails',
-            ];
-            $url = 'https://www.googleapis.com/youtube/v3/videos?' . http_build_query($params);
-            $res = file_get_contents($url);
-            $json = json_decode($res, true) ?: [];
-
-            foreach ($json['items'] ?? [] as $v) {
-                $sn = $v['snippet'] ?? [];
-                $st = $v['statistics'] ?? [];
-                $cd = $v['contentDetails'] ?? [];
-                $out[] = [
-
-
-                    'videoId'               => $v['id'] ?? null,
-                    'videoTitle'            => $sn['title'] ?? '',
-                    'videoCategId'          => $sn['categoryId'] ?? '',
-                    'videoLang'             => $sn['defaultAudioLanguage'] ?? '',
-                    'videoDt'               => $sn['publishedAt'] ?? null,
-                    'videoViewCount'        => isset($st['viewCount']) ? (int) $st['viewCount'] : null,
-                    'videoLikeCount'        => isset($st['likeCount']) ? (int) $st['likeCount'] : null,
-                    'videoCommentCount'     => isset($st['commentCount']) ? (int) $st['commentCount'] : null,
-                    'videoDuration'         => $cd['duration'] ?? 'PT0S',
-
-                    // 'videoTags'
-                    #'nlp1' => $this->setPolarization($sn['title']),
-                    #'nlp2' => $this->setPolarization($sn['description']),
-
-
-
-                ];
-            }
-        }
-
-        // ordena por data (opcional)
-        usort($out, fn($a, $b) => strcmp($a['publishedAt'] ?? '', $b['publishedAt'] ?? ''));
-        return $out;
-    }
+   
 
     public function getVideoDetailsByListVideoIds(array $ids): array
     {
@@ -474,62 +425,7 @@ trait Comum
     # 1 canal_id => 1 canal_details --------- 
     # 550 canais_ids => 550 canais_details --------- 
 
-    public function getCanaisDetailsByListCanaisIds333(array $channelIds): array
-    {
-        $apiKey = env('YOUTUBE_API_KEY');
-
-        // Sanitiza: únicos, não vazios
-        $channelIds = array_values(array_unique(array_filter($channelIds)));
-        if (!$channelIds) return [];
-
-        $out = [];
-
-        foreach (array_chunk($channelIds, 50) as $pack) {
-            $params = [
-                'key'  => $apiKey,
-                'id'   => implode(',', $pack),
-                'part' => 'snippet,statistics,brandingSettings,contentDetails',
-            ];
-
-            $url  = 'https://www.googleapis.com/youtube/v3/channels?' . http_build_query($params);
-            $resp = file_get_contents($url);
-            if ($resp === false) {
-                // se quiser, logue o erro/continue
-                continue;
-            }
-
-            $json  = json_decode($resp, true) ?: [];
-            $items = $json['items'] ?? [];
-
-            foreach ($items as $ch) {
-                $id = $ch['id'] ?? null;
-                if (!$id) continue;
-
-                $sn  = $ch['snippet'] ?? [];
-                $st  = $ch['statistics'] ?? [];
-                $br  = $ch['brandingSettings']['channel'] ?? [];
-
-                $keywords = $this->parseBrandingKeywords($br['keywords'] ?? []);
-
-                $out[$id] = [
-                    'canalId'                 => $id,
-                    'channelTitle'            => $sn['title'] ?? null,
-                    'channelDesc'             => $sn['description'] ?? null,
-                    'channelDt'               => $sn['publishedAt'] ?? null,
-                    'channelCountry'          => $sn['country'] ?? null,
-                    'channelHandle'           => $sn['customUrl'] ?? null,
-                    'channelThumb'            => $sn['thumbnails']['default']['url'] ?? null,
-                    'channelDefaultLanguage'  => $sn['defaultLanguage'] ?? null,
-                    'channelSubs'             => isset($st['subscriberCount']) ? (int) $st['subscriberCount'] : null,
-                    'channelViews'            => isset($st['viewCount'])      ? (int) $st['viewCount']      : null,
-                    'channelVideos'           => isset($st['videoCount'])     ? (int) $st['videoCount']     : null,
-                    'channelKeywords'         => $keywords,
-                ];
-            }
-        }
-
-        return $out;
-    }
+   
 
     public function getCanaisDetailsByListCanaisIds(array $channelIds): array
     {
@@ -605,207 +501,6 @@ trait Comum
 
 
 
-    public function getVideosByQuery3333333333333(string $query, bool $forceRefresh = false): array
-    {
-        // $query = $this->normalizeQuery($query);
-        // if ($query === '') {
-        //     return [];
-        // }
-
-        // Versione a chave para invalidar em mudanças de lógica/estrutura
-        $cacheKey = 'yt:search:v2:' . md5($query);
-
-        if (!$forceRefresh && Cache::has($cacheKey)) {
-            return Cache::get($cacheKey);
-        }
-
-        $apiKey = env('YOUTUBE_API_KEY');
-        $out    = [];
-
-        try {
-            // 1) search.list -> pega IDs (máx 50)
-            $urlSearch = 'https://www.googleapis.com/youtube/v3/search?' . http_build_query([
-                'part'       => 'snippet',
-                'q'          => $query,
-                'type'       => 'video',
-                'maxResults' => 50,
-                'key'        => $apiKey,
-            ]);
-            $respSearch = file_get_contents($urlSearch);
-            $jSearch    = json_decode($respSearch ?: '[]', true);
-
-            $items = $jSearch['items'] ?? [];
-            if (empty($items)) {
-                Cache::put($cacheKey, [], now()->addDay());
-                return [];
-            }
-
-            $videoIds = collect($items)->pluck('id.videoId')->filter()->values()->all();
-            if (empty($videoIds)) {
-                Cache::put($cacheKey, [], now()->addDay());
-                return [];
-            }
-
-            // 2) videos.list -> detalhes/estatística dos IDs
-            $urlVideos = 'https://www.googleapis.com/youtube/v3/videos?' . http_build_query([
-                'part' => 'snippet,statistics,contentDetails',
-                'id'   => implode(',', $videoIds),
-                'key'  => $apiKey,
-            ]);
-            $respVideos = file_get_contents($urlVideos);
-            $jVideos    = json_decode($respVideos ?: '[]', true);
-
-            $byId = collect($jVideos['items'] ?? [])->keyBy('id');
-
-            $out = collect($items)->map(function ($item) use ($byId) {
-                $id   = $item['id']['videoId'] ?? null;
-                if (!$id) return null;
-
-                $full     = $byId[$id] ?? [];
-                $sn       = $full['snippet'] ?? [];
-                $st       = $full['statistics'] ?? [];
-                $details  = $full['contentDetails'] ?? [];
-                $duration = $details['duration'] ?? null;
-
-                // idioma preferindo defaultAudioLanguage se houver
-                $lang = $sn['defaultAudioLanguage'] ?? ($sn['defaultLanguage'] ?? null);
-
-                return [
-                    'videoId'   => $id,
-                    'lang'      => $lang,
-                    'title'     => $item['snippet']['title'] ?? '',
-                    'channel'   => $item['snippet']['channelTitle'] ?? '',
-                    'published' => $item['snippet']['publishedAt'] ?? '',
-                    'thumbnail' => $item['snippet']['thumbnails']['default']['url'] ?? '',
-                    'views'     => isset($st['viewCount']) ? (int)$st['viewCount'] : null,
-                    'likes'     => isset($st['likeCount']) ? (int)$st['likeCount'] : null,
-                    'comments'  => isset($st['commentCount']) ? (int)$st['commentCount'] : 0,
-                    'duration'  => $this->ISO8601ToSeconds($duration),
-                ];
-            })
-                ->filter() // remove nulls
-                ->filter(fn($v) => ($v['comments'] ?? 0) > 0 && ($v['comments'] ?? 0) < 100) // sua regra
-                ->values()
-                ->all();
-
-            // grava 1 dia
-            Cache::put($cacheKey, $out, now()->addDay());
-            return $out;
-        } catch (\Throwable $e) {
-            // Se quiser logar:
-            // \Log::warning('YT search cache fail', ['q' => $query, 'msg' => $e->getMessage()]);
-            // Em falha, não cacheia erro — apenas retorna vazio.
-            return [];
-        }
-    }
-
-
-
-
-
-    public function getCanaisByQuery33333333333333(string $query)
-    {
-
-        $apiKey = env('YOUTUBE_API_KEY');
-
-        // 1. Buscar vídeos por termo
-        $url = "https://www.googleapis.com/youtube/v3/search?part=snippet&q=" . urlencode($query) . "&type=video&maxResults=50&key=$apiKey";
-        $response = file_get_contents($url);
-        $data = json_decode($response, true);
-
-        if (empty($data['items'])) {
-            $this->buscas = [];
-            return;
-        }
-
-        // 2. Extrair os canalIds dos vídeos encontrados
-        $canalIds = collect($data['items'])->pluck('snippet.channelId')->unique()->filter()->toArray();
-
-        if (empty($canalIds)) {
-            $this->buscas = [];
-            return;
-        }
-
-        $canalUrl = "https://www.googleapis.com/youtube/v3/channels?part=statistics,snippet&id=" . implode(',', $canalIds) . "&key=$apiKey";
-        $canalResponse = file_get_contents($canalUrl);
-        $canalData = json_decode($canalResponse, true);
-
-        #dd($canalData);
-
-        $this->buscas = collect($canalData['items'] ?? [])->map(function ($item) {
-            $stats = $item['statistics'] ?? [];
-            $snippet = $item['snippet'] ?? [];
-
-            return [
-                'channelId'    => $item['id'] ?? null,
-                //         'handle'    => $handle ? (str_starts_with($handle, '@') ? $handle : '@' . $handle) : null,
-                'title'      => $snippet['title'] ?? '',
-                'country'       => $snippet['country'] ?? 'n/a',
-                'views'      => $stats['viewCount'] ?? 0,
-                'videos'     => $stats['videoCount'] ?? 0,
-                'inscritos'  => $stats['subscriberCount'] ?? 0,
-                'published'  => $snippet['publishedAt'] ?? '',
-                'thumbnail'  => $snippet['thumbnails']['default']['url'] ?? $snippet['thumbnails']['medium']['url'] ?? '',
-            ];
-        })
-
-            #->filter(fn($video) => $video['comments'] > 0 && $video['comments'] < 100)
-            ->values() // reindexa os índices
-            ->toArray();
-
-        #dd($this->buscas);
-
-        return $this->buscas;
-    }
-
-
-
-
-
-    # ver se ja da para trazer os detalhes
-    protected function getVideosByCanalId3333333333333(string $channelId, string $publishedAfter, string $publishedBefore, int $maxPages = 1): array
-    {
-        $ids = [];
-        $pageToken = null;
-        $apiKey = env('YOUTUBE_API_KEY');
-
-
-        for ($p = 0; $p < $maxPages; $p++) {
-            $params = [
-                'key'             => $apiKey,
-                'part'            => 'snippet',
-                'type'            => 'video',
-                'channelId'       => $channelId,
-                'order'           => 'date',
-                'maxResults'      => 50,
-                'publishedAfter'  => $publishedAfter,
-                'publishedBefore' => $publishedBefore,
-            ];
-            if ($pageToken)
-                $params['pageToken'] = $pageToken;
-
-            $url = 'https://www.googleapis.com/youtube/v3/search?' . http_build_query($params);
-            $res = file_get_contents($url);
-            if ($res === false)
-                break;
-
-            $json = json_decode($res, true) ?: [];
-            foreach ($json['items'] ?? [] as $it) {
-                $vid = $it['id']['videoId'] ?? null;
-                if ($vid)
-                    $ids[] = $vid;
-            }
-
-            $pageToken = $json['nextPageToken'] ?? null;
-            if (!$pageToken)
-                break;
-        }
-
-        return $ids;
-    }
-
-
-
 
 
 
@@ -833,9 +528,10 @@ trait Comum
     # entao pode-se add um canal sem video assoc, mas nao o contrario
 
     // --- CANAL ---
-    public function upsertCanal(array $ch, Tarefa $tarefa, ?Busca $busca = null): Canal
+    public function upsertCanal(array $ch, ?Busca $busca = null): Canal
     {
         #$tarefa = $this->resolveTarefa($tarefa);
+        $tarefa = $this->getTarefa();
         $canal = Canal::firstOrNew(['youtube_id' => $ch['youtube_id'], 'tarefa_id' => $tarefa->id]);
 
         $canal->fill([
@@ -874,9 +570,10 @@ trait Comum
     }
 
     // --- VIDEO ---
-    public function upsertVideo(array $vd, Tarefa $tarefa, Canal $canal, ?Busca $busca = null): Video
+    public function upsertVideo(array $vd, Canal $canal, ?Busca $busca = null): Video
     {
 
+        $tarefa = $this->getTarefa();
         $video = Video::firstOrNew(['cod' => $vd['cod'], 'canal_id' => $canal->id, 'tarefa_id' => $tarefa->id]);
 
         $video->fill([
@@ -911,12 +608,14 @@ trait Comum
     }
 
 
-    public function upsertComentario(array $c, Video $video, Tarefa $tarefa): Comentario
+    public function upsertComentario(array $c, Video $video): Comentario
     {
 
 
-        $cod = $c['cod'];
+        #dd($c);
 
+        $cod = $c['cod'];
+        $tarefa = $this->getTarefa();
         $coment = Comentario::firstOrNew([
             'cod'       => $cod,
             'video_id'  => $video->id,

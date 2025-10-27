@@ -118,10 +118,6 @@
 
 
 
-
-
-
-
     <x-msg />
 
     <div class="py-12">
@@ -130,8 +126,8 @@
                 <x-selecionados-table :items="$selecionados" type="canal" remove="removeSelecionado"
                     clear="clearSelecionados" evaluate="avaliarCanais" :min="2" :max="3" />
 
-                <x-search-add-bar variant="canal" query-model="query" on-search="pesquisarCanais"
-                    add-model="addInput" on-add="addCanalByInput" />
+                <x-search-add-bar variant="canal" query-model="query" on-search="pesquisarCanais" add-model="addInput"
+                    on-add="addCanalByInput" />
 
                 <x-results-table variant="canal" :items="$this->buscas" :selected="array_keys($selecionados ?? [])" />
             </div>
@@ -158,65 +154,7 @@
                                      {{ $maisPolarizado === $id ? 'ring-2 ring-indigo-500' : '' }}">
 
                                     {{-- Cabeçalho --}}
-                                    <div class="flex gap-3">
-                                        <x-imagem :src="$v['channelThumb']" tipo="gde" class="shadow-sm" />
-                                        <div class="flex-1">
-                                            <x-linkcanal :canalId="$v['channelId']" :titulo="$v['channelTitle'] ?? ''" />
-                                            <div class="text-gray-500">
-                                                Publicado em:
-                                                {{ \Carbon\Carbon::parse($v['channelDt'])->format('d/m/Y') }}
-                                            </div>
-                                            <div class="h-42 text-xs text-justify text-gray-500 mt-1 line-clamp-4">
-                                                {{ $v['channelDesc'] ?? '' }}
-                                            </div>
-                                        </div>
-                                    </div>
-
-
-                                    {{-- KEYWORDS DO CANAL COMO PILLS --}}
-                                    @php
-
-                                        $kw = collect(\Illuminate\Support\Arr::wrap($v['channelKeywords'] ?? []))
-                                            ->filter(fn($t) => filled($t))
-                                            ->values();
-
-                                        $kwShow = $kw->take(8);
-                                        $kwMore = max(0, $kw->count() - $kwShow->count());
-                                    @endphp
-
-                                    <h4 class="text-lg font-semibold mt-4 mb-1">
-                                        Dados do Canal
-                                        <x-linkcanal :canalId="$v['channelId']" :titulo="$v['channelTitle'] ?? ''" />
-
-                                        — criado em
-                                        {{ isset($v['channelDt']) ? \Carbon\Carbon::parse($v['channelDt'])->format('d/m/Y') : '—' }}
-                                    </h4>
-
-                                    @if ($kwShow->isNotEmpty())
-                                        <x-keywords :items="$kwShow" :more="$kwMore" rows="2" />
-                                    @endif
-
-                                    <div class="grid grid-cols-2 md:grid-cols-4 gap-2 text-sm">
-                                        <div class="bg-gray-50 p-2 rounded">
-                                            <div class="text-gray-500">Origem/Pais</div>
-                                            <div class="font-semibold">{{ $v['channelCountry'] ?? '-' }}</div>
-                                        </div>
-                                        <div class="bg-gray-50 p-2 rounded">
-                                            <div class="text-gray-500">Total Views</div>
-                                            <div class="font-semibold">
-                                                {{ number_format($v['channelViews'] ?? 0, 0, ',', '.') }}</div>
-                                        </div>
-                                        <div class="bg-gray-50 p-2 rounded">
-                                            <div class="text-gray-500">Total Vídeos</div>
-                                            <div class="font-semibold">
-                                                {{ number_format($v['channelVideos'] ?? 0, 0, ',', '.') }}</div>
-                                        </div>
-                                        <div class="bg-gray-50 p-2 rounded">
-                                            <div class="text-gray-500">Inscritos</div>
-                                            <div class="font-semibold">
-                                                {{ number_format($v['channelSubs'] ?? 0, 0, ',', '.') }}</div>
-                                        </div>
-                                    </div>
+                                    <x-cardcanal :v="$v" />
 
                                     {{-- Rodapé fixado no fundo do card --}}
                                     <div class="mt-auto pt-4">
@@ -398,309 +336,316 @@
 
 
                 </div>
+
+
+
+
             @endif
 
 
-            <div class="mx-auto p-6 w-full max-w-[1400px]">
-                <h2 class="text-xl font-semibold mb-2">Polarização (-100..+100) no tempo real</h2>
-
-                {{-- filtros globais de tipo --}}
-                <div class="flex items-center gap-4 text-sm mb-2">
-                    <label><input id="polOnlyTitle" type="checkbox" checked> Títulos</label>
-                    <label><input id="polOnlyDesc" type="checkbox" checked> Descrições</label>
-                    <label><input id="polOnlyAvg" type="checkbox" checked> Médias</label>
-                </div>
-
-                {{-- legenda HTML com link para o canal --}}
-                <div id="polLegend" class="flex flex-wrap gap-4 items-center mb-3"></div>
-
-                <div class="w-full" style="height: 420px;"> {{-- ajuste a altura aqui --}}
-                    <canvas id="polChart"></canvas>
-                </div>
-            </div>
-
-
-
-
-            @push('scripts')
-                <script>
-                    document.addEventListener('DOMContentLoaded', () => {
-                        const el = document.getElementById('polChart');
-                        if (!el || !window.Chart) return;
-
-                        const payload =
-                            @json($chart); // {globalStart,min,max,series:{canal:{title,points_title,points_desc,avg,startDay,endDay}}}
-                        const globalStart = new Date(payload.globalStart);
-
-                        const palette = [{
-                                pt: '#22c55e',
-                                line: '#15803d'
-                            }, // verde
-                            {
-                                pt: '#ef4444',
-                                line: '#991b1b'
-                            }, // vermelho
-                            {
-                                pt: '#3b82f6',
-                                line: '#1e40af'
-                            }, // azul
-                        ];
-
-                        const vids = Object.keys(payload.series);
-                        const minX = payload.min,
-                            maxX = payload.max;
-
-                        // --- monta datasets (círculo = título, "x" = descrição, linha = média) ---
-                        const datasets = [];
-                        const markers = [];
-
-                        vids.forEach((channelId, idx) => {
-                            const s = payload.series[channelId];
-                            const color = palette[idx % palette.length];
-                            const labelBase = s.title || channelId;
-
-                            // título
-                            datasets.push({
-                                label: labelBase + ' — título',
-                                type: 'scatter',
-                                data: s.points_title || [],
-                                parsing: false,
-                                showLine: false,
-                                pointStyle: 'circle',
-                                pointRadius: 3,
-                                pointHoverRadius: 5,
-                                backgroundColor: color.pt,
-                                borderColor: color.pt,
-                                channelId,
-                                metaTipo: 'title'
-                            });
-
-                            // descrição
-                            datasets.push({
-                                label: labelBase + ' — descrição',
-                                type: 'scatter',
-                                data: s.points_desc || [],
-                                parsing: false,
-                                showLine: false,
-                                pointStyle: 'crossRot',
-                                pointRadius: 5,
-                                pointHoverRadius: 6,
-                                backgroundColor: color.pt,
-                                borderColor: color.pt,
-                                channelId,
-                                metaTipo: 'desc'
-                            });
-
-                            // média
-                            if (typeof s.avg === 'number') {
-                                datasets.push({
-                                    label: labelBase + ' — média',
-                                    type: 'line',
-                                    data: [{
-                                        x: minX,
-                                        y: s.avg
-                                    }, {
-                                        x: maxX,
-                                        y: s.avg
-                                    }],
-                                    parsing: false,
-                                    borderColor: color.line,
-                                    borderWidth: 2,
-                                    borderDash: [6, 4],
-                                    pointRadius: 0,
-                                    channelId,
-                                    metaTipo: 'avg'
-                                });
-                            }
-
-                            // marcadores verticais (início/fim do canal)
-                            markers.push({
-                                x: s.startDay,
-                                color: color.pt
-                            });
-                            markers.push({
-                                x: s.endDay,
-                                color: color.pt
-                            });
-                        });
-
-                        const fmt = (d) => {
-                            const dd = String(d.getDate()).padStart(2, '0');
-                            const mm = String(d.getMonth() + 1).padStart(2, '0');
-                            const yy = d.getFullYear();
-                            return `${dd}/${mm}/${yy}`;
-                        };
-                        const addDays = (d, n) => {
-                            const x = new Date(d);
-                            x.setDate(x.getDate() + n);
-                            return x;
-                        };
-
-                        // plugin p/ linhas verticais
-                        const verticalLines = {
-                            id: 'verticalLines',
-                            afterDatasetsDraw(chart, args, opts) {
-                                const {
-                                    ctx,
-                                    scales: {
-                                        x,
-                                        y
-                                    }
-                                } = chart;
-                                (opts.markers || []).forEach(m => {
-                                    const xp = x.getPixelForValue(m.x);
-                                    ctx.save();
-                                    ctx.strokeStyle = m.color;
-                                    ctx.globalAlpha = .5;
-                                    ctx.lineWidth = 1;
-                                    ctx.setLineDash([2, 2]);
-                                    ctx.beginPath();
-                                    ctx.moveTo(xp, y.top);
-                                    ctx.lineTo(xp, y.bottom);
-                                    ctx.stroke();
-                                    ctx.restore();
-                                });
-                            }
-                        };
-
-                        // cria gráfico
-                        const chart = new Chart(el, {
-                            plugins: [verticalLines],
-                            data: {
-                                datasets
-                            },
-                            options: {
-                                responsive: true,
-                                maintainAspectRatio: false,
-                                plugins: {
-                                    legend: {
-                                        display: false
-                                    }, // desliga a legenda padrão
-                                    tooltip: {
-                                        callbacks: {
-                                            title: (items) => {
-                                                const day = items[0]?.raw?.x ?? null;
-                                                return day != null ? fmt(addDays(globalStart, Number(day))) : '';
-                                            },
-                                            label: (ctx) => {
-                                                const r = ctx.raw || {};
-                                                return ` ${ctx.dataset.label}: ${Number(r.y).toFixed(1)}${r.label ? ' — '+r.label : ''}`;
-                                            }
-                                        }
-                                    },
-                                    verticalLines: {
-                                        markers
-                                    }
-                                },
-                                scales: {
-                                    x: {
-                                        type: 'linear',
-                                        min: minX,
-                                        max: maxX,
-                                        title: {
-                                            display: true,
-                                            text: 'Data (linha do tempo)'
-                                        },
-                                        ticks: {
-                                            precision: 0,
-                                            callback: v => fmt(addDays(globalStart, Number(v)))
-                                        }
-                                    },
-                                    y: {
-                                        min: -100,
-                                        max: 100,
-                                        title: {
-                                            display: true,
-                                            text: 'Polarização (-100 .. +100)'
-                                        }
-                                    }
-                                }
-                            }
-                        });
-
-
-                        // --- legenda HTML compacta (um pill por canal, com link e toggle) ---
-                        const legendHost = document.getElementById('polLegend');
-                        const byChannel = {};
-
-                        // use o título vindo do payload.series[channelId].title
-                        chart.data.datasets.forEach((ds, i) => {
-                            const s = payload.series[ds.channelId] || {};
-                            const title = s.title || ds.label?.split(' — ')[0] || ds.channelId;
-
-                            if (!byChannel[ds.channelId]) {
-                                byChannel[ds.channelId] = {
-                                    idxs: [],
-                                    title
-                                };
-                            }
-                            byChannel[ds.channelId].idxs.push(i);
-                        });
-
-                        legendHost.innerHTML = '';
-                        Object.keys(byChannel).forEach((chId, n) => {
-                            const info = byChannel[chId];
-                            const color = palette[n % palette.length].pt;
-
-                            // o próprio pill é um <a>
-                            const pill = document.createElement('a');
-                            pill.href = `https://www.youtube.com/channel/${chId}`;
-                            pill.target = '_blank';
-                            pill.rel = 'noopener';
-                            pill.className = 'px-3 py-1 rounded-full text-sm inline-block select-none';
-                            pill.style.border = `1px solid ${color}`;
-                            pill.style.color = color;
-                            pill.textContent = info.title.length > 40 ? info.title.slice(0, 40) + '…' : info.title;
-                            pill.title = info.title;
-
-                            // Comportamento:
-                            // - clique normal: toggle visibilidade dos datasets do canal
-                            // - Ctrl/Cmd-clique ou clique do meio: deixa abrir o link
-                            pill.addEventListener('click', (e) => {
-                                if (e.ctrlKey || e.metaKey || e.button === 1) {
-                                    // deixa abrir o link em nova aba
-                                    return;
-                                }
-                                e.preventDefault();
-                                const anyHidden = info.idxs.some(i => !chart.isDatasetVisible(
-                                    i)); // se algum está oculto?
-                                info.idxs.forEach(i => chart.setDatasetVisibility(i,
-                                    anyHidden)); // toggle todos
-                                chart.update();
-                            });
-
-                            const wrap = document.createElement('div');
-                            wrap.className = 'flex items-center';
-                            wrap.appendChild(pill);
-                            legendHost.appendChild(wrap);
-                        });
-
-
-
-
-                        // --- filtros globais: Título / Descrição / Média ---
-                        const cbTitle = document.getElementById('polOnlyTitle');
-                        const cbDesc = document.getElementById('polOnlyDesc');
-                        const cbAvg = document.getElementById('polOnlyAvg');
-
-                        function applyFilters() {
-                            chart.data.datasets.forEach((ds, i) => {
-                                const show =
-                                    (ds.metaTipo === 'title' && cbTitle.checked) ||
-                                    (ds.metaTipo === 'desc' && cbDesc.checked) ||
-                                    (ds.metaTipo === 'avg' && cbAvg.checked);
-                                chart.setDatasetVisibility(i, show);
-                            });
-                            chart.update();
-                        }
-                        [cbTitle, cbDesc, cbAvg].forEach(cb => cb.addEventListener('change', applyFilters));
-                        applyFilters(); // aplica estado inicial
-                    });
-                </script>
-            @endpush
 
 
 
         </div>
     </div>
+
+
+
+    <div class="mx-auto p-6 w-full max-w-[1400px]">
+        <h2 class="text-xl font-semibold mb-2">Polarização (-100..+100) no tempo real</h2>
+
+        {{-- filtros globais de tipo --}}
+        <div class="flex items-center gap-4 text-sm mb-2">
+            <label><input id="polOnlyTitle" type="checkbox" checked> Títulos</label>
+            <label><input id="polOnlyDesc" type="checkbox" checked> Descrições</label>
+            <label><input id="polOnlyAvg" type="checkbox" checked> Médias</label>
+        </div>
+
+        {{-- legenda HTML com link para o canal --}}
+        <div id="polLegend" class="flex flex-wrap gap-4 items-center mb-3"></div>
+
+        <div class="w-full" style="height: 420px;"> {{-- ajuste a altura aqui --}}
+            <canvas id="polChart"></canvas>
+        </div>
+    </div>
+
+
+
 </div>
+
+
+@push('scripts')
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const el = document.getElementById('polChart');
+            if (!el || !window.Chart) return;
+
+            const payload = @json($chart); // {globalStart,min,max,series:{canal:{title,points_title,points_desc,avg,startDay,endDay}}}
+            const globalStart = new Date(payload.globalStart);
+
+            const palette = [{
+                    pt: '#22c55e',
+                    line: '#15803d'
+                }, // verde
+                {
+                    pt: '#ef4444',
+                    line: '#991b1b'
+                }, // vermelho
+                {
+                    pt: '#3b82f6',
+                    line: '#1e40af'
+                }, // azul
+            ];
+
+            const vids = Object.keys(payload.series);
+            const minX = payload.min,
+                maxX = payload.max;
+
+            // --- monta datasets (círculo = título, "x" = descrição, linha = média) ---
+            const datasets = [];
+            const markers = [];
+
+            vids.forEach((channelId, idx) => {
+                const s = payload.series[channelId];
+                const color = palette[idx % palette.length];
+                const labelBase = s.title || channelId;
+
+                // título
+                datasets.push({
+                    label: labelBase + ' — título',
+                    type: 'scatter',
+                    data: s.points_title || [],
+                    parsing: false,
+                    showLine: false,
+                    pointStyle: 'circle',
+                    pointRadius: 3,
+                    pointHoverRadius: 5,
+                    backgroundColor: color.pt,
+                    borderColor: color.pt,
+                    channelId,
+                    metaTipo: 'title'
+                });
+
+                // descrição
+                datasets.push({
+                    label: labelBase + ' — descrição',
+                    type: 'scatter',
+                    data: s.points_desc || [],
+                    parsing: false,
+                    showLine: false,
+                    pointStyle: 'crossRot',
+                    pointRadius: 5,
+                    pointHoverRadius: 6,
+                    backgroundColor: color.pt,
+                    borderColor: color.pt,
+                    channelId,
+                    metaTipo: 'desc'
+                });
+
+                // média
+                if (typeof s.avg === 'number') {
+                    datasets.push({
+                        label: labelBase + ' — média',
+                        type: 'line',
+                        data: [{
+                            x: minX,
+                            y: s.avg
+                        }, {
+                            x: maxX,
+                            y: s.avg
+                        }],
+                        parsing: false,
+                        borderColor: color.line,
+                        borderWidth: 2,
+                        borderDash: [6, 4],
+                        pointRadius: 0,
+                        channelId,
+                        metaTipo: 'avg'
+                    });
+                }
+
+                // marcadores verticais (início/fim do canal)
+                markers.push({
+                    x: s.startDay,
+                    color: color.pt
+                });
+                markers.push({
+                    x: s.endDay,
+                    color: color.pt
+                });
+            });
+
+            const fmt = (d) => {
+                const dd = String(d.getDate()).padStart(2, '0');
+                const mm = String(d.getMonth() + 1).padStart(2, '0');
+                const yy = d.getFullYear();
+                return `${dd}/${mm}/${yy}`;
+            };
+            const addDays = (d, n) => {
+                const x = new Date(d);
+                x.setDate(x.getDate() + n);
+                return x;
+            };
+
+            // plugin p/ linhas verticais
+            const verticalLines = {
+                id: 'verticalLines',
+                afterDatasetsDraw(chart, args, opts) {
+                    const {
+                        ctx,
+                        scales: {
+                            x,
+                            y
+                        }
+                    } = chart;
+                    (opts.markers || []).forEach(m => {
+                        const xp = x.getPixelForValue(m.x);
+                        ctx.save();
+                        ctx.strokeStyle = m.color;
+                        ctx.globalAlpha = .5;
+                        ctx.lineWidth = 1;
+                        ctx.setLineDash([2, 2]);
+                        ctx.beginPath();
+                        ctx.moveTo(xp, y.top);
+                        ctx.lineTo(xp, y.bottom);
+                        ctx.stroke();
+                        ctx.restore();
+                    });
+                }
+            };
+
+            // cria gráfico
+            const chart = new Chart(el, {
+                plugins: [verticalLines],
+                data: {
+                    datasets
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: false
+                        }, // desliga a legenda padrão
+                        tooltip: {
+                            callbacks: {
+                                title: (items) => {
+                                    const day = items[0]?.raw?.x ?? null;
+                                    return day != null ? fmt(addDays(globalStart, Number(day))) : '';
+                                },
+                                label: (ctx) => {
+                                    const r = ctx.raw || {};
+                                    return ` ${ctx.dataset.label}: ${Number(r.y).toFixed(1)}${r.label ? ' — '+r.label : ''}`;
+                                }
+                            }
+                        },
+                        verticalLines: {
+                            markers
+                        }
+                    },
+                    scales: {
+                        x: {
+                            type: 'linear',
+                            min: minX,
+                            max: maxX,
+                            title: {
+                                display: true,
+                                text: 'Data (linha do tempo)'
+                            },
+                            ticks: {
+                                precision: 0,
+                                callback: v => fmt(addDays(globalStart, Number(v)))
+                            }
+                        },
+                        y: {
+                            min: -100,
+                            max: 100,
+                            title: {
+                                display: true,
+                                text: 'Polarização (-100 .. +100)'
+                            }
+                        }
+                    }
+                }
+            });
+
+
+            // --- legenda HTML compacta (um pill por canal, com link e toggle) ---
+            const legendHost = document.getElementById('polLegend');
+            const byChannel = {};
+
+            // use o título vindo do payload.series[channelId].title
+            chart.data.datasets.forEach((ds, i) => {
+                const s = payload.series[ds.channelId] || {};
+                const title = s.title || ds.label?.split(' — ')[0] || ds.channelId;
+
+                if (!byChannel[ds.channelId]) {
+                    byChannel[ds.channelId] = {
+                        idxs: [],
+                        title
+                    };
+                }
+                byChannel[ds.channelId].idxs.push(i);
+            });
+
+            legendHost.innerHTML = '';
+            Object.keys(byChannel).forEach((chId, n) => {
+                const info = byChannel[chId];
+                const color = palette[n % palette.length].pt;
+
+                // o próprio pill é um <a>
+                const pill = document.createElement('a');
+                pill.href = `https://www.youtube.com/channel/${chId}`;
+                pill.target = '_blank';
+                pill.rel = 'noopener';
+                pill.className = 'px-3 py-1 rounded-full text-sm inline-block select-none';
+                pill.style.border = `1px solid ${color}`;
+                pill.style.color = color;
+                pill.textContent = info.title.length > 40 ? info.title.slice(0, 40) + '…' : info.title;
+                pill.title = info.title;
+
+                // Comportamento:
+                // - clique normal: toggle visibilidade dos datasets do canal
+                // - Ctrl/Cmd-clique ou clique do meio: deixa abrir o link
+                pill.addEventListener('click', (e) => {
+                    if (e.ctrlKey || e.metaKey || e.button === 1) {
+                        // deixa abrir o link em nova aba
+                        return;
+                    }
+                    e.preventDefault();
+                    const anyHidden = info.idxs.some(i => !chart.isDatasetVisible(
+                        i)); // se algum está oculto?
+                    info.idxs.forEach(i => chart.setDatasetVisibility(i,
+                        anyHidden)); // toggle todos
+                    chart.update();
+                });
+
+                const wrap = document.createElement('div');
+                wrap.className = 'flex items-center';
+                wrap.appendChild(pill);
+                legendHost.appendChild(wrap);
+            });
+
+
+
+
+            // --- filtros globais: Título / Descrição / Média ---
+            const cbTitle = document.getElementById('polOnlyTitle');
+            const cbDesc = document.getElementById('polOnlyDesc');
+            const cbAvg = document.getElementById('polOnlyAvg');
+
+            function applyFilters() {
+                chart.data.datasets.forEach((ds, i) => {
+                    const show =
+                        (ds.metaTipo === 'title' && cbTitle.checked) ||
+                        (ds.metaTipo === 'desc' && cbDesc.checked) ||
+                        (ds.metaTipo === 'avg' && cbAvg.checked);
+                    chart.setDatasetVisibility(i, show);
+                });
+                chart.update();
+            }
+            [cbTitle, cbDesc, cbAvg].forEach(cb => cb.addEventListener('change', applyFilters));
+            applyFilters(); // aplica estado inicial
+        });
+    </script>
+@endpush

@@ -1,15 +1,3 @@
-{{-- @props([
-    'img' => '',
-    'tipo'  => 'peq', #gde
-])
-@if($tipo=='gde')
-<img class="w-40 h-24 object-cover rounded-md" src="{{ $img }}" alt="thumb">
-@else
-      <img src="{{ $img }}" alt="thumb" class="w-20">
-@endif --}}
-
-
-{{-- resources/views/components/imagem.blade.php --}}
 @props([
     'src'   => '',
     'alt'   => '',           // descrição opcional
@@ -46,7 +34,7 @@
     $fallback = 'data:image/gif;base64,R0lGODlhAQABAAAAACw=';
 @endphp
 
-<div class="{{ $frame }}">
+<div class="{{ $frame }}" wire:ignore>
     <img
         src="{{ $src ?: $fallback }}"
         alt="{{ $alt }}"

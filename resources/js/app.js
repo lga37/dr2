@@ -5,5 +5,23 @@ window.Alpine = Alpine;
 Alpine.start();
 
 
-import Chart from 'chart.js/auto';
+
+
+
+import 'chart.js/auto';
+import 'chartjs-adapter-date-fns';
+
+import { WordCloudController, WordElement } from 'chartjs-chart-wordcloud';
+
+
+import annotationPlugin from 'chartjs-plugin-annotation';
+
+import { Chart } from 'chart.js';
+
+
+Chart.register(annotationPlugin);
+
+Chart.register(WordCloudController, WordElement);
+
+
 window.Chart = Chart;

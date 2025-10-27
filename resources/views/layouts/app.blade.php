@@ -12,10 +12,9 @@
     <link rel="preconnect" href="https://fonts.bunny.net">
     <link href="https://fonts.bunny.net/css?family=figtree:400,500,600&display=swap" rel="stylesheet" />
 
-
     @vite(['resources/css/app.css', 'resources/js/app.js'])
     @livewireScripts
-    @stack('scripts')
+
 
     <style>
         tr:has(input[type="checkbox"]:checked) {
@@ -45,13 +44,11 @@
 
         <!-- Page Content -->
         <main>
-
             @php
                 // Todas as telas de autenticação que usam o layout compacto
                 $authRoutes = ['login', 'register', 'password.*'];
                 // Se quiser incluir verificação de email etc.:  ['login','register','password.*','verification.*']
             @endphp
-
             @if (request()->routeIs($authRoutes))
                 <div class="flex flex-col sm:justify-center items-center pt-6 sm:pt-0 bg-gray-100 ">
                     <div class="w-full sm:max-w-md mt-6 px-6 py-6 bg-white shadow-md overflow-hidden sm:rounded-lg">
@@ -61,18 +58,15 @@
             @else
                 {{ $slot }}
             @endif
-
-
         </main>
     </div>
+    @livewire('wire-elements-modal')
+
+    @stack('scripts')
 </body>
 
 
-@livewire('wire-elements-modal')
-
-
 </html>
-
 
 @push('scripts')
     <script>

@@ -31,7 +31,36 @@
 
                 <div class="hidden font-bold  space-x-8 sm:-my-px sm:ms-10 sm:flex">
                     <x-nav-link class="" :href="route('resultados')" :active="request()->routeIs('resultados')">
-                       Meus Resultados
+                        Meus Resultados
+                    </x-nav-link>
+                </div>
+
+
+
+                <div class="hidden font-bold  space-x-8 sm:-my-px sm:ms-10 sm:flex">
+                    <x-nav-link class="" :href="route('tese')" :active="request()->routeIs('tese')">
+                        A Tese
+                    </x-nav-link>
+                </div>
+
+
+                <div class="hidden font-bold  space-x-8 sm:-my-px sm:ms-10 sm:flex">
+                    <x-nav-link class="" :href="route('monetizacao')" :active="request()->routeIs('monetizacao')">
+                        Monetizacao
+                    </x-nav-link>
+                </div>
+
+
+                <div class="hidden font-bold  space-x-8 sm:-my-px sm:ms-10 sm:flex">
+                    <x-nav-link class="" :href="route('polarizacao')" :active="request()->routeIs('polarizacao')">
+                        Polarizacao
+                    </x-nav-link>
+                </div>
+
+
+                <div class="hidden font-bold  space-x-8 sm:-my-px sm:ms-10 sm:flex">
+                    <x-nav-link class="" :href="route('toxicidade')" :active="request()->routeIs('toxicidade')">
+                        Toxicidade
                     </x-nav-link>
                 </div>
 
@@ -143,7 +172,7 @@
 
                 </div>
 
-                
+
             @endauth
 
 

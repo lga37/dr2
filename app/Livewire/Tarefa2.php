@@ -11,6 +11,7 @@ use Livewire\Attributes\Url;
 use Illuminate\Support\Carbon;
 use Livewire\Attributes\Layout;
 use App\Services\YoutubeStorage;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Session;
 
@@ -137,11 +138,11 @@ class Tarefa2 extends Component
 
             // média do vídeo (se ambos existirem); se só um existir, usa o que tem
             $pMix = null;
-            if (is_numeric($pTitle) && is_numeric($pDesc)) 
+            if (is_numeric($pTitle) && is_numeric($pDesc))
                 $pMix = round(($pTitle + $pDesc) / 2, 2);
-            elseif (is_numeric($pTitle)) 
+            elseif (is_numeric($pTitle))
                 $pMix = $pTitle;
-            elseif (is_numeric($pDesc))  
+            elseif (is_numeric($pDesc))
                 $pMix = $pDesc;
 
             $v['polar_title'] = $pTitle;
@@ -321,7 +322,7 @@ class Tarefa2 extends Component
         string $channelDtIso,        // início da janela (ex.: 1º vídeo)
         int $maxBuckets = 10,
         bool $forceRefresh = false
-        ): array {
+    ): array {
         $channelId = trim($channelId);
         if ($channelId === '' || $channelVideos < 0) return [];
 
@@ -440,30 +441,6 @@ class Tarefa2 extends Component
 
 
 
-    public function salvarFeedback(): void
-    {
-
-
-        $tarefa_id = $this->getTarefaId('T2');
-        $dados = [
-            'feedback'          => $this->feedback,
-            'acertou'           => Session::get('t1_result')['acertou'],
-
-        ];
-        $status             = 1;
-        $finished_at        = now();
-
-        $t = Tarefa::find($tarefa_id)->update(compact('dados', 'status', 'finished_at'));
-
-        $msg = $t ? 'Obrigado! Sua tarefa #' . $tarefa_id . ' foi concluída COM SUCESSO.' : 'Erro ao completar tarefa #' . $tarefa_id;
-
-        $this->clearSelecionados();
-        $this->msg($msg, 'info');
-
-        #dd($t);
-    }
-
-
 
 
     # usuario escolheu o mais toxico
@@ -494,12 +471,15 @@ class Tarefa2 extends Component
         // reset do cache desta tela (opcional)
         Session::forget('t2_videos');
         $sessVideos = [];
-        $tarefa = $this->getTarefa('T2');
+        #$tarefa = $this->getTarefa('T2');
         #$storage = app(YoutubeStorage::class);
+
+        #dump($this->selecionados);
 
         foreach ($this->selecionados as $canalId => $raw) {
 
-            $q = $raw['busca'] ?? '[erro]';
+            #atencao aqui to usando q
+            $q = $raw['q'] ?? '[erro]';
             $buscaBD = $this->upsertBusca($q);
             #dump($buscaBD);
 
@@ -522,6 +502,7 @@ class Tarefa2 extends Component
 
             $videos = $this->getAllVideos($raw['channelId'], $raw['channelDt'], 100, 10, 1, $raw['channelVideos']);
 
+            #$videos = $this->videos;
             #dump($videos);
 
             foreach ($videos as $vd) {
@@ -537,10 +518,15 @@ class Tarefa2 extends Component
                     'lang'     => $vd['videoLang'] ?? null,
                     'dt'       => $vd['videoDt'] ?? null,
                     'categ_id' => $vd['videoCategId'] ?? null,
+
+                    // novos campos de polarização:
+                    'nlp1'      => $vd['nlp1'] ?? null,   // título
+                    'nlp2'      => $vd['nlp2'] ?? null,   // descrição
                 ];
 
-                #dump($vd);
+                #dd($vd);
                 $videoBD = $this->upsertVideo($vd, $canalBD, $buscaBD);
+                #dump($videoBD);
             }
 
 
@@ -597,11 +583,127 @@ class Tarefa2 extends Component
     }
 
 
+
+
+    public function salvarFeedback(): void
+    {
+
+
+        $tarefa_id = $this->getTarefaId('T2');
+        $dados = [
+            'feedback'          => $this->feedback,
+            'acertou'           => Session::get('t2_result')['acertou'],
+            
+            'polariz_media'           => Session::get('t2_result')['polariz_media'],
+            'mais_polarizado'           => Session::get('t2_result')['mais_polarizado'],
+            'mais_polarizado_real'           => Session::get('t2_result')['mais_polarizado_real'],
+
+           
+
+        ];
+        $status             = 1;
+        $finished_at        = now();
+
+        $t = Tarefa::find($tarefa_id)->update(compact('dados', 'status', 'finished_at'));
+
+        $msg = $t ? 'Obrigado! Sua tarefa #' . $tarefa_id . ' foi concluída COM SUCESSO.' : 'Erro ao completar tarefa #' . $tarefa_id;
+
+        $this->clearSelecionados();
+        $this->msg($msg, 'info');
+
+        #dd($t);
+    }
+
+
+
+
+
+    /**
+     * Retorna vídeos de um canal (mais recentes primeiro) já com nlp1 (título)
+     * e nlp2 (descrição) calculados via setPolarization().
+     */
+    public function getAllVideos(
+        string $channelId,
+        ?string $channelCreatedAt = null,
+        int $max = 100,
+        int $maxPages = 10,
+        int $page = 1,
+        int $totalInformado = 0
+    ) {
+        static $acc = [];                // acumulador local (evita depender de $this->videos)
+        static $nextToken = null;
+
+        $key = env('YOUTUBE_API_KEY');
+        $url = "https://www.googleapis.com/youtube/v3/search"
+            . "?key={$key}"
+            . "&channelId={$channelId}"
+            . "&part=snippet"
+            . "&order=date"
+            . "&type=video"
+            . "&maxResults=50";
+
+        if ($page > 1 && $nextToken) {
+            $url .= "&pageToken={$nextToken}";
+        }
+
+        $resp = Http::timeout(15)->get($url);
+        if ($resp->failed()) {
+            return $acc; // devolve o que já tiver
+        }
+
+        $json  = $resp->json();
+        $items = $json['items'] ?? [];
+
+        foreach ($items as $item) {
+            $snippet = $item['snippet'] ?? [];
+            $videoId = data_get($item, 'id.videoId');
+
+            if (!$videoId) continue;
+
+            $title = (string) ($snippet['title'] ?? '');
+            $desc  = (string) ($snippet['description'] ?? '');
+
+            // ⚠️ NLP aqui (com cache interno da própria setPolarization)
+            $nlp1 = $this->setPolarization($title); // título
+            $nlp2 = $this->setPolarization($desc);  // descrição
+
+            $acc[] = [
+                'videoId'      => $videoId,
+                'videoTitle'   => $title,
+                'videoDesc'    => $desc,
+                'videoDt'      => $snippet['publishedAt'] ?? null,
+                'channelId'    => $snippet['channelId'] ?? '',
+                'channelTitle' => $snippet['channelTitle'] ?? '',
+                'videoThumb'   => data_get($snippet, 'thumbnails.medium.url'),
+                // novos campos:
+                'nlp1'         => is_numeric($nlp1) ? (float)$nlp1 : null,
+                'nlp2'         => is_numeric($nlp2) ? (float)$nlp2 : null,
+            ];
+
+            if (count($acc) >= $max) break;
+        }
+
+        // paginação
+        $nextToken = $json['nextPageToken'] ?? null;
+        $temMais   = $nextToken && (count($acc) < $max) && ($page < $maxPages);
+
+        if ($temMais) {
+            return $this->getAllVideos($channelId, $channelCreatedAt, $max, $maxPages, $page + 1, $totalInformado);
+        }
+
+        // ordenar por data (desc)
+        usort($acc, fn($a, $b) => strtotime($b['videoDt'] ?? '1970-01-01') <=> strtotime($a['videoDt'] ?? '1970-01-01'));
+
+        return array_slice($acc, 0, $max);
+    }
+
+
+
+
     protected function recalcularMedias(): void
     {
         $medias = [];
         foreach ($this->videos_dos_canais as $chId => $lista) {
-
             $avg = collect($lista)
                 ->map(function ($c) {
                     return $c['nlp1'] ?? null;
@@ -611,6 +713,8 @@ class Tarefa2 extends Component
 
             $medias[$chId] = is_numeric($avg) ? (float) $avg : null;
         }
+
+        #dd($medias);
         $this->polarizMediaArray = $medias;
     }
 
@@ -669,26 +773,6 @@ class Tarefa2 extends Component
     }
 
 
-    public function clearSelecionados33333333(): void
-    {
-
-        $this->reset([
-            'buscas',
-            'selecionados',
-            'addInput',
-            'acertou',
-            'feedback',
-            'mostrarAvaliacao',
-            'mostrarFeedback',
-            'query',
-        ]);
-
-        // limpa caches de tela
-        Session::forget([
-            't2_canais',
-            't2_query',            // aproveita e zera a query salva
-        ]);
-    }
 
 
     // opcional: extraia isso pra um trait e reutilize nos dois componentes
@@ -887,7 +971,7 @@ class Tarefa2 extends Component
 
     function setPolarization(string $texto): ?float
     {
-        return mt_rand(-100, 100);
+        #return mt_rand(-100, 100);
 
         $texto = trim($texto);
         if ($texto === '') return null;

@@ -7,7 +7,9 @@ use Carbon\Carbon;
 use App\Traits\Comum;
 use App\Models\Tarefa;
 use Livewire\Component;
+use Illuminate\Support\Js;
 use Livewire\Attributes\Layout;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Session;
 
@@ -31,7 +33,6 @@ class Tarefa1 extends Component
 
     public array $chart = [];
     public array $samples = [];
-    #public array $toxMediaArray = [];
 
 
     public function mount()
@@ -51,9 +52,9 @@ class Tarefa1 extends Component
             }
         }
 
-        $this->montarGraficoComentarios($this->selecionados);
 
-        #dd($this->chart);
+        # tirar depois
+        $this->montarGraficoComentarios($this->selecionados);
     }
 
 
@@ -124,7 +125,8 @@ class Tarefa1 extends Component
 
     public function escolherMaisToxico(string $videoId): void
     {
-        if (!isset($this->selecionados[$videoId])) return;
+        if (!isset($this->selecionados[$videoId]))
+            return;
 
         $this->maisToxico = $videoId;
         Session::put('tarefa1_mais_toxico', $videoId);
@@ -147,13 +149,14 @@ class Tarefa1 extends Component
         // reset do cache desta tela (opcional)
         Session::forget('t1_comentarios');
         $sessComentarios = [];
-        $tarefa = $this->getTarefa();
 
-        $this->montarGraficoComentarios($this->selecionados);
+
+        #$this->montarGraficoComentarios($this->selecionados);
+
 
         foreach ($this->selecionados as $videoId => $raw) {
             $q = $raw['busca'] ?? '[erro]';
-            $buscaBD = $this->upsertBusca($q, $tarefa);
+            $buscaBD = $this->upsertBusca($q);
             #dump($buscaBD);
 
             #dd($raw);
@@ -172,7 +175,7 @@ class Tarefa1 extends Component
                 'desc'       => $raw['channelDesc'] ?? null,
             ];
 
-            $canalBD = $this->upsertCanal($ch, $tarefa, $buscaBD);
+            $canalBD = $this->upsertCanal($ch, $buscaBD);
             #dump($canalBD);
 
             $vd = [
@@ -191,38 +194,37 @@ class Tarefa1 extends Component
             ];
 
             #dump($vd);
-            $videoBD = $this->upsertVideo($vd, $tarefa, $canalBD, $buscaBD);
+            $videoBD = $this->upsertVideo($vd, $canalBD, $buscaBD);
 
-            #$comentarios = $this->getAllComments($videoId, $raw['commentCount'], $raw['published']);
 
-            dd($this->chart);
 
-            #$this->carregarComentarios($videoId, $raw['commentCount'], $raw['published']);
-            #dd($comentarios);
+            $comentarios = $this->comentarios[$videoId] ?? [];
 
-            foreach ($comentarios as $comm) {
-                $commBD = $this->upsertComentario($comm, $videoBD, $tarefa);
-                #dump($commBD);
-            }
-
+            // ordene/saneie em cima do array de COMENTÁRIOS (não do mapa global)
             $ordenados = collect($comentarios)
-                ->filter(fn($c) => !empty($c['cod']))
-                ->sortBy(fn($c) => $c['dt'])
+                ->filter(fn($c) => !empty($c['cod']) && !empty($c['dt']) && is_numeric($c['tox'] ?? null))
+                ->sortBy('dt')
                 ->values()
                 ->toArray();
 
             $this->comentarios[$videoId] = $ordenados;
-            $sessComentarios[$videoId] = $ordenados;
+            $sessComentarios[$videoId]   = $ordenados;
+
+            foreach ($ordenados as $comm) {
+                if (!isset($comm['cod']))
+                    continue;
+
+                $commBD = $this->upsertComentario($comm, $videoBD);
+            }
         }
         // salva tudo na sessão (1 gravação só)
         Session::put('t1_comentarios', $sessComentarios);
 
         $this->recalcularMedias();
-        $this->maisToxicoReal = $this->pickMaisToxico($this->toxMediaArray);
 
-        $this->acertou = ($this->maisToxicoReal && $this->maisToxico)
-            ? $this->maisToxicoReal === $this->maisToxico
-            : false;
+        #dd($this->toxMediaArray);
+        $this->maisToxicoReal = $this->pickMaisToxico($this->toxMediaArray);
+        $this->acertou = ($this->maisToxicoReal && $this->maisToxico) ? $this->maisToxicoReal === $this->maisToxico : false;
 
         #dd($this->acertou);
 
@@ -236,12 +238,72 @@ class Tarefa1 extends Component
             'buscas'            => $this->buscas,
 
         ]);
+
+        // $this->js(
+        //     'setTimeout(() => {' .
+        //         '  window.dispatchEvent(new CustomEvent("tox:update", { detail: { chart: ' . Js::from($this->chart) . ' } }));' .
+        //         '}, 0);'
+        // );
+
+        #$this->js('window.dispatchEvent(new CustomEvent("tox:update", { detail: { chart: ' . Js::from($this->chart) . ' } }))');
     }
 
 
 
 
 
+    public function montarGraficoComentarios(array $videos)
+    {
+        // menor published entre os vídeos = início global do eixo X
+        $globalStart = collect($videos)->min(fn($v) => $v['published']);
+        $globalMin = PHP_INT_MAX;
+        $globalMax = PHP_INT_MIN;
+
+        $series = [];
+        foreach ($videos as $vid => $v) {
+            $count = (int) $v['commentCount'];
+            $upIso = $v['published'];
+
+            $buck = $this->getCommentsByBucketsRelevance($vid, $count, $upIso);
+            $all  = $this->flattenCommentsFromBuckets($buck);
+
+            $this->comentarios[$vid] = $all;
+
+
+            $this->samples[$vid] = $this->sampleComments($all, 20);
+            $avg = $this->toxMedia($all);
+            $this->toxMediaArray[$vid] = $avg;
+
+            $built = $this->buildPointsForVideoAbs($all, $upIso, $globalStart);
+
+            $series[$vid] = [
+                'points'        => $built['points'],
+                'avg'           => $avg !== null ? round($avg * 100, 2) : null,
+                'min'           => $built['minDay'],
+                'max'           => $built['maxDay'],
+                'startDay'      => $built['videoStartDay'],
+                'endDay'        => $built['videoEndDay'],
+                'title'         => $v['videoTitle'] ?? $v['title'] ?? $vid,
+
+            ];
+
+            $globalMin = min($globalMin, $built['minDay']);
+            $globalMax = max($globalMax, $built['maxDay']);
+        }
+        if ($globalMin === PHP_INT_MAX) {
+            $globalMin = 0;
+            $globalMax = 0;
+        }
+
+        // {globalStart, min, max, series:{vid:{points,avg,startDay,endDay,title}}}
+
+        $this->chart = [
+            'globalStart' => $globalStart, // ISO — usaremos para formatar ticks
+            'min'         => $globalMin,
+            'max'         => $globalMax,
+            'series'      => $series,
+        ];
+    }
 
 
     /**
@@ -268,20 +330,34 @@ class Tarefa1 extends Component
         foreach ($comments as $c) {
             $tox = $c['tox'] ?? null;
             $dt  = $c['dt']  ?? null;
-            if (!is_numeric($tox) || !$dt) continue;
+            if (!is_numeric($tox) || !$dt)
+                continue;
 
             $d   = Carbon::parse($dt)->startOfDay();
             $day = max(0, $globalStart->diffInDays($d));
 
             $minDay = min($minDay, $day);
             $maxDay = max($maxDay, $day);
-            if ($d->gt($lastDate)) $lastDate = $d;
+            if ($d->gt($lastDate))
+                $lastDate = $d;
+
+
+
+            $plain = trim((string)($c['texto'] ?? ''));
 
             $pts[] = [
                 'x'     => $day,
                 'y'     => round(((float)$tox) * 100, 2),
-                'label' => mb_substr(trim((string)($c['texto'] ?? '')), 0, 15),
+                'label' => mb_strimwidth($plain, 0, 120, '…'), // para tooltip (com corte elegante)
+                'full'  => $plain,                               // opcional: texto inteiro
             ];
+
+
+            // $pts[] = [
+            //     'x'     => $day,
+            //     'y'     => round(((float)$tox) * 100, 2),
+            //     'label' => mb_substr(trim((string)($c['texto'] ?? '')), 0, 15),
+            // ];
         }
 
         if ($minDay === PHP_INT_MAX) {
@@ -299,61 +375,6 @@ class Tarefa1 extends Component
         ];
     }
 
-
-
-    public function montarGraficoComentarios(array $videos)
-    {
-        // menor published entre os vídeos = início global do eixo X
-        $globalStart = collect($videos)->min(fn($v) => $v['published']);
-        $globalMin = PHP_INT_MAX;
-        $globalMax = PHP_INT_MIN;
-
-        $series = [];
-        foreach ($videos as $vid => $v) {
-            $count = (int) $v['commentCount'];
-            $upIso = $v['published'];
-
-            $buck = $this->getCommentsByBucketsRelevance($vid, $count, $upIso);
-            $all  = $this->flattenCommentsFromBuckets($buck);
-
-            $this->samples[$vid] = $this->sampleComments($all, 20);
-            $avg = $this->toxMedia($all);
-            $this->toxMediaArray[$vid] = $avg;
-
-            $built = $this->buildPointsForVideoAbs($all, $upIso, $globalStart);
-
-            $series[$vid] = [
-                'points'        => $built['points'],
-                'avg'           => $avg !== null ? round($avg * 100, 2) : null,
-                'min'           => $built['minDay'],
-                'max'           => $built['maxDay'],
-                'startDay'      => $built['videoStartDay'],
-                'endDay'        => $built['videoEndDay'],
-                'title'         => $v['title'] ?? $vid,
-            ];
-
-            $globalMin = min($globalMin, $built['minDay']);
-            $globalMax = max($globalMax, $built['maxDay']);
-        }
-        if ($globalMin === PHP_INT_MAX) {
-            $globalMin = 0;
-            $globalMax = 0;
-        }
-
-        $this->chart = [
-            'globalStart' => $globalStart, // ISO — usaremos para formatar ticks
-            'min'         => $globalMin,
-            'max'         => $globalMax,
-            'series'      => $series,
-        ];
-    }
-
-
-
-    ##############################################################
-
-
-
     /** Junta todos os itens dos buckets de um vídeo. */
     protected function flattenCommentsFromBuckets(array $bucketed): array
     {
@@ -367,9 +388,11 @@ class Tarefa1 extends Component
     /** Amostra N comentários aleatórios e estáveis (embaralha e pega N). */
     protected function sampleComments(array $comments, int $n = 20): array
     {
-        if (count($comments) <= $n) return $comments;
+        if (count($comments) <= $n)
+            return $comments;
         $idx = array_rand($comments, $n);
-        if (!is_array($idx)) $idx = [$idx];
+        if (!is_array($idx))
+            $idx = [$idx];
         return array_values(array_intersect_key($comments, array_flip($idx)));
     }
 
@@ -391,7 +414,7 @@ class Tarefa1 extends Component
      * - label = primeiros 15 caracteres do comentário
      * Retorna também minDay/maxDay (para unificar o eixo X entre vídeos).
      */
-    protected function buildPointsForVideo(array $comments, string $uploadAtIso): array
+    protected function buildPointsForVideo3333333333333333(array $comments, string $uploadAtIso): array
     {
         $upload = Carbon::parse($uploadAtIso)->startOfDay();
         $pts = [];
@@ -401,7 +424,8 @@ class Tarefa1 extends Component
         foreach ($comments as $c) {
             $tox = $c['tox'] ?? null;
             $dt  = $c['dt']  ?? null;
-            if (!is_numeric($tox) || !$dt) continue;
+            if (!is_numeric($tox) || !$dt)
+                continue;
 
             $d   = Carbon::parse($dt)->startOfDay();
             $day = max(0, $upload->diffInDays($d));  // D+0, D+1, ...
@@ -426,16 +450,11 @@ class Tarefa1 extends Component
     }
 
 
-    protected function getCommentsByBucketsRelevance(
-        string $videoId,
-        int $commentCount,
-        string $uploadAtIso,
-        int $perBucket = 100,      // normalmente 100
-        bool $withTox = true,
-        bool $forceRefresh = false
-        ): array {
+    protected function getCommentsByBucketsRelevance(string $videoId, int $commentCount, string $uploadAtIso, int $perBucket = 100, bool $withTox = true, bool $forceRefresh = false): array
+    {
         $videoId = trim($videoId);
-        if ($videoId === '' || $commentCount < 0) return [];
+        if ($videoId === '' || $commentCount < 0)
+            return [];
 
         $apiKey  = env('YOUTUBE_API_KEY');
         $baseCT  = 'https://www.googleapis.com/youtube/v3/commentThreads';
@@ -451,14 +470,7 @@ class Tarefa1 extends Component
         elseif ($commentCount > 10000)                          $pages = 5;
 
         // 2) Cache diário
-        $cacheKey = sprintf(
-            'yt:comments:buckets:relevance:v1:%s:%s:%d:%d:%d',
-            $videoId,
-            $uploadAt->toDateString(),
-            $pages,
-            $perBucket,
-            (int) floor($now->timestamp / 86400)
-        );
+        $cacheKey = sprintf('yt:comments:buckets:relevance:v1:%s:%s:%d:%d:%d', $videoId, $uploadAt->toDateString(), $pages, $perBucket, (int) floor($now->timestamp / 86400));
         if (!$forceRefresh && Cache::has($cacheKey)) {
             return Cache::get($cacheKey);
         }
@@ -480,35 +492,50 @@ class Tarefa1 extends Component
         $col       = [];
 
         for ($p = 0; $p < $pages; $p++) {
+
             $params = [
                 'key'        => $apiKey,
-                'part'       => 'snippet',
+                'part'       => 'snippet',          // ou 'snippet,replies'
                 'maxResults' => $pageSize,
-                'videoId'    => $videoId,
+                'videoId'    => $videoId,           // <- i maiúsculo
                 'textFormat' => 'plainText',
                 'order'      => $order,
             ];
             if ($nextToken) $params['pageToken'] = $nextToken;
 
-            $url = $baseCT . '?' . http_build_query($params);
-            Log::info('YT API (relevance, page ' . ($p + 1) . '): ' . $url);
+            $url = $baseCT . '?' . http_build_query($params, '', '&', PHP_QUERY_RFC3986);
 
-            $resp  = file_get_contents($url);
-            if ($resp === false) break;
+            Log::info('YT API (relevance)', ['page' => $p + 1, 'url' => $url, 'videoId' => $videoId]);
 
-            $data  = json_decode($resp ?: '[]', true);
+            $resp = Http::timeout(20)->get($url);
+            if ($resp->failed()) {
+                $body = $resp->json();
+                Log::warning('YT API failed', ['status' => $resp->status(), 'body' => $body]);
+                return []; // ou break; se quiser manter parciais
+            }
+
+            $data  = $resp->json();
+            if (isset($data['error'])) {
+                Log::warning('YT API error', $data['error']);
+                return [];
+            }
+
             $items = $data['items'] ?? [];
-            if (!$items) break;
+            if (!$items)
+                break;
 
             foreach ($items as $it) {
                 $top = $it['snippet']['topLevelComment'] ?? [];
                 $sn  = $top['snippet'] ?? [];
                 $cid = $top['id'] ?? ($it['id'] ?? null);
-                if (!$cid || isset($seen[$cid])) continue;
+                if (!$cid || isset($seen[$cid]))
+                    continue;
+
                 $seen[$cid] = true;
 
                 $dtIso = $sn['publishedAt'] ?? null;
-                if (!$dtIso) continue;
+                if (!$dtIso)
+                    continue;
 
                 $txt   = (string)($sn['textDisplay'] ?? '');
                 $plain = strip_tags($txt);
@@ -524,7 +551,8 @@ class Tarefa1 extends Component
             }
 
             $nextToken = $data['nextPageToken'] ?? null;
-            if (!$nextToken) break;
+            if (!$nextToken)
+                break;
         }
 
         // 5) Particionar por janela e ordenar cronologicamente dentro do bucket
@@ -580,7 +608,7 @@ class Tarefa1 extends Component
         $this->toxMediaArray = $medias;
     }
 
-    protected function pickMaisToxico(array $medias): ?string
+    protected function pickMaisToxico333333333333333333333333333333(array $medias)
     {
         // mantém só valores numéricos
         $valid = array_filter($medias, static fn($v) => is_numeric($v));
@@ -600,6 +628,37 @@ class Tarefa1 extends Component
         $this->msg('Erro nao achou o video mais toxico', 'error');
         return false;
     }
+
+    protected function pickMaisToxico(array $medias): ?string
+    {
+        $valid = array_filter($medias, static fn($v) => is_numeric($v));
+        if (!$valid) return null;
+
+        $max = max($valid);
+        $EPS = 1e-9;
+
+        foreach ($medias as $id => $v) {
+            if (is_numeric($v) && abs($v - $max) <= $EPS) {
+                return $id;
+            }
+        }
+        // sem vencedor claro (não deveria acontecer)
+        return null;
+    }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
     public function add(string $videoId): void
     {
@@ -674,11 +733,13 @@ class Tarefa1 extends Component
         $this->mostrarAvaliacao = true;
         $this->comentarios  = [];
         $this->maisToxico = null;
-        #$this->toxMediaArray = [];   // [videoId => float]
+        $this->toxMediaArray = [];   // [videoId => float]
 
         Session::forget(['t1_comentarios', 'tarefa1_mais_toxico']); // limpa ambos
 
     }
+
+
 
     function setTox($txt)
     {
