@@ -29,6 +29,12 @@
                     </x-nav-link>
                 </div>
 
+                <div class="hidden space-x-8 sm:-my-px sm:ms-10 sm:flex">
+                    <x-nav-link :href="route('tarefa4')" :active="request()->routeIs('tarefa4')">
+                        {{ __('Tarefa4') }}
+                    </x-nav-link>
+                </div>
+
                 <div class="hidden font-bold  space-x-8 sm:-my-px sm:ms-10 sm:flex">
                     <x-nav-link class="" :href="route('resultados')" :active="request()->routeIs('resultados')">
                         Meus Resultados

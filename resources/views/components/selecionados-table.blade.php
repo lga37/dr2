@@ -10,7 +10,7 @@
 
     // regras de quantidade para habilitar botão Avaliar
     'min' => 2,
-    'max' => 3,
+    
 ])
 
 @php
@@ -51,6 +51,8 @@
                             <th class="px-2 py-1 text-left">inscritos</th>
                             <th class="px-2 py-1 text-left">vídeos</th>
                             <th class="px-2 py-1 text-left">views</th>
+                            <th class="px-2 py-1 text-left">U$/mes</th>
+                            <th class="px-2 py-1 text-left">NLP %</th>
                             <th class="px-2 py-1 text-left">dt criação</th>
                         </tr>
                     @endif
@@ -99,6 +101,8 @@
                                 <td class="px-2 py-1">{{ $fmtNum($v['channelSubs'] ?? 0) }}</td>
                                 <td class="px-2 py-1">{{ $fmtNum($v['channelVideos'] ?? 0) }}</td>
                                 <td class="px-2 py-1">{{ $fmtNum($v['channelViews'] ?? 0) }}</td>
+                                <td class="px-2 py-1">{{ $fmtNum($v['monetiz'] ?? '') }}</td>
+                                <td class="px-2 py-1">{{ $fmtNum($v['polariz'] ?? '') }}</td>
                                 <td class="px-2 py-1">{{ $date($v, 'channelDt') }}</td>
                             </tr>
                         @endif
@@ -113,16 +117,16 @@
             <x-danger-button wire:click="{{ $clear }}">Limpar sessão</x-danger-button>
         @endif
 
-        @php $disabled = ($count < $min || $count > $max); @endphp
+        @php $disabled = ($count < $min); @endphp
 
-        @unless ($count < $min || $count > $max)
+        @unless ($count < $min)
             <x-primary-button wire:click="{{ $evaluate }}" wire:target="{{ $evaluate }}" :disabled="$disabled">
                 {{ $type === 'video' ? 'Avaliar Vídeos' : 'Avaliar Canais' }}
             </x-primary-button>
         @endunless
 
         <span class="text-gray-500">
-            (mín. {{ $min }} / máx. {{ $max }})
+            (mín. {{ $min }})
         </span>
     </div>
 @endif

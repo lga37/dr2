@@ -14,6 +14,7 @@
         "maantje/charts": "^0.1.1",
         "openai-php/client": "^0.10.3",
         "openai-php/laravel": "^0.10.1",
+        "prism-php/prism": "^0.98.5",
         "twilio/sdk": "^8.8",
         "wire-elements/modal": "^2.0"
     },

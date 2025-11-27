@@ -1,5 +1,10 @@
 <div>
 
+
+
+
+
+
     <x-slot name="header">
         <div x-data="{
             open: JSON.parse(localStorage.getItem('tarefa2_header_open') ?? 'true')
@@ -144,6 +149,11 @@
     </x-slot>
 
 
+
+
+
+
+
     <x-msg />
 
     <div class="py-12">
@@ -173,14 +183,20 @@
                             style="grid-template-columns: repeat({{ $cols }}, minmax(0,1fr));">
 
                             @foreach ($selecionados as $id => $v)
+                                @php
+                                    #dump($id);
+                                    #dd($v);
+                                @endphp
                                 <article wire:key="{{ $id }}"
-                                    class="h-full flex flex-col rounded-xl border p-4 shadow-sm bg-white ring-2 ring-indigo-500">
+                                    class="h-full flex flex-col rounded-xl border p-4 shadow-sm bg-white
+                                     {{ $maisToxico === $id ? 'ring-2 ring-indigo-500' : '' }}">
+
                                     {{-- Cabeçalho --}}
                                     <div class="flex gap-3">
-                                        {{-- <img class="w-40 h-24 object-cover rounded-md"
-                                            src="{{ $v['thumbnail'] ?? '' }}" alt="thumb"> --}}
-                                        <x-imagem :src="$v['thumbnail']" tipo="gde" class="shadow-sm" />
+                                        <img class="w-40 h-24 object-cover rounded-md"
+                                            src="{{ $v['thumbnail'] ?? '' }}" alt="thumb">
                                         <div class="flex-1">
+
                                             <x-linkvideo :videoId="$id" :titulo="$v['videoTitle'] ?? '--'" />
                                             <div class="text-gray-500">
                                                 Publicado em:
@@ -193,6 +209,7 @@
                                     </div>
 
                                     <x-keywords :items="$v['videoTags'] ?? []" limit="8" rows="2" />
+
 
                                     <h4 class="text-lg font-semibold mt-4 mb-0">Dados do Vídeo</h4>
                                     <div class="mt-3 grid grid-cols-2 md:grid-cols-4 gap-2 text-sm">
@@ -228,6 +245,8 @@
 
                                     <x-keywords :items="$v['channelKeywords'] ?? []" limit="8" rows="2" />
 
+
+
                                     <div class="grid grid-cols-2 md:grid-cols-4 gap-2 text-sm">
                                         <div class="bg-gray-50 p-2 rounded">
                                             <div class="text-gray-500">Origem/Pais</div>
@@ -250,26 +269,50 @@
                                         </div>
                                     </div>
 
+                                    {{-- Rodapé fixado no fundo do card --}}
+                                    <div class="mt-auto pt-4">
+                                        <x-secondary-button wire:click="escolherMaisToxico('{{ $id }}')"
+                                            :disabled="$maisToxico === $id">
+                                            Marcar como mais tóxico
+                                        </x-secondary-button>
+                                        @if ($maisToxico === $id)
+                                            <span class="ml-3 text-indigo-600 text-sm font-semibold">Selecionado</span>
+                                        @endif
+                                    </div>
                                 </article>
                             @endforeach
+
                         </div>
                     </div>
 
-                </div>
+                    <x-primary-button class="w-full text-6xl p-10 mt-6 text-center " wire:click="validarTarefa1"
+                        wire:loading.attr="disabled" wire:target="validarTarefa1">
+                        Finalizar Avaliação de Toxicidade
 
+                        <span class="invisible" wire:loading.class.remove="invisible" wire:target="validarTarefa1">
+                            <span class="text-sm text-yellow-500">Aguarde Processando ...</span>
+                        </span>
+                    </x-primary-button>
+                </div>
+            @endif
+
+            <!-- tabela dos comentarios -->
+            @if ($mostrarFeedback)
                 <div class="overflow-x-auto mt-8">
                     <table
                         class="divide-y divide-gray-200 divide-solid table-auto min-w-full text-sm tracking-tight leading-tight">
                         <thead>
                             <tr class="bg-gray-100 text-xs text-gray-700 text-center">
                                 @php
+                                    #$comentariosSessao = session('t1_comentarios', []);
                                     $comentariosSessao = $samples;
 
                                     $numComents = max(count($comentariosSessao), 1); // evita /0
                                     $colWidth = number_format(100 / ($numComents * 5), 2);
                                 @endphp
                                 @foreach ($comentariosSessao as $video_id => $dados)
-                                    <th colspan="5" style="width: {{ $colWidth * 5 }}%;" class="border border-gray-300 px-2 py-4">
+                                    <th colspan="5" style="width: {{ $colWidth * 5 }}%;"
+                                        class="border border-gray-300 px-2 py-4">
                                         <x-linkvideo :videoId="$video_id" :titulo="$selecionados[$video_id]['videoTitle'] ?? '--'" />
                                     </th>
                                 @endforeach
@@ -344,7 +387,13 @@
                                         <span class="font-bold text-5xl">
                                             {{ $toxMedia ? number_format($toxMedia * 100, 1) . '%' : 'n/a' }}
                                         </span>
-
+                                        @if ($maisToxico === $video_id)
+                                            <span
+                                                class="ml-2 text-2xl inline-flex items-center rounded-full px-2 py-0.5 
+                                            {{ $maisToxicoReal === $video_id ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-700' }}">
+                                                seu palpite
+                                            </span>
+                                        @endif
                                     </td>
                                 @endforeach
                             </tr>
@@ -352,53 +401,59 @@
                     </table>
 
                     <!-- acertou errou e feedback -->
-                    @if (empty($this->feedback))
-                        <div class="rounded-lg p-4 ring-4 w-full max-w-6xl mx-auto my-4 bg-green-50 ring-green-300">
-                            <div class="mt-4 grid gap-2">
-                                <label class="text-sm font-medium text-gray-700">
-                                    Deixe um breve feedback: por que você escolheu esse vídeo?
-                                </label>
-                                <textarea rows="3" wire:model.defer="feedback"
-                                    class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                                    placeholder="Ex.: Pela thumbnail e título, achei que geraria mais comentários agressivos..."></textarea>
+                    <div
+                        class="rounded-lg p-4 ring-4 w-full max-w-6xl mx-auto my-4 
+                        {{ $acertou ? 'bg-green-50  ring-green-300' : 'bg-red-50 ring-red-300' }}">
+                        @if ($acertou)
+                            <div class="text-green-800 font-semibold">✅ Você acertou!</div>
+                            <div class="text-sm text-green-900">
+                                Seu palpite está certo.
+                            </div>
+                        @else
+                            <div class="text-red-800 font-semibold">❌ Você errou.</div>
+                            <div class="text-sm text-red-900">
+                                Seu palpite está errado.
+                            </div>
+                        @endif
+                        <div class="mt-4 grid gap-2">
+                            <label class="text-sm font-medium text-gray-700">
+                                Deixe um breve feedback: por que você escolheu esse vídeo?
+                            </label>
+                            <textarea rows="3" wire:model.defer="feedback"
+                                class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                                placeholder="Ex.: Pela thumbnail e título, achei que geraria mais comentários agressivos..."></textarea>
 
-                                <div class="flex items-center gap-3">
-                                    <x-primary-button wire:click="salvarFeedback" wire:loading.attr="disabled"
-                                        wire:target="salvarFeedback">
-                                        Enviar feedback
-                                    </x-primary-button>
+                            <div class="flex items-center gap-3">
+                                <x-primary-button wire:click="salvarFeedback" wire:loading.attr="disabled"
+                                    wire:target="salvarFeedback">
+                                    Enviar feedback
+                                </x-primary-button>
 
-                                    <div class="invisible" wire:loading.class.remove="invisible"
-                                        wire:target="salvarFeedback">
-                                        <span class="text-sm text-gray-500">Salvando…</span>
-                                    </div>
-                                </div>
-
-                                <div class=" text-gray-500">
-                                    Como comparamos: calculamos a toxicidade média dos comentários raiz de
-                                    cada vídeo via Perspective API.<br>
-                                    Em caso de empate técnico (diferenças muito pequenas), o resultado é
-                                    "inconclusivo".<br>
-                                    Vale ressaltar que consideramos somente videos com menos de 100 comentarios raiz na
-                                    busca
-                                    por questoes financeiras.
+                                <div class="invisible" wire:loading.class.remove="invisible"
+                                    wire:target="salvarFeedback">
+                                    <span class="text-sm text-gray-500">Salvando…</span>
                                 </div>
                             </div>
+
+                            <div class=" text-gray-500">
+                                Como comparamos: calculamos a toxicidade média dos comentários raiz de
+                                cada vídeo via Perspective API.<br>
+                                Em caso de empate técnico (diferenças muito pequenas), o resultado é
+                                "inconclusivo".<br>
+                                Vale ressaltar que consideramos somente videos com menos de 100 comentarios raiz na
+                                busca
+                                por questoes financeiras.
+                            </div>
                         </div>
-                    @endif
+                    </div>
 
                 </div>
 
-
-
-
-
             @endif
-
-
 
         </div>
     </div>
+
 
 
     <div class="mx-auto p-6 w-full max-w-[1400px]">
@@ -408,260 +463,239 @@
         </div>
     </div>
 
+    @push('scripts')
+        <script>
+            (function() {
+                // Registro global p/ evitar gráficos fantasma
+                if (!window._toxCharts) window._toxCharts = {};
 
-
-</div>
-
-@push('scripts')
-    <script>
-        (function() {
-            // Registro global p/ evitar gráficos fantasma
-            if (!window._toxCharts) window._toxCharts = {};
-
-            // Plugin de linhas verticais
-            const verticalLines = {
-                id: 'verticalLines',
-                afterDatasetsDraw(chart, _args, opts) {
-                    const {
-                        ctx,
-                        scales: {
-                            x,
-                            y
-                        }
-                    } = chart;
-                    (opts?.markers || []).forEach(m => {
-                        if (typeof m.x !== 'number') return;
-                        const xp = x.getPixelForValue(m.x);
-                        ctx.save();
-                        ctx.strokeStyle = m.color || '#999';
-                        ctx.globalAlpha = 0.6;
-                        ctx.lineWidth = 1;
-                        ctx.setLineDash([2, 2]);
-                        ctx.beginPath();
-                        ctx.moveTo(xp, y.top);
-                        ctx.lineTo(xp, y.bottom);
-                        ctx.stroke();
-                        ctx.restore();
-                    });
-                }
-            };
-
-            // Helpers
-            const addDays = (d, n) => {
-                const x = new Date(d);
-                x.setDate(x.getDate() + n);
-                return x;
-            };
-            const fmt = (date) => {
-                const dd = String(date.getDate()).padStart(2, '0');
-                const mm = String(date.getMonth() + 1).padStart(2, '0');
-                const yy = date.getFullYear();
-                return `${dd}/${mm}/${yy}`;
-            };
-
-            // Paleta com mais cores (caso tenha >3 vídeos)
-            const palette = [{
-                    pt: '#22c55e',
-                    line: '#15803d'
-                }, // verde
-                {
-                    pt: '#ef4444',
-                    line: '#991b1b'
-                }, // vermelho
-                {
-                    pt: '#3b82f6',
-                    line: '#1e40af'
-                }, // azul
-                {
-                    pt: '#f59e0b',
-                    line: '#b45309'
-                }, // amber
-                {
-                    pt: '#8b5cf6',
-                    line: '#5b21b6'
-                }, // violet
-            ];
-
-            function renderChart(chartData, elId = 'toxMultiChart', attempts = 0) {
-                const el = document.getElementById(elId);
-                if (!el) return;
-
-                // Chart.js ainda não disponível? tenta novamente um pouco depois
-                if (!window.Chart) {
-                    if (attempts > 20) return; // evita loop infinito
-                    return setTimeout(() => renderChart(chartData, elId, attempts + 1), 150);
-                }
-
-                // Validação do payload
-                if (!chartData || !chartData.series || Object.keys(chartData.series).length === 0) {
-                    console.warn('chartData inválido ou vazio', chartData);
-                    return;
-                }
-
-                // Log correto (evita concatenar objeto em string)
-                console.log('chartData:', chartData);
-
-                // Destrói instância anterior
-                if (window._toxCharts[elId]) {
-                    try {
-                        window._toxCharts[elId].destroy();
-                    } catch (_) {}
-                    delete window._toxCharts[elId];
-                }
-
-                const globalStart = new Date(chartData.globalStart);
-                const vids = Object.keys(chartData.series);
-                const minX = chartData.min ?? 0;
-                const maxX = chartData.max ?? 0;
-
-                // datasets + marcadores
-                const datasets = [];
-                const markers = [];
-
-                vids.forEach((vid, idx) => {
-                    const s = chartData.series[vid] || {};
-                    const color = palette[idx % palette.length];
-
-                    datasets.push({
-                        label: s.title || vid,
-                        type: 'scatter',
-                        data: Array.isArray(s.points) ? s.points : [], // [{x:days,y:%,label}]
-                        parsing: false,
-                        showLine: false,
-                        pointRadius: 3,
-                        borderColor: color.pt,
-                        backgroundColor: color.pt,
-                    });
-
-                    if (typeof s.avg === 'number' && isFinite(s.avg)) {
-                        datasets.push({
-                            label: ' — média ',
-                            //label: `${s.title || vid}\n— média`, // já com quebra
-
-                            type: 'line',
-                            data: [{
-                                x: minX,
-                                y: s.avg
-                            }, {
-                                x: maxX,
-                                y: s.avg
-                            }],
-                            parsing: false,
-                            borderColor: color.line,
-                            borderWidth: 2,
-                            borderDash: [6, 4],
-                            pointRadius: 0,
+                // Plugin de linhas verticais
+                const verticalLines = {
+                    id: 'verticalLines',
+                    afterDatasetsDraw(chart, _args, opts) {
+                        const {
+                            ctx,
+                            scales: {
+                                x,
+                                y
+                            }
+                        } = chart;
+                        (opts?.markers || []).forEach(m => {
+                            if (typeof m.x !== 'number') return;
+                            const xp = x.getPixelForValue(m.x);
+                            ctx.save();
+                            ctx.strokeStyle = m.color || '#999';
+                            ctx.globalAlpha = 0.6;
+                            ctx.lineWidth = 1;
+                            ctx.setLineDash([2, 2]);
+                            ctx.beginPath();
+                            ctx.moveTo(xp, y.top);
+                            ctx.lineTo(xp, y.bottom);
+                            ctx.stroke();
+                            ctx.restore();
                         });
                     }
+                };
 
-                    // Marcadores só se forem números válidos
-                    if (typeof s.startDay === 'number' && isFinite(s.startDay)) markers.push({
-                        x: s.startDay,
-                        color: color.pt
-                    });
-                    if (typeof s.endDay === 'number' && isFinite(s.endDay)) markers.push({
-                        x: s.endDay,
-                        color: color.pt
-                    });
-                });
+                // Helpers
+                const addDays = (d, n) => {
+                    const x = new Date(d);
+                    x.setDate(x.getDate() + n);
+                    return x;
+                };
+                const fmt = (date) => {
+                    const dd = String(date.getDate()).padStart(2, '0');
+                    const mm = String(date.getMonth() + 1).padStart(2, '0');
+                    const yy = date.getFullYear();
+                    return `${dd}/${mm}/${yy}`;
+                };
 
-                window._toxCharts[elId] = new Chart(el, {
-                    plugins: [verticalLines],
-                    data: {
-                        datasets
-                    },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false, // respeita a altura do contêiner (Tailwind)
-                        animation: false,
-                        scales: {
-                            x: {
-                                type: 'linear',
-                                min: minX,
-                                max: maxX,
-                                title: {
-                                    display: true,
-                                    text: 'Data (linha do tempo)'
-                                },
-                                ticks: {
-                                    precision: 0,
-                                    callback: v => fmt(addDays(globalStart, Number(v)))
-                                },
-                                grid: {
-                                    drawTicks: true
-                                }
-                            },
-                            y: {
-                                min: 0,
-                                max: 100,
-                                beginAtZero: true,
-                                title: {
-                                    display: true,
-                                    text: 'Toxicidade (%)'
-                                }
-                            }
+                // Paleta com mais cores (caso tenha >3 vídeos)
+                const palette = [{
+                        pt: '#22c55e',
+                        line: '#15803d'
+                    }, // verde
+                    {
+                        pt: '#ef4444',
+                        line: '#991b1b'
+                    }, // vermelho
+                    {
+                        pt: '#3b82f6',
+                        line: '#1e40af'
+                    }, // azul
+                    {
+                        pt: '#f59e0b',
+                        line: '#b45309'
+                    }, // amber
+                    {
+                        pt: '#8b5cf6',
+                        line: '#5b21b6'
+                    }, // violet
+                ];
+
+                function renderChart(chartData, elId = 'toxMultiChart', attempts = 0) {
+                    const el = document.getElementById(elId);
+                    if (!el) return;
+
+                    // Chart.js ainda não disponível? tenta novamente um pouco depois
+                    if (!window.Chart) {
+                        if (attempts > 20) return; // evita loop infinito
+                        return setTimeout(() => renderChart(chartData, elId, attempts + 1), 150);
+                    }
+
+                    // Validação do payload
+                    if (!chartData || !chartData.series || Object.keys(chartData.series).length === 0) {
+                        console.warn('chartData inválido ou vazio', chartData);
+                        return;
+                    }
+
+                    // Log correto (evita concatenar objeto em string)
+                    console.log('chartData:', chartData);
+
+                    // Destrói instância anterior
+                    if (window._toxCharts[elId]) {
+                        try {
+                            window._toxCharts[elId].destroy();
+                        } catch (_) {}
+                        delete window._toxCharts[elId];
+                    }
+
+                    const globalStart = new Date(chartData.globalStart);
+                    const vids = Object.keys(chartData.series);
+                    const minX = chartData.min ?? 0;
+                    const maxX = chartData.max ?? 0;
+
+                    // datasets + marcadores
+                    const datasets = [];
+                    const markers = [];
+
+                    vids.forEach((vid, idx) => {
+                        const s = chartData.series[vid] || {};
+                        const color = palette[idx % palette.length];
+
+                        datasets.push({
+                            label: s.title || vid,
+                            type: 'scatter',
+                            data: Array.isArray(s.points) ? s.points : [], // [{x:days,y:%,label}]
+                            parsing: false,
+                            showLine: false,
+                            pointRadius: 3,
+                            borderColor: color.pt,
+                            backgroundColor: color.pt,
+                        });
+
+                        if (typeof s.avg === 'number' && isFinite(s.avg)) {
+                            datasets.push({
+                                label: ' — média ',
+                                //label: `${s.title || vid}\n— média`, // já com quebra
+
+                                type: 'line',
+                                data: [{
+                                    x: minX,
+                                    y: s.avg
+                                }, {
+                                    x: maxX,
+                                    y: s.avg
+                                }],
+                                parsing: false,
+                                borderColor: color.line,
+                                borderWidth: 2,
+                                borderDash: [6, 4],
+                                pointRadius: 0,
+                            });
+                        }
+
+                        // Marcadores só se forem números válidos
+                        if (typeof s.startDay === 'number' && isFinite(s.startDay)) markers.push({
+                            x: s.startDay,
+                            color: color.pt
+                        });
+                        if (typeof s.endDay === 'number' && isFinite(s.endDay)) markers.push({
+                            x: s.endDay,
+                            color: color.pt
+                        });
+                    });
+
+                    window._toxCharts[elId] = new Chart(el, {
+                        plugins: [verticalLines],
+                        data: {
+                            datasets
                         },
-                        plugins: {
-                            legend: {
-                                position: 'top'
-                            },
-                            tooltip: {
-                                callbacks: {
-                                    title: (items) => {
-                                        const d = items[0]?.raw?.x ?? null;
-                                        return d != null ? fmt(addDays(globalStart, Number(d))) : '';
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false, // respeita a altura do contêiner (Tailwind)
+                            animation: false,
+                            scales: {
+                                x: {
+                                    type: 'linear',
+                                    min: minX,
+                                    max: maxX,
+                                    title: {
+                                        display: true,
+                                        text: 'Data (linha do tempo)'
                                     },
-                                    label: (ctx) => {
-                                        const d = ctx.raw || {};
-                                        return `${Number(d.y).toFixed(1)}%` + (d.label ? ` — ${d.label}` :
-                                            '');
+                                    ticks: {
+                                        precision: 0,
+                                        callback: v => fmt(addDays(globalStart, Number(v)))
+                                    },
+                                    grid: {
+                                        drawTicks: true
+                                    }
+                                },
+                                y: {
+                                    min: 0,
+                                    max: 100,
+                                    beginAtZero: true,
+                                    title: {
+                                        display: true,
+                                        text: 'Toxicidade (%)'
                                     }
                                 }
                             },
-                            verticalLines: {
-                                markers
+                            plugins: {
+                                legend: {
+                                    position: 'top'
+                                },
+                                tooltip: {
+                                    callbacks: {
+                                        title: (items) => {
+                                            const d = items[0]?.raw?.x ?? null;
+                                            return d != null ? fmt(addDays(globalStart, Number(d))) : '';
+                                        },
+                                        label: (ctx) => {
+                                            const d = ctx.raw || {};
+                                            return `${Number(d.y).toFixed(1)}%` + (d.label ? ` — ${d.label}` :
+                                                '');
+                                        }
+                                    }
+                                },
+                                verticalLines: {
+                                    markers
+                                }
                             }
                         }
-                    }
-                });
-            }
-
-            // Boot: usa $chart do Blade, se houver
-            function boot() {
-                try {
-                    const chartData = @json($chart ?? null);
-                    if (chartData && chartData.series && Object.keys(chartData.series).length) {
-                        renderChart(chartData);
-                    }
-                } catch (e) {
-                    console.warn('Sem $chart ou JSON inválido', e);
+                    });
                 }
-            }
+
+                // Boot: usa $chart do Blade, se houver
+                function boot() {
+                    try {
+                        const chartData = @json($chart ?? null);
+                        if (chartData && chartData.series && Object.keys(chartData.series).length) {
+                            renderChart(chartData);
+                        }
+                    } catch (e) {
+                        console.warn('Sem $chart ou JSON inválido', e);
+                    }
+                }
 
 
-            // Eventos que interessam ao Livewire/DOM
-            document.addEventListener('DOMContentLoaded', boot);
+                // Eventos que interessam ao Livewire/DOM
+                document.addEventListener('DOMContentLoaded', boot);
 
 
-        })();
-    </script>
-@endpush
+            })();
+        </script>
+    @endpush
 
-
-@push('scripts')
-    <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            // chave só dessa página
-            const KEY = 'tarefa1_reloaded';
-
-            // se ainda não recarregou, marca e recarrega
-            if (!sessionStorage.getItem(KEY)) {
-                sessionStorage.setItem(KEY, '1');
-                window.location.reload(); // equivalente ao F5
-            } else {
-                // já recarregou uma vez, limpa a chave pra próxima vez que abrir a página
-                sessionStorage.removeItem(KEY);
-            }
-        });
-    </script>
-@endpush
+</div>

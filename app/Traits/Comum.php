@@ -11,8 +11,14 @@ use App\Models\Comentario;
 use Illuminate\Support\Str;
 use Livewire\Attributes\Url;
 use Illuminate\Support\Carbon;
+use Prism\Prism\Facades\Prism;
+use Prism\Prism\Enums\Provider;
 use App\Services\YoutubeStorage;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Http;
+use Prism\Prism\Schema\NumberSchema;
+use Prism\Prism\Schema\ObjectSchema;
+use Prism\Prism\Schema\StringSchema;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Session;
 
@@ -29,7 +35,7 @@ trait Comum
     private array $cache = [];
 
 
-   
+
 
     protected function ISO8601ToSeconds($duration): ?int
     {
@@ -66,7 +72,28 @@ trait Comum
 
 
 
+    private function fmtDuration(int $seconds): string
+    {
+        $h = intdiv($seconds, 3600);
+        $m = intdiv($seconds % 3600, 60);
+        if ($h > 0)  return sprintf('%d h %02d min', $h, $m);
+        return sprintf('%d min', $m);
+    }
 
+
+    private function toNumber(string $num, ?string $suffix): ?float
+    {
+        $n = str_replace([' ', ','], ['', '.'], $num);
+        if (!is_numeric($n)) return null;
+
+        $v = (float)$n;
+        if ($suffix) {
+            $s = strtolower($suffix);
+            if ($s === 'k') $v *= 1_000;
+            if ($s === 'm') $v *= 1_000_000;
+        }
+        return $v;
+    }
 
 
     // Normalizador simples pra não sujar a sessão
@@ -86,7 +113,7 @@ trait Comum
     // Dispara quando a prop "query" muda (graças ao wire:model.*)
     public function updatedQuery($value): void
     {
-        $tipo_tarefa = $this->getTipoTarefa(); #t1 t2
+        $tipo_tarefa = $this->getTipoTarefa();
 
         $this->query = $this->normalizeQuery($value);
 
@@ -96,9 +123,22 @@ trait Comum
         if (mb_strlen($this->query) >= 2) {
             // cuidado para não spammar a API:
             if ($tipo_tarefa == 't1') {
-                $this->getVideos();
+                $videos = $this->getVideos();
+                Session::put($tipo_tarefa . '_videos', $videos);
             } else {
-                $this->getCanais();
+                $canais = $this->getCanais();
+                #dd($canais);
+
+
+                // Trait Comum (onde monta a grid)
+                #$key = $tipo_tarefa . '_canais:' . session()->getId();      // chave por sessão do usuário
+                #Cache::put($key, $canais, now()->addHours(4)); // guarda a GRID no cache
+                Session::put($tipo_tarefa . '_buscas', $canais);           // guarda só o ponteiro
+
+
+                #Session::put($tipo_tarefa . '_canais', $canais);
+                #dd(session()->all());
+
             }
         }
     }
@@ -115,15 +155,10 @@ trait Comum
             return;
         }
 
-        #$this->getVideos();
-
 
         $forceRefresh = false;
         $this->buscas = $this->getVideos($forceRefresh);
         Session::put($tipo . '_query', $this->query);
-
-
-        #Session::put('t1_query', $this->query);
     }
 
     private function squashSpaces(?string $text): ?string
@@ -188,6 +223,314 @@ trait Comum
     }
 
 
+    ########################################### Trait canais
+
+    public function clearSelecionados(): void
+    {
+        // 1) Resetar TODAS as props públicas para o default
+        $this->reset();             // volta ao estado declarado na classe
+        $this->resetErrorBag();     // (se usa validação)
+        $this->resetValidation();   // (se usa validação)
+
+        // 2) Limpar SESSIONS “da tela” por prefixo (não mexe em auth)
+        $this->forgetSessionByPrefix($this->sessionPrefixes);
+
+        // 3) Se usa paginação, zere a página atual
+        if (method_exists($this, 'resetPage')) {
+            $this->resetPage();
+        }
+    }
+
+    protected function forgetSessionByPrefix(array $prefixes): void
+    {
+        $allKeys = array_keys(Session::all());
+
+        $toForget = array_values(array_filter($allKeys, function ($key) use ($prefixes) {
+            return Str::startsWith($key, $prefixes);
+        }));
+
+        if (!empty($toForget)) {
+            Session::forget($toForget);
+        }
+    }
+
+    public function pesquisarCanais(): void
+    {
+        $this->query = $this->normalizeQuery($this->query);
+
+        if (mb_strlen($this->query) < 2) {
+            $this->msg('Digite pelo menos 2 caracteres para pesquisar.', 'warn');
+            return;
+        }
+
+        $this->getCanais();
+    }
+
+
+    ################################################# atencao - ta vinculado a t3
+    protected function persistSelecionados(): void
+    {
+
+        $this->selecionados = array_filter(
+            $this->selecionados,
+            static fn($value, $key) => is_string($key) && is_array($value) && !empty($value),
+            ARRAY_FILTER_USE_BOTH
+        );
+
+        #dump($this->selecionados);
+
+        $t = $this->getTipoTarefa();
+        #dd($t);
+
+        if ($t == 't1') {
+            $nome_sess = "sel_videos";
+        } else {
+            $nome_sess = $t . "_canais";
+        }
+
+        if (empty($this->selecionados)) {
+            Session::forget($nome_sess);
+        } else {
+            Session::put($nome_sess, $this->selecionados);
+        }
+    }
+
+
+
+
+    public function add(string $canalId): void
+    {
+        if (!isset($this->selecionados[$canalId])) {
+            $tem = false;
+            #dd($this->buscas);
+            foreach ($this->buscas as $reg_canal) {
+                if ($reg_canal['channelId'] == $canalId) {
+                    $data = $reg_canal;
+                    $tem = true;
+                    break;
+                }
+            }
+            if (!$tem) {
+                $dadosCanal = $this->getCanaisDetailsByListCanaisIds([$canalId]);
+                $data = $dadosCanal[$canalId] ?? null;   // pega só o registro do canal
+                if (!$data) {
+                    $this->msg('Não foi possível obter os detalhes do canal.', 'error');
+                    return;
+                }
+                $data['q'] = '--';
+            }
+            if (is_array($data) && !empty($data)) {
+                $this->selecionados[$canalId] = $data;
+                #dd($this->selecionados);
+                $this->persistSelecionados();
+                $this->msg('Registro ' . $canalId . ' adicionado corretamente', 'success');
+            }
+        } else {
+            $this->msg('Nao adicionado pois já consta', 'error');
+        }
+        #$this->reset('addInput'); // limpa o input na view
+
+    }
+
+
+
+
+    public function addCanalByInput(): void
+    {
+        $input = trim($this->addInput);
+
+        if ($input === '')
+            return;
+
+        $id = $this->parseCanalIdentifier($input);
+
+
+
+
+        if ($id && !in_array($id, $this->selecionados, true)) {
+            #dd($id);
+            $this->add($id);
+            $t = $this->getTipoTarefa();
+            if ($t == 't4') {
+                $monet = $this->getVidIqMonthlyAvgUsd($id);
+                if (empty($monet)) {
+                    $this->msg('Monetizacao inexistente', 'error');
+                    return;
+                }
+                $this->selecionados[$id]['monete'] = $monet;
+            }
+        } else {
+            $this->msg('Canal com erro - nao adicionado', 'error');
+        }
+        $this->reset('addInput'); // limpa o input na view
+
+    }
+
+
+    protected function parseCanalIdentifier(string $input): bool|string
+    {
+        // ID começa com UC + 22 chars
+        if (preg_match('~^(UC[A-Za-z0-9_-]{22})$~', $input, $m)) {
+            return $m[1];
+        }
+        // URL /channel/UC...
+        if (preg_match('~channel/(UC[A-Za-z0-9_-]{22})~', $input, $m)) {
+            return $m[1];
+        }
+        // @handle (ou URL com /@handle)
+        if (preg_match('~@([A-Za-z0-9._-]{3,30})~', $input, $m)) {
+            $handle = '@' . $m[1];
+            $id = $this->pegaChannelIdViaHandle($handle);
+            return $id;
+            #dd($id);
+
+        }
+        // fallback: tentar achar pelo nome
+        return false;
+    }
+
+
+    function pegaChannelIdViaHandle(string $handle)
+    {
+
+        #dd($handle);
+        $apiKey = env('YOUTUBE_API_KEY');
+        $params = [
+            'key'             => $apiKey,
+            'part'            => 'id',
+            'forHandle'       => $handle,
+        ];
+
+        $url = 'https://www.googleapis.com/youtube/v3/channels?' . http_build_query($params);
+        $res = file_get_contents($url);
+        if ($res) {
+            $json = json_decode($res, true) ?: [];
+            # dd($json);
+            $id = $json['items'][0]['id'] ?? false;
+            return $id;
+        } else {
+            $this->msg('Erro ao resolver @handle na API', 'error');
+            return false;
+        }
+    }
+
+
+
+    ########## atencao pus na comum - updated query chama getVideos
+    ####################################################################################
+    public function getVideos(bool $forceRefresh = false): array
+    {
+        $q = trim((string) $this->query);
+        if ($q === '') {
+            return $this->buscas;
+        }
+
+        $cacheKey = 'yt:search:v2:' . md5(mb_strtolower($q));
+        if (!$forceRefresh && Cache::has($cacheKey)) {
+            return $this->buscas = Cache::get($cacheKey);
+        }
+
+        $apiKey = env('YOUTUBE_API_KEY');
+
+        $url = 'https://www.googleapis.com/youtube/v3/search?' . http_build_query([
+            'key'        => $apiKey,
+            'part'       => 'snippet',
+            'q'          => $q,
+            'type'       => 'video',
+            'maxResults' => 50,
+        ]);
+        Log::info('YT API:' . __CLASS__ . ' / ' . __FUNCTION__ . '()', ['url' => $url]);
+
+        $resp  = file_get_contents($url);
+        $json  = json_decode($resp ?? '[]', true);
+        $items = collect($json['items'] ?? [])->values()->all();
+
+        $result = $items ? $this->hydrateVideosFromSearchResults($items) : [];
+
+        // 👉 indexa por videoId e adiciona a query 'q' em cada registro
+        $result = collect($result)
+            ->filter(fn($row) => !empty($row['videoId'])) // por segurança
+            ->map(fn($row) => $row + ['q' => $q])
+            ->keyBy('videoId')
+            ->toArray();
+
+        Cache::put($cacheKey, $result, now()->addDay());
+
+        return $this->buscas = $result;
+    }
+
+    # pega os canais via query
+    public function getCanais(bool $forceRefresh = false): array
+    {
+        $q = trim((string) $this->query);
+        if ($q === '') {
+            return $this->buscas;
+        }
+
+        // cache por query (case-insensitive)
+        $cacheKey = 'yt:search:channels:v1:' . md5(mb_strtolower($q));
+        if (!$forceRefresh && Cache::has($cacheKey)) {
+            return $this->buscas = Cache::get($cacheKey);
+        }
+
+        $apiKey = env('YOUTUBE_API_KEY');
+
+        // 1) Busca canais (máx 50)
+        $url = 'https://www.googleapis.com/youtube/v3/search?' . http_build_query([
+            'key'        => $apiKey,
+            'part'       => 'snippet',
+            'q'          => $q,
+            'type'       => 'channel',
+            'maxResults' => 50,
+        ]);
+        Log::info('YT API:' . __CLASS__ . ' / ' . __FUNCTION__ . '()', ['url' => $url]);
+
+        $resp  = file_get_contents($url);
+        $json  = json_decode($resp ?? '[]', true);
+        $items = collect($json['items'] ?? [])->values()->all();
+
+        if (!$items) {
+            Cache::put($cacheKey, [], now()->addDay());
+            return $this->buscas = [];
+        }
+
+        // 2) Extrai os channelIds corretos (id.channelId)
+        $channelIds = collect($items)->pluck('id.channelId')->filter()->unique()->values()->all();
+        if (!$channelIds) {
+            Cache::put($cacheKey, [], now()->addDay());
+            return $this->buscas = [];
+        }
+
+        // 3) Hidrata detalhes dos canais
+        $detailsById = $this->getCanaisDetailsByListCanaisIds($channelIds); // retorna array indexado por canalId
+
+        // 4) preserva a ordem do search e adiciona 'q'
+        $out = [];
+        foreach ($items as $it) {
+            $chId = $it['id']['channelId'] ?? null;
+            if (!$chId || empty($detailsById[$chId])) continue;
+
+            $row = $detailsById[$chId];
+            $row['q'] = $q;           // anota a query usada
+            $out[] = $row;
+        }
+
+        #dd($out);
+
+        // 5) cache + retorno
+        Cache::put($cacheKey, $out, now()->addDay());
+        return $this->buscas = $out;
+    }
+
+    public function clearChannelsSearchCache(): void
+    {
+        $q = trim((string) $this->query);
+        if ($q !== '') {
+            Cache::forget('yt:search:channels:v1:' . md5(mb_strtolower($q)));
+        }
+    }
+
+    ########################################### fIM Trait canais
 
 
 
@@ -358,7 +701,7 @@ trait Comum
     #pode vir mais de 50 videos ele chunka por 50
     # 550 video_ids => 550 video_details --------- chunk 50 - 4 parts API YT
 
-   
+
 
     public function getVideoDetailsByListVideoIds(array $ids): array
     {
@@ -425,7 +768,7 @@ trait Comum
     # 1 canal_id => 1 canal_details --------- 
     # 550 canais_ids => 550 canais_details --------- 
 
-   
+
 
     public function getCanaisDetailsByListCanaisIds(array $channelIds): array
     {
@@ -483,29 +826,341 @@ trait Comum
         return $out; // keyBy channelId
     }
 
-    /** Mesmo tokenizer que você já usa */
-    private function parseBrandingKeywords_depois333333333333333333($raw): array
+
+    function setPolarization(string $texto): ?float
     {
-        $raw = is_array($raw) ? implode(' ', $raw) : (string) $raw;
-        $raw = str_replace(['“', '”', '„', '«', '»'], '"', $raw);
-        $raw = str_replace([',', ';', '|'], ' ', $raw);
-        preg_match_all('/"([^"]+)"|(\S+)/u', $raw, $m);
-        $kw = [];
-        foreach ($m[0] as $i => $full) {
-            $t = $m[1][$i] !== '' ? $m[1][$i] : $m[2][$i];
-            $t = trim($t, " \t\n\r\0\x0B\"'");
-            if ($t !== '') $kw[] = $t;
+        $texto = trim($texto);
+        if ($texto === '') {
+            return null;
         }
-        return $kw;
+
+        // Limitar tamanho pra evitar custo absurdo / timeout
+        if (mb_strlen($texto) > 3000) {
+            $texto = mb_substr($texto, 0, 3000);
+        }
+
+        // Cache 30 dias por hash do texto
+        $cacheKey = 'pol:google:' . sha1($texto);
+
+        return Cache::remember($cacheKey, now()->addDays(30), function () use ($texto) {
+            $apiKey = env('GOOGLE_API_KEY');
+            if (!$apiKey) {
+                // Sem chave, não tem como calcular
+                return null;
+            }
+
+            $url = 'https://language.googleapis.com/v1/documents:analyzeSentiment?key=' . $apiKey;
+
+            $payload = [
+                'document' => [
+                    'type'    => 'PLAIN_TEXT',
+                    'content' => $texto,
+                    // 'language' => 'pt', // se quiser forçar; senão ele detecta
+                ],
+                'encodingType' => 'UTF8',
+            ];
+
+            try {
+                $response = Http::timeout(10)->post($url, $payload);
+
+                if (!$response->successful()) {
+                    // Opcional: logar erro
+                    Log::warning('Google NLP sentiment error', [
+                        'status' => $response->status(),
+                        'body'   => $response->body(),
+                    ]);
+                    return null;
+                }
+
+                $data = $response->json();
+
+                // Estrutura típica:
+                // $data['documentSentiment']['score']  => -1.0 a 1.0
+                // $data['documentSentiment']['magnitude']
+                $score = $data['documentSentiment']['score'] ?? null;
+                $magnitude = $data['documentSentiment']['magnitude'] ?? null;
+
+                if (!is_numeric($score)) {
+                    return null;
+                }
+
+                Log::info('nlp2', [$texto, $score, $magnitude]);
+
+                $polarization = $this->polarizacaoGoogle($score, $magnitude);
+
+                return is_numeric($polarization) ? round($polarization, 2) : null;
+
+            } catch (\Throwable $e) {
+                \Log::error('Google NLP sentiment exception', [
+                    'msg' => $e->getMessage(),
+                ]);
+                return null;
+            }
+        });
+    }
+
+    function polarizacaoGoogle(float $score, float $magnitude): ?float
+    {
+        // 1) Descarta magnitudes muito baixas
+        if ($magnitude < 0.1 || $score == 0) {
+            return null;
+        }
+
+        // 2) Se for score zero mas magnitude alta (ambiguidade), descarta
+        // if ($score == 0.0 && $magnitude > 0.3) {
+        //     return null;
+        // }
+
+        // 3) Calcula polarização
+        $polar = $score * $magnitude * 100;
+
+        // 4) Corta nos limites [-100, 100]
+        if ($polar > 100) {
+            $polar = 100;
+        } elseif ($polar < -100) {
+            $polar = -100;
+        }
+
+        return $polar;
     }
 
 
 
 
 
+    public function setPolarization3333333333333(string $texto): ?float
+    {
+        $texto = trim($texto);
+        if ($texto === '') {
+            return null;
+        }
+
+        // Limitar tamanho pra não estourar token / custo
+        if (mb_strlen($texto) > 3000) {
+            $texto = mb_substr($texto, 0, 3000);
+        }
+
+        // cache 30 dias por hash do texto (igual tua lógica antiga)
+        $cacheKey = 'polarization:' . sha1($texto);
+
+        return Cache::remember($cacheKey, now()->addDays(30), function () use ($texto) {
+
+            $schema = $this->sentimentSchema();
+
+            // Prompt bem explicadinho pra PT/EN
+            $prompt = <<<PROMPT
+                Você é um analisador de sentimento especializado em texto curto ou médio.
+
+                TAREFA:
+                - Analise o sentimento global do texto a seguir.
+                - Considere o tom geral, emoção predominante, polaridade (positivo/negativo) e intensidade.
+                - O texto pode estar em português ou em inglês.
+
+                ESCALA:
+                - Score deve ser um número entre -100 e 100.
+                    -100  = extremamente negativo / hostil
+                    -50   = claramente negativo
+                    0   = neutro ou misto equilibrado
+                    +50   = claramente positivo
+                    +100  = extremamente positivo / entusiasmado
+
+                MAPEAMENTO DE RÓTULOS:
+                - very_negative: score <= -60
+                - negative:      -60 < score < -10
+                - neutral:       -10 <= score <= 10
+                - positive:      10 < score < 60
+                - very_positive: score >= 60
+
+                IMPORTANTE:
+                - Se o texto estiver em português, explique em português.
+                - Se o texto estiver em inglês, explique em inglês.
+                - A saída DEVE seguir estritamente o schema fornecido (score, label, explanation).
+
+                TEXTO ALVO:
+                \"\"\"{$texto}\"\"\"
+                PROMPT;
+
+            try {
+                $response = Prism::structured()
+                    ->using(Provider::OpenAI, 'gpt-4o') // ou o modelo que você estiver usando
+                    ->withSchema($schema)
+                    ->withProviderOptions([
+                        'schema' => [
+                            'strict' => true, // força aderência ao schema quando suportado
+                        ],
+                    ])
+                    ->withPrompt($prompt)
+                    ->asStructured();
+
+                $data = $response->structured ?? [];
+
+                $score = $data['score'] ?? null;
+
+                // Se vier string, tenta converter
+                if (!is_null($score) && !is_float($score) && !is_int($score)) {
+                    if (is_string($score)) {
+                        $score = floatval($score);
+                    }
+                }
+
+                if (!is_numeric($score)) {
+                    Log::warning('Polarization: score não numérico', ['data' => $data]);
+                    return null;
+                }
+
+                $score = (float) $score;
+
+                // Garantir limite -100..100
+                if ($score > 100)  $score = 100;
+                if ($score < -100) $score = -100;
+
+                // Se você quiser equivalente -1..1 em algum lugar:
+                // $normalized = $score / 100.0;
+
+                return round($score, 2);
+            } catch (\Throwable $e) {
+                Log::error('Erro ao chamar Prism/OpenAI em setPolarization', [
+                    'message' => $e->getMessage(),
+                ]);
+
+                return null;
+            }
+        });
+    }
+
+    protected function sentimentSchema(): ObjectSchema
+    {
+        return new ObjectSchema(
+            name: 'sentiment_analysis',
+            description: 'Sentiment score from -100 (very negative) to 100 (very positive)',
+            properties: [
+                new NumberSchema(
+                    name: 'score',
+                    description: 'Sentiment score between -100 (very negative) and 100 (very positive), 0 = neutral'
+                ),
+                new StringSchema(
+                    name: 'label',
+                    description: 'One of: very_negative, negative, neutral, positive, very_positive'
+                ),
+                new StringSchema(
+                    name: 'explanation',
+                    description: 'Short explanation (in Portuguese if text is PT-BR, otherwise in English)'
+                ),
+            ],
+            requiredFields: ['score', 'label', 'explanation']
+        );
+    }
 
 
 
+    function setPolarization22222222222(string $texto): ?float
+    {
+        #return mt_rand(-100, 100);
+
+        $texto = trim($texto);
+        if ($texto === '') return null;
+
+        // opcional: limitar tamanho pra evitar timeout/quotas
+        if (mb_strlen($texto) > 3000) {
+            $texto = mb_substr($texto, 0, 3000);
+        }
+
+        dump($texto);
+        // cache 30 dias por hash do texto
+        #$cacheKey = 'nlp:' . sha1($texto);
+        #return Cache::remember($cacheKey, now()->addDays(30), function () use ($texto) {
+        $url   = 'https://api.gotit.ai/NLU/v1.5/Analyze';
+        $basic = env('GOTIT_API_KEY') . ':' . env('GOTIT_SECRET_KEY');
+
+        $payload = json_encode([
+            "T" => $texto,
+            #"T" => "Victor comeu uma pizza deliciosa.",
+            "S" => true,
+            #"EM" => true
+        ]);
+        $headers = [
+            "Content-Type: application/json",
+            "Authorization: Basic " . base64_encode($basic),
+        ];
+
+        ###################################
+
+
+
+
+
+
+
+        // $data_array = [];
+        // $data_array["T"] = "Victor comeu uma pizza deliciosa.";
+        // $data_array["S"] = true;
+        // $data = json_encode($data_array);
+        // $options = array(
+        //     'http' => array(
+        //         'header' => $headers,
+        //         'method' => 'POST',
+        //         'content' => $data
+        //     )
+        // );
+        // $context  = stream_context_create($options);
+        // $result = file_get_contents('https://api.gotit.ai/NLU/v1.5/Analyze', false, $context);
+        // $result = json_decode($result, true);
+        // dd($result);
+
+
+
+
+
+
+
+
+
+
+        ###################################
+        $ch = curl_init($url);
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_POST => true,
+            CURLOPT_POSTFIELDS => $payload,
+            CURLOPT_HTTPHEADER => $headers,
+            CURLOPT_CONNECTTIMEOUT => 5,
+            CURLOPT_TIMEOUT => 15,
+            CURLOPT_SSL_VERIFYHOST => 0,
+            CURLOPT_SSL_VERIFYPEER => 0,
+        ]);
+
+        $result = curl_exec($ch);
+        if (curl_errno($ch)) {
+            dd('NLP timeout/erro : ' . curl_error($ch));
+            $this->msg('NLP timeout/erro : ' . curl_error($ch));
+            curl_close($ch);
+            return null;
+        }
+        $http = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+
+        if ($http !== 200) {
+            dd('NLP HTTP não-200: ' . $http);
+            $this->msg('NLP HTTP não-200: ' . $http);
+            return null;
+        }
+
+        dd($result);
+
+        $res = json_decode($result, true);
+        $score = data_get($res, 'sentiment.score'); // pode vir 0 (falsy), então não use empty()
+
+        dd($score);
+
+        return is_numeric($score) ? round((float)$score, 2) : null;
+        #});
+    }
+
+
+
+
+
+    ########################################## UPSERTS 4
 
     public function upsertBusca(
         string $q

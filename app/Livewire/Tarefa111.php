@@ -22,10 +22,10 @@ class Tarefa1 extends Component
     public array $comentarios = [];
     public array $selecionados = [];
     public string $addInput = '';
-    #public ?string $maisToxico = null;
+    public ?string $maisToxico = null;
     public array $toxMediaArray = [];   // [videoId => float]
     public ?string $maisToxicoReal = null; // videoId com maior média (ou null em empate)
-    #public ?bool $acertou = null;       // null antes de validar, true/false depois
+    public ?bool $acertou = null;       // null antes de validar, true/false depois
     public string $feedback = '';       // textarea
     public bool $mostrarAvaliacao = false;   // controla a renderização do bloco
     public bool $mostrarFeedback = false;
@@ -37,14 +37,14 @@ class Tarefa1 extends Component
 
     public function mount()
     {
-        // $this->selecionados = Session::get('sel_videos', []);
-        // $this->comentarios  = Session::get('t1_comentarios', []);
-        // $this->maisToxico   = Session::get('tarefa1_mais_toxico');
-        // $this->query        = Session::get('t1_query', '');
+        $this->selecionados = Session::get('sel_videos', []);
+        $this->comentarios  = Session::get('t1_comentarios', []);
+        $this->maisToxico   = Session::get('tarefa1_mais_toxico');
+        $this->query        = Session::get('t1_query', '');
 
-
+       
         # tirar depois
-        #$this->montarGraficoComentarios($this->selecionados);
+        $this->montarGraficoComentarios($this->selecionados);
     }
 
 
@@ -63,9 +63,9 @@ class Tarefa1 extends Component
         $dados = [
             'feedback'          => $this->feedback,
             'tox_media'         => Session::get('t1_result')['tox_media'],
-            #'mais_toxico'       => Session::get('t1_result')['mais_toxico'],
+            'mais_toxico'       => Session::get('t1_result')['mais_toxico'],
             'mais_toxico_real'  => Session::get('t1_result')['mais_toxico_real'],
-            #'acertou'           => Session::get('t1_result')['acertou'],
+            'acertou'           => Session::get('t1_result')['acertou'],
 
         ];
         $status             = 1;
@@ -90,18 +90,18 @@ class Tarefa1 extends Component
             'comentarios',
             'selecionados',
             'addInput',
-            #'maisToxico',
+            'maisToxico',
             'toxMediaArray',
             'maisToxicoReal',
-            #'acertou',
+            'acertou',
             'feedback',
             'mostrarAvaliacao',
-            #'mostrarFeedback',
+            'mostrarFeedback',
             'query',
-            'chart',
-            'samples',
         ]);
 
+        #$this->tarefa = null;  // se quiser limpar o objeto em memória
+        #$this->forget('T1');
 
         // limpa caches de tela
         Session::forget([
@@ -110,48 +110,38 @@ class Tarefa1 extends Component
             'tarefa1_mais_toxico',
             't1_query',            // aproveita e zera a query salva
         ]);
+    }
 
 
+    public function escolherMaisToxico(string $videoId): void
+    {
+        if (!isset($this->selecionados[$videoId]))
+            return;
 
-        // // 1) Resetar TODAS as props públicas para o default
-        // $this->reset();             // volta ao estado declarado na classe
-        // $this->resetErrorBag();     // (se usa validação)
-        // $this->resetValidation();   // (se usa validação)
+        $this->maisToxico = $videoId;
+        Session::put('tarefa1_mais_toxico', $videoId);
 
-        // // 2) Limpar SESSIONS “da tela” por prefixo (não mexe em auth)
-        // $this->forgetSessionByPrefix($this->sessionPrefixes);
-
-        // // 3) Se usa paginação, zere a página atual
-        // if (method_exists($this, 'resetPage')) {
-        //     $this->resetPage();
-        // }
+        $this->acertou = null;
     }
 
 
 
-    public function avaliarVideos(): void
+    public function validarTarefa1()
     {
-
-
-        // Se quiser, dá pra exigir pelo menos 2 vídeos:
-        if (count($this->selecionados) < 2)
-            return;
-
-
         $this->selecionados = Session::get('sel_videos', $this->selecionados);
         $this->comentarios  = [];
         $this->mostrarFeedback = true;
 
-        // if (!$this->maisToxico) {
-        //     $this->msg('Vc deve selecionar um registro');
-        //     return;
-        // }
+        if (!$this->maisToxico) {
+            $this->msg('Vc deve selecionar um registro');
+            return;
+        }
         // reset do cache desta tela (opcional)
         Session::forget('t1_comentarios');
         $sessComentarios = [];
 
 
-        $this->montarGraficoComentarios($this->selecionados);
+        #$this->montarGraficoComentarios($this->selecionados);
 
 
         foreach ($this->selecionados as $videoId => $raw) {
@@ -224,35 +214,22 @@ class Tarefa1 extends Component
 
         #dd($this->toxMediaArray);
         $this->maisToxicoReal = $this->pickMaisToxico($this->toxMediaArray);
-        #$this->acertou = ($this->maisToxicoReal && $this->maisToxico) ? $this->maisToxicoReal === $this->maisToxico : false;
+        $this->acertou = ($this->maisToxicoReal && $this->maisToxico) ? $this->maisToxicoReal === $this->maisToxico : false;
 
         #dd($this->acertou);
 
         Session::put('t1_result', [
             'selecionados'      => $this->selecionados,
             'tox_media'         => $this->toxMediaArray,
-            #'mais_toxico'       => $this->maisToxico,
+            'mais_toxico'       => $this->maisToxico,
             'mais_toxico_real'  => $this->maisToxicoReal,
-            #'acertou'           => $this->acertou,
+            'acertou'           => $this->acertou,
             'comentarios'       => $this->comentarios,
             'buscas'            => $this->buscas,
 
         ]);
 
-
-
-
-        $this->mostrarAvaliacao = true;
-        #$this->comentarios  = [];
-        #$this->maisToxico = null;
-        #$this->toxMediaArray = [];   // [videoId => float]
-
-        #Session::forget(['t1_comentarios', 'tarefa1_mais_toxico']); // limpa ambos
-
-
-    }
-
-
+       }
 
 
 
@@ -413,7 +390,7 @@ class Tarefa1 extends Component
         return array_sum($vals) / count($vals);
     }
 
-
+   
 
 
     protected function getCommentsByBucketsRelevance(string $videoId, int $commentCount, string $uploadAtIso, int $perBucket = 100, bool $withTox = true, bool $forceRefresh = false): array
@@ -574,7 +551,7 @@ class Tarefa1 extends Component
         $this->toxMediaArray = $medias;
     }
 
-
+   
 
     protected function pickMaisToxico(array $medias): ?string
     {
@@ -592,6 +569,17 @@ class Tarefa1 extends Component
         // sem vencedor claro (não deveria acontecer)
         return null;
     }
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -644,6 +632,20 @@ class Tarefa1 extends Component
 
 
 
+    public function avaliarVideos(): void
+    {
+        // Se quiser, dá pra exigir pelo menos 2 vídeos:
+        if (count($this->selecionados) < 2)
+            return;
+
+        $this->mostrarAvaliacao = true;
+        $this->comentarios  = [];
+        $this->maisToxico = null;
+        $this->toxMediaArray = [];   // [videoId => float]
+
+        Session::forget(['t1_comentarios', 'tarefa1_mais_toxico']); // limpa ambos
+
+    }
 
 
 

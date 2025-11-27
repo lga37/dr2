@@ -149,7 +149,8 @@
                                 @php
                                     #dump($v);
                                 @endphp
-                                <article wire:key="{{ $id }}" class="h-full flex flex-col rounded-xl border p-4 shadow-sm bg-white
+                                <article wire:key="{{ $id }}"
+                                    class="h-full flex flex-col rounded-xl border p-4 shadow-sm bg-white
                                      {{ $maisPolarizado === $id ? 'ring-2 ring-indigo-500' : '' }}">
 
                                     {{-- Cabeçalho --}}

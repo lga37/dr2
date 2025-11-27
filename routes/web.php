@@ -18,6 +18,7 @@ use Twilio\Rest\Client;
 use App\Livewire\Tarefa1;
 use App\Livewire\Tarefa2;
 use App\Livewire\Tarefa3;
+use App\Livewire\Tarefa4;
 use App\Models\WaMessage;
 use App\Livewire\Comentario;
 use App\Livewire\Resultados;
@@ -46,16 +47,17 @@ Route::get('/', function () {
 #######################################################################################
 
 
+    Route::get('tarefa1', Tarefa1::class)->name('tarefa1');
+    Route::get('tarefa2', Tarefa2::class)->name('tarefa2');
+    Route::get('tarefa3', Tarefa3::class)->name('tarefa3');
+    Route::get('tarefa4', Tarefa4::class)->name('tarefa4');
+    Route::get('resultados', Resultados::class)->name('resultados');
 
 Route::middleware('auth')->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 
-    Route::get('tarefa1', Tarefa1::class)->name('tarefa1');
-    Route::get('tarefa2', Tarefa2::class)->name('tarefa2');
-    Route::get('tarefa3', Tarefa3::class)->name('tarefa3');
-    Route::get('resultados', Resultados::class)->name('resultados');
 });
 
 

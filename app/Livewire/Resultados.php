@@ -116,15 +116,63 @@ class Resultados extends Component
         $fim = $t->finished_at ?? $t->updated_at ?? now();
         $duracaoSeg = $t->created_at?->diffInSeconds($fim) ?? 0;
 
+        // métricas de comentários/toxicidade (iguais à T1)
+        $toxMedia = round((float) $t->comentarios->avg('tox'), 4);
+        $toxPorVideo = $t->comentarios
+            ->groupBy('video_id')
+            ->map(fn($g) => round((float) $g->avg('tox'), 4))
+            ->toArray();
+
+        // canais/vídeos/buscas (iguais à T1)
+        $canais = $t->videos
+            ->pluck('canal')->filter()->unique('id')->values()
+            ->map(fn($c) => [
+                'id'        => $c->id,
+                'nome'      => $c->nome,
+                'inscritos' => $c->inscritos,
+                'views'     => $c->views,
+                'videos'    => $c->videos,
+            ])->all();
+
+        $buscas = $t->buscas->pluck('q')->filter()->values()->all();
+
+        $videos = $t->videos->map(fn($v) => [
+            'cod'      => $v->cod,
+            'nome'     => $v->nome,
+            'canal'    => $v->canal?->nome,
+            'views'    => $v->views,
+            'likes'    => $v->likes,
+            'comments' => $v->comments,
+            'dt'       => optional($v->dt)->format('d/m/Y'),
+        ])->all();
+
+        // dados livres (feedback, “acertou” e tox_media vindo do JSON)
+        $dados = $t->dados ?? [];
+        $acertou  = data_get($dados, 'acertou', null); // pode ser null
+        $feedback = trim((string) data_get($dados, 'feedback', ''));
+        $toxMediaJson = (array) data_get($dados, 'tox_media', []);
+        $toxMediaJsonFmt = collect($toxMediaJson)
+            ->map(fn($v) => is_numeric($v) ? round($v * 100, 1) . '%' : (string)$v)
+            ->toArray();
+
         return [
-            'id'            => $t->id,
-            'quando'        => $t->created_at?->format('d/m/Y H:i'),
-            'duracao_human' => $this->fmtDuracao($duracaoSeg),
-            'feedback'      => (string) data_get($t->dados, 'feedback', ''),
-            // chaves “genéricas” para o card
-            'acertou'       => data_get($t->dados, 'acertou', null),   // pode ser null
-            'snapshot'      => (array) data_get($t->dados, 'tox_media', []),
-            'tipo'          => 'T2',
+            'id'             => $t->id,
+            'quando'         => $t->created_at?->format('d/m/Y H:i'),
+            'duracao_seg'    => $duracaoSeg,
+            'duracao_human'  => $this->fmtDuracao($duracaoSeg),
+
+            'acertou'        => $acertou,
+            'feedback'       => $feedback,
+
+            'buscas'         => $buscas,
+            'videos'         => $videos,
+            'canais'         => $canais,
+
+            'comentarios_qt' => $t->comentarios->count(),
+            'tox_media'      => $toxMedia,
+            'tox_por_video'  => $toxPorVideo,
+            'tox_json'       => $toxMediaJsonFmt, // “Snapshot (JSON)”
+            'tipo'           => 'T2',
         ];
     }
 
@@ -133,17 +181,73 @@ class Resultados extends Component
         $fim = $t->finished_at ?? $t->updated_at ?? now();
         $duracaoSeg = $t->created_at?->diffInSeconds($fim) ?? 0;
 
+        $dados      = $t->dados ?? [];
+        $acertou    = data_get($dados, 'acertou', null);
+        $feedback   = (string) data_get($dados, 'feedback', '');
+        $escolha    = data_get($dados, 'mais_Economizado');        // channelId escolhido pelo usuário
+        $vencedor   = data_get($dados, 'mais_Economizado_real');   // channelId calculado
+        $sel        = (array) data_get($dados, 'selecionados', []); // selecionados[<channelId>] => métricas
+
+        // group vídeos por canal_id
+        $porCanal = $t->videos->groupBy('canal_id');
+
+        $canais = [];
+        foreach ($porCanal as $canalId => $lista) {
+            $canal = optional($lista->first()->canal);
+            // métricas vindas do "selecionados" (preenchidas na Tarefa3::mount/validar)
+            $meta  = (array) data_get($sel, $canal->youtube_id ?? $canalId, []);
+            // minutagem
+            $minFmt = data_get($meta, 'minutagemTotalFmt');
+            $minTot = (int) data_get($meta, 'minutagemTotal', 0);
+            if (!$minFmt && $minTot > 0) {
+                $minFmt = $this->fmtDuracao($minTot); // usa seu helper existente
+            }
+
+            $videos = $lista->map(function ($v) {
+                return [
+                    'cod'      => $v->cod,
+                    'nome'     => $v->nome,
+                    'views'    => $v->views,
+                    'likes'    => $v->likes,
+                    'comments' => $v->comments,
+                    'dt'       => optional($v->dt)->format('d/m/Y'),
+                ];
+            })->all();
+
+            $canais[] = [
+                'id'             => $canal->id,
+                'channel_id'     => $canal->youtube_id ?? (string) $canalId,
+                'nome'           => $canal->nome,
+                'inscritos'      => $canal->inscritos,
+                'views'          => $canal->views,
+                'videos_qt'      => count($videos),
+                'videos'         => $videos,
+
+                // métricas da monetização/triângulo
+                'monetAvgUsd'    => (float) data_get($meta, 'monetAvgUsd', 0.0),
+                'monthsBase'     => data_get($meta, 'monthsBase'),
+                'areaUsd'        => data_get($meta, 'areaUsd'),
+                'usdPerMin'      => data_get($meta, 'usdPerMin'),
+                'minTotFmt'      => $minFmt,
+            ];
+        }
+
         return [
             'id'            => $t->id,
             'quando'        => $t->created_at?->format('d/m/Y H:i'),
             'duracao_human' => $this->fmtDuracao($duracaoSeg),
-            'feedback'      => (string) data_get($t->dados, 'feedback', ''),
-            // chaves “genéricas” para o card
-            'acertou'       => data_get($t->dados, 'acertou', null),
-            'snapshot'      => (array) data_get($t->dados, 'tox_media', []),
+
+            'acertou'       => $acertou,
+            'feedback'      => $feedback,
+            'escolha'       => $escolha,
+            'vencedor'      => $vencedor,
+
+            // dois canais (sempre 2)
+            'canais'        => array_values($canais),
             'tipo'          => 'T3',
         ];
     }
+
 
     private function fmtDuracao(int $s): string
     {
