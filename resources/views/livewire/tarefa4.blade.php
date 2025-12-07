@@ -155,8 +155,6 @@
     <div class="py-12">
         <div class="mx-auto max-w-12xl sm:px-6 lg:px-8">
 
-
-
             <div class="overflow-hidden bg-white shadow-sm sm:rounded-lg">
                 <x-selecionados-table :items="$selecionados" type="canal" remove="removeSelecionado"
                     clear="clearSelecionados" evaluate="avaliarCanais" :min="2" />
@@ -268,8 +266,6 @@
         }
 
     @endphp
-
-
 
 
     @push('scripts')

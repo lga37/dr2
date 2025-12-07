@@ -1,8 +1,5 @@
 <div>
 
-
-
-
     <x-slot name="header">
         <div x-data="{
             open: JSON.parse(localStorage.getItem('tarefa2_header_open') ?? 'true')
@@ -115,20 +112,15 @@
         </div>
     </x-slot>
 
-
-
-
     <x-msg />
 
     <div class="py-12">
         <div class="mx-auto max-w-12xl sm:px-6 lg:px-8">
             <div class="overflow-hidden bg-white shadow-sm sm:rounded-lg">
                 <x-selecionados-table :items="$selecionados" type="canal" remove="removeSelecionado"
-                    clear="clearSelecionados" evaluate="avaliarCanais" :min="2" :max="3" />
-
+                    clear="clearSelecionados" evaluate="validarTarefa2" :min="2" :max="3" />
                 <x-search-add-bar variant="canal" query-model="query" on-search="pesquisarCanais" add-model="addInput"
                     on-add="addCanalByInput" />
-
                 <x-results-table variant="canal" :items="$this->buscas" :selected="array_keys($selecionados ?? [])" />
             </div>
 
@@ -144,205 +136,138 @@
                     <div class="-mx-4 sm:-mx-6 lg:-mx-8">
                         <div class="grid gap-6 auto-rows-fr"
                             style="grid-template-columns: repeat({{ $cols }}, minmax(0,1fr));">
-
                             @foreach ($selecionados as $id => $v)
-                                @php
-                                    #dump($v);
-                                @endphp
-                                <article wire:key="{{ $id }}" class="h-full flex flex-col rounded-xl border p-4 shadow-sm bg-white
-                                     {{ $maisPolarizado === $id ? 'ring-2 ring-indigo-500' : '' }}">
-
-                                    {{-- Cabeçalho --}}
+                                @php @endphp
+                                <article wire:key="{{ $id }}"
+                                    class="h-full flex flex-col rounded-xl border p-4 shadow-sm bg-white ring-2 ring-indigo-500">
                                     <x-cardcanal :v="$v" />
-
-                                    {{-- Rodapé fixado no fundo do card --}}
-                                    <div class="mt-auto pt-4">
-                                        <x-secondary-button wire:click="escolherMaisPolarizado('{{ $id }}')"
-                                            :disabled="$maisPolarizado === $id">
-                                            Marcar como mais Polarizado
-                                        </x-secondary-button>
-                                        @if ($maisPolarizado === $id)
-                                            <span class="ml-3 text-indigo-600 text-sm font-semibold">Selecionado</span>
-                                        @endif
-                                    </div>
                                 </article>
                             @endforeach
-
                         </div>
                     </div>
 
-                    <x-primary-button class="w-full text-6xl p-10 mt-6 text-center " wire:click="validarTarefa2"
-                        wire:loading.attr="disabled" wire:target="validarTarefa2">
-                        Finalizar Avaliação de Polarização
 
-                        <span class="invisible" wire:loading.class.remove="invisible" wire:target="validarTarefa2">
-                            <span class="text-sm text-yellow-500">Aguarde Processando ...</span>
-                        </span>
-                    </x-primary-button>
-                </div>
-            @endif
+                    <div class="overflow-x-auto mt-8">
+                        <table
+                            class="divide-y divide-gray-200 divide-solid table-auto min-w-full text-sm tracking-tight leading-tight">
+                            <thead>
+                                <tr class="bg-gray-100 text-xs text-gray-700 text-center">
+                                    @php
+                                        #$videosSessao = session('t2_videos', []);
+                                        $videosSessao = $videos_dos_canais;
 
-
-            <!-- tabela dos comentarios -->
-            @if ($mostrarFeedback)
-                <div class="overflow-x-auto mt-8">
-                    <table
-                        class="divide-y divide-gray-200 divide-solid table-auto min-w-full text-sm tracking-tight leading-tight">
-                        <thead>
-                            <tr class="bg-gray-100 text-xs text-gray-700 text-center">
-                                @php
-                                    $videosSessao = session('t2_videos', []);
-
-                                    #dd($videosSessao);
-                                    $numVids = max(count($videosSessao), 1); // evita /0
-                                    $colWidth = number_format(100 / ($numVids * 7), 2);
-                                @endphp
-                                @foreach ($videosSessao as $canal_id => $dados)
-                                    <th colspan="7" style="width: {{ $colWidth * 7 }}%;"
-                                        class="border border-gray-300 px-2 py-4">
-
-                                        <x-linkcanal :canalId="$canal_id" :titulo="$selecionados[$canal_id]['channelTitle'] ?? ''" />
-                                    </th>
-                                @endforeach
-                            </tr>
-                        </thead>
-
-                        <tbody>
-                            @php
-                                $max = collect($videosSessao)->map(fn($d) => count($d))->max() ?? 0;
-                            @endphp
-
-                            @for ($i = 0; $i < $max; $i++)
-                                @if ($i == 0)
-                                    <tr
-                                        class="border border-gray-300 w-[10px] font-bold text-center text-indigo-800 text-[10px] ">
-                                        <td>#</td>
-                                        <td>Titulo</td>
-                                        <td>Likes</td>
-                                        <td>Views</td>
-                                        <td>Comments</td>
-                                        <td>Data</td>
-                                        <td>NLP</td>
-                                    </tr>
-                                @endif
-
-                                <tr class="">
-                                    @foreach ($videosSessao as $loopIndex => $dados)
-                                        @php
-                                            $c = $dados[$i] ?? null;
-                                        @endphp
-                                        @if ($c)
-                                            <td
-                                                class="border border-gray-300 w-[10px] text-left text-gray-800 text-[10px] ">
-                                                {{ $i + 1 }}</td>
-                                            <td
-                                                class="border text-xs border-gray-300 w-[420px] max-w-[420px] truncate break-all">
-                                                <a href="{{ $c['videoId'] }}" target="_blank">
-                                                    {{ \Illuminate\Support\Str::limit(strip_tags($c['videoTitle'] ?? '[---]'), 120) }}
-                                                </a>
-                                            </td>
-
-                                            <td class="border border-gray-300 w-[10px] text-gray-800 text-[10px]">
-                                                {{ $c['videoLikeCount'] ?? '-' }}</td>
-                                            <td class="border border-gray-300 w-[10px] text-gray-800 text-[10px]">
-                                                {{ $c['videoViewCount'] ?? '-' }}</td>
-                                            <td class="border border-gray-300 w-[10px] text-gray-800 text-[10px]">
-                                                {{ $c['videoCommentCount'] ?? '-' }}</td>
-                                            <td class="border border-gray-300 w-[20px] text-gray-800 text-[10px]">
-                                                {{ isset($c['videoDt']) ? \Carbon\Carbon::parse($c['videoDt'])->format('d/m/Y') : '--' }}
-                                            </td>
-                                            <td class="border border-gray-300 w-[10px] text-gray-800 text-[10px]">
-                                                {{ isset($c['nlp1']) ? number_format($c['nlp1'] * 100, 1) . '%' : 'X' }}
-                                            </td>
-                                        @else
-                                            <td colspan="7"
-                                                class="border border-gray-300 w-full text-gray-900 text-center italic text-[11px]">
-                                                ---</td>
-                                        @endif
+                                        #dd($videosSessao);
+                                        $numVids = max(count($videosSessao), 1); // evita /0
+                                        $colWidth = number_format(100 / ($numVids * 7), 2);
+                                    @endphp
+                                    @foreach ($videosSessao as $canal_id => $dados)
+                                        <th colspan="7" style="width: {{ $colWidth * 7 }}%;"
+                                            class="border border-gray-300 px-2 py-4">
+                                            <x-linkcanal :canalId="$canal_id" :titulo="$selecionados[$canal_id]['channelTitle'] ?? ''" />
+                                        </th>
                                     @endforeach
                                 </tr>
-                            @endfor
-                        </tbody>
+                            </thead>
+
+                            <tbody>
+                                @php
+                                    $max = collect($videosSessao)->map(fn($d) => count($d))->max() ?? 0;
+                                @endphp
+
+                                @for ($i = 0; $i < $max; $i++)
+                                    @if ($i == 0)
+                                        <tr
+                                            class="border border-gray-300 w-[10px] font-bold text-center text-indigo-800 text-[10px] ">
+                                            <td>#</td>
+                                            <td>Titulo</td>
+                                            <td>Likes</td>
+                                            <td>Views</td>
+                                            <td>Comments</td>
+                                            <td>Data</td>
+                                            <td>NLP</td>
+                                        </tr>
+                                    @endif
+
+                                    <tr class="">
+                                        @foreach ($videosSessao as $loopIndex => $dados)
+                                            @php
+                                                $c = $dados[$i] ?? null;
+                                            @endphp
+                                            @if ($c)
+                                                <td
+                                                    class="border border-gray-300 w-[10px] text-left text-gray-800 text-[10px] ">
+                                                    {{ $i + 1 }}</td>
+                                                <td
+                                                    class="border text-xs border-gray-300 w-[420px] max-w-[420px] truncate break-all">
+                                                    <a href="{{ $c['videoId'] }}" target="_blank">
+                                                        {{ \Illuminate\Support\Str::limit(strip_tags($c['videoTitle'] ?? '[---]'), 120) }}
+                                                    </a>
+                                                </td>
+
+                                                <td class="border border-gray-300 w-[10px] text-gray-800 text-[10px]">
+                                                    {{ $c['videoLikeCount'] ?? '-' }}</td>
+                                                <td class="border border-gray-300 w-[10px] text-gray-800 text-[10px]">
+                                                    {{ $c['videoViewCount'] ?? '-' }}</td>
+                                                <td class="border border-gray-300 w-[10px] text-gray-800 text-[10px]">
+                                                    {{ $c['videoCommentCount'] ?? '-' }}</td>
+                                                <td class="border border-gray-300 w-[20px] text-gray-800 text-[10px]">
+                                                    {{ isset($c['videoDt']) ? \Carbon\Carbon::parse($c['videoDt'])->format('d/m/Y') : '--' }}
+                                                </td>
+                                                <td class="border border-gray-300 w-[10px] text-gray-800 text-[10px]">
+                                                    {{ isset($c['nlp1']) ? number_format($c['nlp1'] * 100, 1) . '%' : 'X' }}
+                                                </td>
+                                            @else
+                                                <td colspan="7"
+                                                    class="border border-gray-300 w-full text-gray-900 text-center italic text-[11px]">
+                                                    --</td>
+                                            @endif
+                                        @endforeach
+                                    </tr>
+                                @endfor
+                            </tbody>
 
 
-                        <tfoot>
-                            <tr
-                                class="bg-gray-50 border-t border-gray-300 text-[11px] text-gray-700 font-semibold text-center">
-                                @foreach ($polarizMediaArray as $video_id => $polarizMedia)
-                                    <td colspan="7"
-                                        class="border py-3 text-5xl
-                                        {{ $maisPolarizadoReal === $canal_id ? 'bg-indigo-50 text-indigo-900' : 'text-gray-800' }}">
-                                        Polariz. média (titulo):
-                                        <span class="font-bold text-5xl">
-                                            {{ $polarizMedia ? number_format($polarizMedia * 100, 1) . '%' : 'n/a' }}
-                                        </span>
-                                        @if ($maisPolarizado === $canal_id)
-                                            <span
-                                                class="ml-2 text-2xl inline-flex items-center rounded-full px-2 py-0.5 
-                                            {{ $maisPolarizadoReal === $canal_id ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-700' }}">
-                                                seu palpite
+                            <tfoot>
+                                <tr
+                                    class="bg-gray-50 border-t border-gray-300 text-[11px] text-gray-700 font-semibold text-center">
+                                    @foreach ($polarizMediaArray as $video_id => $polarizMedia)
+                                        <td colspan="7" class="border py-3 text-5xl bg-indigo-50 text-indigo-900">
+                                            Polariz. média (titulo):
+                                            <span class="font-bold text-5xl">
+                                                {{ $polarizMedia ? number_format($polarizMedia * 100, 1) . '%' : 'n/a' }}
                                             </span>
-                                        @endif
-                                    </td>
-                                @endforeach
-                            </tr>
-                        </tfoot>
-                    </table>
+                                        </td>
+                                    @endforeach
+                                </tr>
+                            </tfoot>
+                        </table>
 
-                    <!-- acertou errou e feedback -->
-                    <div
-                        class="rounded-lg p-4 ring-4 w-full max-w-6xl mx-auto my-4 
-                        {{ $acertou ? 'bg-green-50  ring-green-300' : 'bg-red-50 ring-red-300' }}">
-                        @if ($acertou)
-                            <div class="text-green-800 font-semibold">✅ Você acertou!</div>
-                            <div class="text-sm text-green-900">
-                                Seu palpite está certo.
-                            </div>
-                        @else
-                            <div class="text-red-800 font-semibold">❌ Você errou.</div>
-                            <div class="text-sm text-red-900">
-                                Seu palpite está errado.
-                            </div>
-                        @endif
-                        <div class="mt-4 grid gap-2">
-                            <label class="text-sm font-medium text-gray-700">
-                                Deixe um breve feedback: por que você escolheu esse canal?
-                            </label>
-                            <textarea rows="3" wire:model.defer="feedback"
-                                class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                                placeholder="Ex.: Pelo nome e engajamento (views, data de criação, tags, etc.) , achei que este canal seria mais polarizado positivamente, ou negativamente."></textarea>
+                        <!-- feedback -->
+                        <div class="rounded-lg p-4 ring-4 w-full max-w-6xl mx-auto my-4 bg-green-50  ring-green-300">
+                            <div class="mt-4 grid gap-2">
+                                <label class="text-sm font-medium text-gray-700">
+                                    Deixe um breve feedback: por que você escolheu esse canal?
+                                </label>
+                                <textarea rows="3" wire:model.defer="feedback"
+                                    class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                                    placeholder="Ex.: Pelo nome e engajamento (views, data de criação, tags, etc.) , achei que este canal seria mais polarizado positivamente, ou negativamente."></textarea>
 
-                            <div class="flex items-center gap-3">
-                                <x-primary-button wire:click="salvarFeedback" wire:loading.attr="disabled"
-                                    wire:target="salvarFeedback">
-                                    Enviar feedback
-                                </x-primary-button>
-
-                                <div class="invisible" wire:loading.class.remove="invisible"
-                                    wire:target="salvarFeedback">
-                                    <span class="text-sm text-gray-500">Salvando…</span>
+                                <div class="flex items-center gap-3">
+                                    <x-primary-button wire:click="salvarFeedback" wire:loading.attr="disabled"
+                                        wire:target="salvarFeedback">
+                                        Enviar feedback
+                                    </x-primary-button>
+                                    <div class="invisible" wire:loading.class.remove="invisible"
+                                        wire:target="salvarFeedback">
+                                        <span class="text-sm text-gray-500">Salvando…</span>
+                                    </div>
                                 </div>
-                            </div>
-
-                            <div class=" text-gray-500">
-
-                                Consideramos 10x10 ...
                             </div>
                         </div>
                     </div>
 
-
-
-
                 </div>
-
-
-
-
             @endif
-
-
-
 
 
         </div>
@@ -372,15 +297,11 @@
 
 </div>
 
-
 @push('scripts')
     <script>
-        document.addEventListener('DOMContentLoaded', () => {
-            const el = document.getElementById('polChart');
-            if (!el || !window.Chart) return;
-
-            const payload = @json($chart); // {globalStart,min,max,series:{canal:{title,points_title,points_desc,avg,startDay,endDay}}}
-            const globalStart = new Date(payload.globalStart);
+        (function() {
+            // guarda instância p/ não criar gráfico duplicado
+            if (!window._polCharts) window._polCharts = {};
 
             const palette = [{
                     pt: '#22c55e',
@@ -394,85 +315,15 @@
                     pt: '#3b82f6',
                     line: '#1e40af'
                 }, // azul
+                {
+                    pt: '#f59e0b',
+                    line: '#b45309'
+                }, // extra
+                {
+                    pt: '#8b5cf6',
+                    line: '#5b21b6'
+                }, // extra
             ];
-
-            const vids = Object.keys(payload.series);
-            const minX = payload.min,
-                maxX = payload.max;
-
-            // --- monta datasets (círculo = título, "x" = descrição, linha = média) ---
-            const datasets = [];
-            const markers = [];
-
-            vids.forEach((channelId, idx) => {
-                const s = payload.series[channelId];
-                const color = palette[idx % palette.length];
-                const labelBase = s.title || channelId;
-
-                // título
-                datasets.push({
-                    label: labelBase + ' — título',
-                    type: 'scatter',
-                    data: s.points_title || [],
-                    parsing: false,
-                    showLine: false,
-                    pointStyle: 'circle',
-                    pointRadius: 3,
-                    pointHoverRadius: 5,
-                    backgroundColor: color.pt,
-                    borderColor: color.pt,
-                    channelId,
-                    metaTipo: 'title'
-                });
-
-                // descrição
-                datasets.push({
-                    label: labelBase + ' — descrição',
-                    type: 'scatter',
-                    data: s.points_desc || [],
-                    parsing: false,
-                    showLine: false,
-                    pointStyle: 'crossRot',
-                    pointRadius: 5,
-                    pointHoverRadius: 6,
-                    backgroundColor: color.pt,
-                    borderColor: color.pt,
-                    channelId,
-                    metaTipo: 'desc'
-                });
-
-                // média
-                if (typeof s.avg === 'number') {
-                    datasets.push({
-                        label: labelBase + ' — média',
-                        type: 'line',
-                        data: [{
-                            x: minX,
-                            y: s.avg
-                        }, {
-                            x: maxX,
-                            y: s.avg
-                        }],
-                        parsing: false,
-                        borderColor: color.line,
-                        borderWidth: 2,
-                        borderDash: [6, 4],
-                        pointRadius: 0,
-                        channelId,
-                        metaTipo: 'avg'
-                    });
-                }
-
-                // marcadores verticais (início/fim do canal)
-                markers.push({
-                    x: s.startDay,
-                    color: color.pt
-                });
-                markers.push({
-                    x: s.endDay,
-                    color: color.pt
-                });
-            });
 
             const fmt = (d) => {
                 const dd = String(d.getDate()).padStart(2, '0');
@@ -480,16 +331,17 @@
                 const yy = d.getFullYear();
                 return `${dd}/${mm}/${yy}`;
             };
+
             const addDays = (d, n) => {
                 const x = new Date(d);
                 x.setDate(x.getDate() + n);
                 return x;
             };
 
-            // plugin p/ linhas verticais
+            // plugin das linhas verticais
             const verticalLines = {
                 id: 'verticalLines',
-                afterDatasetsDraw(chart, args, opts) {
+                afterDatasetsDraw(chart, _args, opts) {
                     const {
                         ctx,
                         scales: {
@@ -497,10 +349,11 @@
                             y
                         }
                     } = chart;
-                    (opts.markers || []).forEach(m => {
+                    (opts?.markers || []).forEach(m => {
+                        if (typeof m.x !== 'number') return;
                         const xp = x.getPixelForValue(m.x);
                         ctx.save();
-                        ctx.strokeStyle = m.color;
+                        ctx.strokeStyle = m.color || '#999';
                         ctx.globalAlpha = .5;
                         ctx.lineWidth = 1;
                         ctx.setLineDash([2, 2]);
@@ -513,138 +366,271 @@
                 }
             };
 
-            // cria gráfico
-            const chart = new Chart(el, {
-                plugins: [verticalLines],
-                data: {
-                    datasets
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                        legend: {
-                            display: false
-                        }, // desliga a legenda padrão
-                        tooltip: {
-                            callbacks: {
-                                title: (items) => {
-                                    const day = items[0]?.raw?.x ?? null;
-                                    return day != null ? fmt(addDays(globalStart, Number(day))) : '';
+            function renderPolChart(payload, elId = 'polChart', attempts = 0) {
+                const el = document.getElementById(elId);
+                const legendHost = document.getElementById('polLegend');
+                const cbTitle = document.getElementById('polOnlyTitle');
+                const cbDesc = document.getElementById('polOnlyDesc');
+                const cbAvg = document.getElementById('polOnlyAvg');
+
+                if (!el) return;
+
+                // Chart.js ainda não carregou? tenta de novo
+                if (!window.Chart) {
+                    if (attempts > 20) return; // evita loop infinito
+                    return setTimeout(() => renderPolChart(payload, elId, attempts + 1), 150);
+                }
+
+                if (!payload || !payload.series || !Object.keys(payload.series).length) {
+                    console.warn('t2: payload vazio ou inválido:', payload);
+                    return;
+                }
+
+                console.log('t2: renderPolChart()', payload);
+
+                const globalStart = new Date(payload.globalStart);
+                const minX = payload.min ?? 0;
+                const maxX = payload.max ?? 0;
+
+                // destrói gráfico antigo
+                if (window._polCharts[elId]) {
+                    try {
+                        window._polCharts[elId].destroy();
+                    } catch (_) {}
+                    delete window._polCharts[elId];
+                }
+                if (legendHost) legendHost.innerHTML = '';
+
+                const datasets = [];
+                const markers = [];
+                const vids = Object.keys(payload.series);
+
+                vids.forEach((channelId, idx) => {
+                    const s = payload.series[channelId] || {};
+                    const color = palette[idx % palette.length];
+                    const labelBase = s.title || channelId;
+
+                    // pontos de título
+                    datasets.push({
+                        label: labelBase + ' — título',
+                        type: 'scatter',
+                        data: Array.isArray(s.points_title) ? s.points_title : [],
+                        parsing: false,
+                        showLine: false,
+                        pointStyle: 'circle',
+                        pointRadius: 3,
+                        pointHoverRadius: 5,
+                        backgroundColor: color.pt,
+                        borderColor: color.pt,
+                        channelId,
+                        metaTipo: 'title',
+                    });
+
+                    // pontos de descrição
+                    datasets.push({
+                        label: labelBase + ' — descrição',
+                        type: 'scatter',
+                        data: Array.isArray(s.points_desc) ? s.points_desc : [],
+                        parsing: false,
+                        showLine: false,
+                        pointStyle: 'crossRot',
+                        pointRadius: 5,
+                        pointHoverRadius: 6,
+                        backgroundColor: color.pt,
+                        borderColor: color.pt,
+                        channelId,
+                        metaTipo: 'desc',
+                    });
+
+                    // linha da média
+                    if (typeof s.avg === 'number' && isFinite(s.avg)) {
+                        datasets.push({
+                            label: labelBase + ' — média',
+                            type: 'line',
+                            data: [{
+                                    x: minX,
+                                    y: s.avg
                                 },
-                                label: (ctx) => {
-                                    const r = ctx.raw || {};
-                                    return ` ${ctx.dataset.label}: ${Number(r.y).toFixed(1)}${r.label ? ' — '+r.label : ''}`;
-                                }
-                            }
-                        },
-                        verticalLines: {
-                            markers
-                        }
+                                {
+                                    x: maxX,
+                                    y: s.avg
+                                },
+                            ],
+                            parsing: false,
+                            borderColor: color.line,
+                            borderWidth: 2,
+                            borderDash: [6, 4],
+                            pointRadius: 0,
+                            channelId,
+                            metaTipo: 'avg',
+                        });
+                    }
+
+                    if (typeof s.startDay === 'number' && isFinite(s.startDay))
+                        markers.push({
+                            x: s.startDay,
+                            color: color.pt
+                        });
+                    if (typeof s.endDay === 'number' && isFinite(s.endDay))
+                        markers.push({
+                            x: s.endDay,
+                            color: color.pt
+                        });
+                });
+
+                const chart = new Chart(el, {
+                    plugins: [verticalLines],
+                    data: {
+                        datasets
                     },
-                    scales: {
-                        x: {
-                            type: 'linear',
-                            min: minX,
-                            max: maxX,
-                            title: {
-                                display: true,
-                                text: 'Data (linha do tempo)'
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        animation: false,
+                        scales: {
+                            x: {
+                                type: 'linear',
+                                min: minX,
+                                max: maxX,
+                                title: {
+                                    display: true,
+                                    text: 'Data (linha do tempo)'
+                                },
+                                ticks: {
+                                    precision: 0,
+                                    callback: v => fmt(addDays(globalStart, Number(v))),
+                                },
                             },
-                            ticks: {
-                                precision: 0,
-                                callback: v => fmt(addDays(globalStart, Number(v)))
-                            }
+                            y: {
+                                min: -100,
+                                max: 100,
+                                title: {
+                                    display: true,
+                                    text: 'Polarização (-100 .. +100)'
+                                },
+                            },
                         },
-                        y: {
-                            min: -100,
-                            max: 100,
-                            title: {
-                                display: true,
-                                text: 'Polarização (-100 .. +100)'
-                            }
+                        plugins: {
+                            legend: {
+                                display: false
+                            },
+                            tooltip: {
+                                callbacks: {
+                                    title(items) {
+                                        const day = items[0]?.raw?.x ?? null;
+                                        return day != null ?
+                                            fmt(addDays(globalStart, Number(day))) :
+                                            '';
+                                    },
+                                    label(ctx) {
+                                        const r = ctx.raw || {};
+                                        return ` ${ctx.dataset.label}: ${Number(r.y).toFixed(1)}` +
+                                            (r.label ? ' — ' + r.label : '');
+                                    },
+                                },
+                            },
+                            verticalLines: {
+                                markers
+                            },
+                        },
+                    },
+                });
+
+                window._polCharts[elId] = chart;
+
+                // legenda HTML
+                if (legendHost) {
+                    const byChannel = {};
+                    chart.data.datasets.forEach((ds, i) => {
+                        const s = payload.series[ds.channelId] || {};
+                        const title = s.title || ds.label?.split(' — ')[0] || ds.channelId;
+
+                        if (!byChannel[ds.channelId]) {
+                            byChannel[ds.channelId] = {
+                                idxs: [],
+                                title
+                            };
                         }
-                    }
+                        byChannel[ds.channelId].idxs.push(i);
+                    });
+
+                    Object.keys(byChannel).forEach((chId, n) => {
+                        const info = byChannel[chId];
+                        const color = palette[n % palette.length].pt;
+
+                        const pill = document.createElement('a');
+                        pill.href = `https://www.youtube.com/channel/${chId}`;
+                        pill.target = '_blank';
+                        pill.rel = 'noopener';
+                        pill.className = 'px-3 py-1 rounded-full text-sm inline-block select-none';
+                        pill.style.border = `1px solid ${color}`;
+                        pill.style.color = color;
+                        pill.textContent = info.title.length > 40 ?
+                            info.title.slice(0, 40) + '…' :
+                            info.title;
+                        pill.title = info.title;
+
+                        pill.addEventListener('click', (e) => {
+                            if (e.ctrlKey || e.metaKey || e.button === 1) return;
+                            e.preventDefault();
+                            const anyHidden = info.idxs.some(i => !chart.isDatasetVisible(i));
+                            info.idxs.forEach(i => chart.setDatasetVisibility(i, anyHidden));
+                            chart.update();
+                        });
+
+                        const wrap = document.createElement('div');
+                        wrap.className = 'flex items-center';
+                        wrap.appendChild(pill);
+                        legendHost.appendChild(wrap);
+                    });
                 }
-            });
 
+                // filtros globais
+                function applyFilters() {
+                    chart.data.datasets.forEach((ds, i) => {
+                        const ok =
+                            (ds.metaTipo === 'title' && cbTitle?.checked) ||
+                            (ds.metaTipo === 'desc' && cbDesc?.checked) ||
+                            (ds.metaTipo === 'avg' && cbAvg?.checked);
 
-            // --- legenda HTML compacta (um pill por canal, com link e toggle) ---
-            const legendHost = document.getElementById('polLegend');
-            const byChannel = {};
-
-            // use o título vindo do payload.series[channelId].title
-            chart.data.datasets.forEach((ds, i) => {
-                const s = payload.series[ds.channelId] || {};
-                const title = s.title || ds.label?.split(' — ')[0] || ds.channelId;
-
-                if (!byChannel[ds.channelId]) {
-                    byChannel[ds.channelId] = {
-                        idxs: [],
-                        title
-                    };
-                }
-                byChannel[ds.channelId].idxs.push(i);
-            });
-
-            legendHost.innerHTML = '';
-            Object.keys(byChannel).forEach((chId, n) => {
-                const info = byChannel[chId];
-                const color = palette[n % palette.length].pt;
-
-                // o próprio pill é um <a>
-                const pill = document.createElement('a');
-                pill.href = `https://www.youtube.com/channel/${chId}`;
-                pill.target = '_blank';
-                pill.rel = 'noopener';
-                pill.className = 'px-3 py-1 rounded-full text-sm inline-block select-none';
-                pill.style.border = `1px solid ${color}`;
-                pill.style.color = color;
-                pill.textContent = info.title.length > 40 ? info.title.slice(0, 40) + '…' : info.title;
-                pill.title = info.title;
-
-                // Comportamento:
-                // - clique normal: toggle visibilidade dos datasets do canal
-                // - Ctrl/Cmd-clique ou clique do meio: deixa abrir o link
-                pill.addEventListener('click', (e) => {
-                    if (e.ctrlKey || e.metaKey || e.button === 1) {
-                        // deixa abrir o link em nova aba
-                        return;
-                    }
-                    e.preventDefault();
-                    const anyHidden = info.idxs.some(i => !chart.isDatasetVisible(
-                        i)); // se algum está oculto?
-                    info.idxs.forEach(i => chart.setDatasetVisibility(i,
-                        anyHidden)); // toggle todos
+                        chart.setDatasetVisibility(i, ok);
+                    });
                     chart.update();
-                });
+                }
 
-                const wrap = document.createElement('div');
-                wrap.className = 'flex items-center';
-                wrap.appendChild(pill);
-                legendHost.appendChild(wrap);
+                if (cbTitle && cbDesc && cbAvg) {
+                    [cbTitle, cbDesc, cbAvg].forEach(cb => cb.addEventListener('change', applyFilters));
+                    applyFilters();
+                }
+            }
+
+            // Boot inicial – usa $chart se já vier preenchido
+            function boot() {
+                try {
+                    const initial = @json($chart ?? null);
+                    console.log('t2 boot initial chart:', initial);
+                    if (initial && initial.series && Object.keys(initial.series).length) {
+                        renderPolChart(initial);
+                    }
+                } catch (e) {
+                    console.warn('t2: erro ao parsear $chart inicial', e);
+                }
+            }
+
+            document.addEventListener('DOMContentLoaded', boot);
+
+           
+
+           
+
+            // Evento vindo do Livewire (v3)
+            Livewire.on('t2-chart-updated', (payload) => {
+                console.log('t2-chart-updated recebido:', payload);
+                // aqui a gente passa só o objeto do gráfico:
+                renderPolChart(payload.chart);
             });
 
 
-
-
-            // --- filtros globais: Título / Descrição / Média ---
-            const cbTitle = document.getElementById('polOnlyTitle');
-            const cbDesc = document.getElementById('polOnlyDesc');
-            const cbAvg = document.getElementById('polOnlyAvg');
-
-            function applyFilters() {
-                chart.data.datasets.forEach((ds, i) => {
-                    const show =
-                        (ds.metaTipo === 'title' && cbTitle.checked) ||
-                        (ds.metaTipo === 'desc' && cbDesc.checked) ||
-                        (ds.metaTipo === 'avg' && cbAvg.checked);
-                    chart.setDatasetVisibility(i, show);
-                });
-                chart.update();
-            }
-            [cbTitle, cbDesc, cbAvg].forEach(cb => cb.addEventListener('change', applyFilters));
-            applyFilters(); // aplica estado inicial
-        });
+        })();
     </script>
 @endpush

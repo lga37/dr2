@@ -143,7 +143,6 @@
         </div>
     </x-slot>
 
-
     <x-msg />
 
     <div class="py-12">
@@ -269,7 +268,8 @@
                                     $colWidth = number_format(100 / ($numComents * 5), 2);
                                 @endphp
                                 @foreach ($comentariosSessao as $video_id => $dados)
-                                    <th colspan="5" style="width: {{ $colWidth * 5 }}%;" class="border border-gray-300 px-2 py-4">
+                                    <th colspan="5" style="width: {{ $colWidth * 5 }}%;"
+                                        class="border border-gray-300 px-2 py-4">
                                         <x-linkvideo :videoId="$video_id" :titulo="$selecionados[$video_id]['videoTitle'] ?? '--'" />
                                     </th>
                                 @endforeach
@@ -389,13 +389,7 @@
 
                 </div>
 
-
-
-
-
             @endif
-
-
 
         </div>
     </div>
@@ -408,7 +402,7 @@
         </div>
     </div>
 
-
+   
 
 </div>
 
@@ -416,7 +410,8 @@
     <script>
         (function() {
             // Registro global p/ evitar gráficos fantasma
-            if (!window._toxCharts) window._toxCharts = {};
+            if (!window._toxCharts)
+                window._toxCharts = {};
 
             // Plugin de linhas verticais
             const verticalLines = {
@@ -643,25 +638,19 @@
             document.addEventListener('DOMContentLoaded', boot);
 
 
+            // >>> NOVO: escuta o evento do Livewire
+            window.addEventListener('t1-chart-updated', (event) => {
+                const chartData = event.detail?.chart ?? null;
+                console.log('t1-chart-updated recebido:', chartData);
+
+                if (chartData && chartData.series && Object.keys(chartData.series).length) {
+                    renderChart(chartData);
+                } else {
+                    console.warn('t1-chart-updated veio sem séries', chartData);
+                }
+            });
+
+
         })();
-    </script>
-@endpush
-
-
-@push('scripts')
-    <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            // chave só dessa página
-            const KEY = 'tarefa1_reloaded';
-
-            // se ainda não recarregou, marca e recarrega
-            if (!sessionStorage.getItem(KEY)) {
-                sessionStorage.setItem(KEY, '1');
-                window.location.reload(); // equivalente ao F5
-            } else {
-                // já recarregou uma vez, limpa a chave pra próxima vez que abrir a página
-                sessionStorage.removeItem(KEY);
-            }
-        });
     </script>
 @endpush

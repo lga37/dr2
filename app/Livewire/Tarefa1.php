@@ -7,7 +7,6 @@ use Carbon\Carbon;
 use App\Traits\Comum;
 use App\Models\Tarefa;
 use Livewire\Component;
-use Illuminate\Support\Js;
 use Livewire\Attributes\Layout;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Cache;
@@ -37,14 +36,7 @@ class Tarefa1 extends Component
 
     public function mount()
     {
-        // $this->selecionados = Session::get('sel_videos', []);
-        // $this->comentarios  = Session::get('t1_comentarios', []);
-        // $this->maisToxico   = Session::get('tarefa1_mais_toxico');
-        // $this->query        = Session::get('t1_query', '');
-
-
-        # tirar depois
-        #$this->montarGraficoComentarios($this->selecionados);
+       
     }
 
 
@@ -85,22 +77,24 @@ class Tarefa1 extends Component
     public function clearSelecionados(): void
     {
         // Volta as props aos valores default declarados na classe
-        $this->reset([
-            'buscas',
-            'comentarios',
-            'selecionados',
-            'addInput',
-            #'maisToxico',
-            'toxMediaArray',
-            'maisToxicoReal',
-            #'acertou',
-            'feedback',
-            'mostrarAvaliacao',
-            #'mostrarFeedback',
-            'query',
-            'chart',
-            'samples',
-        ]);
+        // $this->reset([
+        //     'buscas',
+        //     'comentarios',
+        //     'selecionados',
+        //     'addInput',
+        //     #'maisToxico',
+        //     'toxMediaArray',
+        //     'maisToxicoReal',
+        //     #'acertou',
+        //     'feedback',
+        //     'mostrarAvaliacao',
+        //     #'mostrarFeedback',
+        //     'query',
+        //     'chart',
+        //     'samples',
+        // ]);
+
+        $this->reset();             // volta ao estado declarado na classe
 
 
         // limpa caches de tela
@@ -110,21 +104,6 @@ class Tarefa1 extends Component
             'tarefa1_mais_toxico',
             't1_query',            // aproveita e zera a query salva
         ]);
-
-
-
-        // // 1) Resetar TODAS as props públicas para o default
-        // $this->reset();             // volta ao estado declarado na classe
-        // $this->resetErrorBag();     // (se usa validação)
-        // $this->resetValidation();   // (se usa validação)
-
-        // // 2) Limpar SESSIONS “da tela” por prefixo (não mexe em auth)
-        // $this->forgetSessionByPrefix($this->sessionPrefixes);
-
-        // // 3) Se usa paginação, zere a página atual
-        // if (method_exists($this, 'resetPage')) {
-        //     $this->resetPage();
-        // }
     }
 
 
@@ -142,11 +121,7 @@ class Tarefa1 extends Component
         $this->comentarios  = [];
         $this->mostrarFeedback = true;
 
-        // if (!$this->maisToxico) {
-        //     $this->msg('Vc deve selecionar um registro');
-        //     return;
-        // }
-        // reset do cache desta tela (opcional)
+
         Session::forget('t1_comentarios');
         $sessComentarios = [];
 
@@ -217,16 +192,10 @@ class Tarefa1 extends Component
                 $commBD = $this->upsertComentario($comm, $videoBD);
             }
         }
-        // salva tudo na sessão (1 gravação só)
         Session::put('t1_comentarios', $sessComentarios);
-
         $this->recalcularMedias();
 
-        #dd($this->toxMediaArray);
         $this->maisToxicoReal = $this->pickMaisToxico($this->toxMediaArray);
-        #$this->acertou = ($this->maisToxicoReal && $this->maisToxico) ? $this->maisToxicoReal === $this->maisToxico : false;
-
-        #dd($this->acertou);
 
         Session::put('t1_result', [
             'selecionados'      => $this->selecionados,
@@ -240,27 +209,18 @@ class Tarefa1 extends Component
         ]);
 
 
-
-
         $this->mostrarAvaliacao = true;
-        #$this->comentarios  = [];
-        #$this->maisToxico = null;
-        #$this->toxMediaArray = [];   // [videoId => float]
 
-        #Session::forget(['t1_comentarios', 'tarefa1_mais_toxico']); // limpa ambos
+        #aqui esta OK
+        $this->dispatch('t1-chart-updated', chart: $this->chart);
 
-
+        #dump($this->chart);
     }
-
-
-
-
-
 
 
     public function montarGraficoComentarios(array $videos)
     {
-        // menor published entre os vídeos = início global do eixo X
+
         $globalStart = collect($videos)->min(fn($v) => $v['published']);
         $globalMin = PHP_INT_MAX;
         $globalMax = PHP_INT_MIN;
@@ -274,7 +234,6 @@ class Tarefa1 extends Component
             $all  = $this->flattenCommentsFromBuckets($buck);
 
             $this->comentarios[$vid] = $all;
-
 
             $this->samples[$vid] = $this->sampleComments($all, 20);
             $avg = $this->toxMedia($all);
@@ -301,10 +260,10 @@ class Tarefa1 extends Component
             $globalMax = 0;
         }
 
-        // {globalStart, min, max, series:{vid:{points,avg,startDay,endDay,title}}}
+        #dd($series);
 
         $this->chart = [
-            'globalStart' => $globalStart, // ISO — usaremos para formatar ticks
+            'globalStart' => $globalStart,
             'min'         => $globalMin,
             'max'         => $globalMax,
             'series'      => $series,
@@ -359,11 +318,6 @@ class Tarefa1 extends Component
             ];
 
 
-            // $pts[] = [
-            //     'x'     => $day,
-            //     'y'     => round(((float)$tox) * 100, 2),
-            //     'label' => mb_substr(trim((string)($c['texto'] ?? '')), 0, 15),
-            // ];
         }
 
         if ($minDay === PHP_INT_MAX) {

@@ -21,8 +21,7 @@
 <div class="mb-6 flex flex-wrap items-center gap-3 align-middle">
     {{-- Busca --}}
     <form wire:submit.prevent="{{ $onSearch }}">
-        <x-text-input class="mt-1 {{ $widthClass }}" placeholder="{{ $qPh }}" autocomplete="off"
-            wire:model="{{ $queryModel }}" />
+        <x-text-input class="mt-1 {{ $widthClass }}" placeholder="{{ $qPh }}" autocomplete="off" wire:model="{{ $queryModel }}" />
         <x-primary-button type="button" wire:click="{{ $onSearch }}">
             {{ __('Pesquisar') }}
         </x-primary-button>
@@ -31,11 +30,8 @@
     @if ($showAdd)
         <span class="mx-2">OU</span>
         <form wire:submit.prevent="{{ $onAdd }}">
-
-            <x-text-input class="mt-1 {{ $widthClass }} border rounded" placeholder="{{ $aPh }}"
-                wire:model="{{ $addModel }}" />
-            <x-primary-button type="button" class="ms-1" wire:loading.attr="disabled"
-                wire:click="{{ $onAdd }}">
+            <x-text-input class="mt-1 {{ $widthClass }} border rounded" placeholder="{{ $aPh }}" wire:model="{{ $addModel }}" />
+            <x-primary-button type="button" class="ms-1" wire:loading.attr="disabled" wire:click="{{ $onAdd }}">
                 Adicionar por ID/URL
             </x-primary-button>
     @endif

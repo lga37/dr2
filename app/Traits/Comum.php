@@ -1280,7 +1280,7 @@ trait Comum
         // 3) Preenche campos mutáveis
         $coment->fill([
             'username'  => $c['username'] ?? null,
-            'texto'     => $c['texto'] ? $this->squashSpaces($c['texto']) : null,
+            'texto'     => $c['texto'] ? $this->squashSpaces($c['texto']) : '',
             'likes'     => $c['likes'] ?? null,
             'dislikes'  => $c['dislikes'] ?? null,
             'dt'        => $this->toDateTime($c['dt'] ?? null),

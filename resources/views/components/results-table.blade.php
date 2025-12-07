@@ -60,8 +60,7 @@
             <tr wire:key="res-{{ $id ?? \Illuminate\Support\Str::uuid() }}" @class(['bg-green-50/60' => $checked])>
                 <td class="px-2 py-1">
                     @if ($id && !in_array($id, $selected, true))
-                        <a href="#" wire:click.stop.prevent="add('{{ $id }}')"
-                            class="text-green-700 hover:underline">
+                        <a href="#" wire:click.stop.prevent="add('{{ $id }}')" class="text-green-700 hover:underline">
                             add
                         </a>
                     @else

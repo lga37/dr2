@@ -70,6 +70,130 @@ class Tarefa4 extends Component
 
 
 
+    public function validarTarefa4()
+    {
+        // carrega seleção do array central
+        $this->selecionados    = Session::get('t4_canais', $this->selecionados);
+        $this->mostrarFeedback = true;
+
+        Session::forget('t4_videos');
+        $sessVideos = [];
+
+        #dd($this->selecionados);
+
+        foreach ($this->selecionados as $canalId => $raw) {
+
+            $q       = $raw['busca'] ?? '[erro]';
+            $buscaBD = $this->upsertBusca($q);
+
+            $ch = [
+                'youtube_id' => $raw['channelId'],
+                'nome'       => $raw['channelTitle'] ?? null,
+                'keywords'   => $raw['channelKeywords'] ?? [],
+                'handle'     => $raw['channelHandle'] ?? null,
+                'inscritos'  => $raw['channelSubs'] ?? null,
+                'views'      => $raw['channelViews'] ?? null,
+                'videos'     => $raw['channelVideos'] ?? null,
+                'dt'         => $raw['channelDt'] ?? null,
+                'local'      => $raw['channelCountry'] ?? null,
+                'categ'      => $raw['channelCategory'] ?? null,
+                'desc'       => $raw['channelDesc'] ?? null,
+            ];
+
+            $canalBD = $this->upsertCanal($ch, $buscaBD);
+
+            $videos = $this->getAllVideos(
+                $raw['channelId'],
+                $raw['channelDt'],
+                100,
+                10,
+                1,
+                $raw['channelVideos']
+            );
+
+            if (empty($videos) || !is_array($videos)) {
+                dd('erro');
+            }
+
+            $polarizations = [];
+            foreach ($videos as $v) {
+                $titulo = $v['videoTitle'] ?? '';
+                $desc   = $v['videoDesc']  ?? '';
+                $texto  = trim($titulo . "\n" . $desc);
+
+                if ($texto === '' || strlen($texto) <= 10) {
+                    continue;
+                }
+
+                $polarization = $this->setPolarization($texto);
+
+                if ($polarization === null) {
+                    continue;
+                }
+
+                $polarizations[] = $polarization;
+            }
+
+            if (count($polarizations) === 0) {
+                dd('erro2');
+            }
+
+            Log::info('media', [ $canalId, $polarizations ]);
+
+            // Média simples (-1 a +1) -> percent
+            $media = array_sum($polarizations) / max(count($polarizations), 1);  // fica -100..100
+            $media = round($media, 2); // -100 a 100
+
+            // ⚠️ grava direto no ARRAY CENTRAL
+            $this->selecionados[$canalId]['polariz'] = $media;
+
+            Log::info('media', [ $canalId, $media ]);
+
+
+            // salva vídeos no BD
+            foreach ($videos as $vd) {
+                $vd = [
+                    'cod'      => $vd['videoId'],
+                    'nome'     => $vd['videoTitle'] ?? null,
+                    'desc'     => $vd['videoDesc'] ?? null,
+                    'hashtags' => $vd['videoTags'] ?? [],
+                    'comments' => $vd['videoCommentCount'] ?? null,
+                    'likes'    => $vd['videoLikeCount'] ?? null,
+                    'views'    => $vd['videoViewCount'] ?? null,
+                    'duration' => $vd['videoDuration'] ?? null,
+                    'lang'     => $vd['videoLang'] ?? null,
+                    'dt'       => $vd['videoDt'] ?? null,
+                    'categ_id' => $vd['videoCategId'] ?? null,
+                ];
+
+                $videoBD = $this->upsertVideo($vd, $canalBD, $buscaBD);
+            }
+
+            // ordena vídeos por data
+            $ordenados = collect($videos)
+                ->filter(fn($c) => !empty($c['videoId']))
+                ->sortBy(fn($c) => $c['videoDt'])
+                ->values()
+                ->toArray();
+
+            $this->videos_dos_canais[$canalId] = $ordenados;
+            $sessVideos[$canalId]              = $ordenados;
+        }
+
+        Session::put('t4_videos', $sessVideos);
+
+        // ATUALIZA o array central na sessão (já com monet + polar)
+        Session::put('t4_canais', $this->selecionados);
+
+        Session::put('t4_result', [
+            'selecionados'  => $this->selecionados,
+            'videos'        => $this->videos_dos_canais,
+            'buscas'        => $this->buscas,
+            // se quiser ainda ter uma chave "grafico", manda o próprio selecionados
+            'grafico'       => $this->selecionados,
+        ]);
+    }
+
 
 
 
@@ -258,130 +382,6 @@ class Tarefa4 extends Component
     }
 
 
-
-    public function validarTarefa4()
-    {
-        // carrega seleção do array central
-        $this->selecionados    = Session::get('t4_canais', $this->selecionados);
-        $this->mostrarFeedback = true;
-
-        Session::forget('t4_videos');
-        $sessVideos = [];
-
-        #dd($this->selecionados);
-
-        foreach ($this->selecionados as $canalId => $raw) {
-
-            $q       = $raw['busca'] ?? '[erro]';
-            $buscaBD = $this->upsertBusca($q);
-
-            $ch = [
-                'youtube_id' => $raw['channelId'],
-                'nome'       => $raw['channelTitle'] ?? null,
-                'keywords'   => $raw['channelKeywords'] ?? [],
-                'handle'     => $raw['channelHandle'] ?? null,
-                'inscritos'  => $raw['channelSubs'] ?? null,
-                'views'      => $raw['channelViews'] ?? null,
-                'videos'     => $raw['channelVideos'] ?? null,
-                'dt'         => $raw['channelDt'] ?? null,
-                'local'      => $raw['channelCountry'] ?? null,
-                'categ'      => $raw['channelCategory'] ?? null,
-                'desc'       => $raw['channelDesc'] ?? null,
-            ];
-
-            $canalBD = $this->upsertCanal($ch, $buscaBD);
-
-            $videos = $this->getAllVideos(
-                $raw['channelId'],
-                $raw['channelDt'],
-                100,
-                10,
-                1,
-                $raw['channelVideos']
-            );
-
-            if (empty($videos) || !is_array($videos)) {
-                dd('erro');
-            }
-
-            $polarizations = [];
-            foreach ($videos as $v) {
-                $titulo = $v['videoTitle'] ?? '';
-                $desc   = $v['videoDesc']  ?? '';
-                $texto  = trim($titulo . "\n" . $desc);
-
-                if ($texto === '' || strlen($texto) <= 10) {
-                    continue;
-                }
-
-                $polarization = $this->setPolarization($texto);
-
-                if ($polarization === null) {
-                    continue;
-                }
-
-                $polarizations[] = $polarization;
-            }
-
-            if (count($polarizations) === 0) {
-                dd('erro2');
-            }
-
-            Log::info('media', [ $canalId, $polarizations ]);
-
-            // Média simples (-1 a +1) -> percent
-            $media = array_sum($polarizations) / max(count($polarizations), 1);  // fica -100..100
-            $media = round($media, 2); // -100 a 100
-
-            // ⚠️ grava direto no ARRAY CENTRAL
-            $this->selecionados[$canalId]['polariz'] = $media;
-
-            Log::info('media', [ $canalId, $media ]);
-
-
-            // salva vídeos no BD
-            foreach ($videos as $vd) {
-                $vd = [
-                    'cod'      => $vd['videoId'],
-                    'nome'     => $vd['videoTitle'] ?? null,
-                    'desc'     => $vd['videoDesc'] ?? null,
-                    'hashtags' => $vd['videoTags'] ?? [],
-                    'comments' => $vd['videoCommentCount'] ?? null,
-                    'likes'    => $vd['videoLikeCount'] ?? null,
-                    'views'    => $vd['videoViewCount'] ?? null,
-                    'duration' => $vd['videoDuration'] ?? null,
-                    'lang'     => $vd['videoLang'] ?? null,
-                    'dt'       => $vd['videoDt'] ?? null,
-                    'categ_id' => $vd['videoCategId'] ?? null,
-                ];
-
-                $videoBD = $this->upsertVideo($vd, $canalBD, $buscaBD);
-            }
-
-            // ordena vídeos por data
-            $ordenados = collect($videos)
-                ->filter(fn($c) => !empty($c['videoId']))
-                ->sortBy(fn($c) => $c['videoDt'])
-                ->values()
-                ->toArray();
-
-            $this->videos_dos_canais[$canalId] = $ordenados;
-            $sessVideos[$canalId]              = $ordenados;
-        }
-
-        Session::put('t4_videos', $sessVideos);
-
-        // ATUALIZA o array central na sessão (já com monet + polar)
-        Session::put('t4_canais', $this->selecionados);
-
-        Session::put('t4_result', [
-            'selecionados'  => $this->selecionados,
-            'videos'        => $this->videos_dos_canais,
-            'buscas'        => $this->buscas,
-            // se quiser ainda ter uma chave "grafico", manda o próprio selecionados
-            'grafico'       => $this->selecionados,
-        ]);
-    }
 
 
 
