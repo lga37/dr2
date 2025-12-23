@@ -21,10 +21,8 @@ class Tarefa1 extends Component
     public array $comentarios = [];
     public array $selecionados = [];
     public string $addInput = '';
-    #public ?string $maisToxico = null;
     public array $toxMediaArray = [];   // [videoId => float]
     public ?string $maisToxicoReal = null; // videoId com maior média (ou null em empate)
-    #public ?bool $acertou = null;       // null antes de validar, true/false depois
     public string $feedback = '';       // textarea
     public bool $mostrarAvaliacao = false;   // controla a renderização do bloco
     public bool $mostrarFeedback = false;
@@ -36,7 +34,7 @@ class Tarefa1 extends Component
 
     public function mount()
     {
-       
+
     }
 
 
@@ -55,9 +53,7 @@ class Tarefa1 extends Component
         $dados = [
             'feedback'          => $this->feedback,
             'tox_media'         => Session::get('t1_result')['tox_media'],
-            #'mais_toxico'       => Session::get('t1_result')['mais_toxico'],
             'mais_toxico_real'  => Session::get('t1_result')['mais_toxico_real'],
-            #'acertou'           => Session::get('t1_result')['acertou'],
 
         ];
         $status             = 1;
@@ -76,29 +72,11 @@ class Tarefa1 extends Component
 
     public function clearSelecionados(): void
     {
-        // Volta as props aos valores default declarados na classe
-        // $this->reset([
-        //     'buscas',
-        //     'comentarios',
-        //     'selecionados',
-        //     'addInput',
-        //     #'maisToxico',
-        //     'toxMediaArray',
-        //     'maisToxicoReal',
-        //     #'acertou',
-        //     'feedback',
-        //     'mostrarAvaliacao',
-        //     #'mostrarFeedback',
-        //     'query',
-        //     'chart',
-        //     'samples',
-        // ]);
-
         $this->reset();             // volta ao estado declarado na classe
-
 
         // limpa caches de tela
         Session::forget([
+            't1_result',
             'sel_videos',
             't1_comentarios',
             'tarefa1_mais_toxico',
@@ -111,15 +89,18 @@ class Tarefa1 extends Component
     public function avaliarVideos(): void
     {
 
-
+       
         // Se quiser, dá pra exigir pelo menos 2 vídeos:
         if (count($this->selecionados) < 2)
             return;
 
 
+        #dd($this->selecionados);
+
         $this->selecionados = Session::get('sel_videos', $this->selecionados);
         $this->comentarios  = [];
-        $this->mostrarFeedback = true;
+        #$this->mostrarFeedback = true;
+        $this->mostrarAvaliacao = true;
 
 
         Session::forget('t1_comentarios');
@@ -171,8 +152,6 @@ class Tarefa1 extends Component
             #dump($vd);
             $videoBD = $this->upsertVideo($vd, $canalBD, $buscaBD);
 
-
-
             $comentarios = $this->comentarios[$videoId] ?? [];
 
             // ordene/saneie em cima do array de COMENTÁRIOS (não do mapa global)
@@ -209,17 +188,17 @@ class Tarefa1 extends Component
         ]);
 
 
-        $this->mostrarAvaliacao = true;
-
+        #$this->mostrarAvaliacao = true;
         #aqui esta OK
         $this->dispatch('t1-chart-updated', chart: $this->chart);
-
         #dump($this->chart);
     }
 
 
     public function montarGraficoComentarios(array $videos)
     {
+
+        #dd('hh');
 
         $globalStart = collect($videos)->min(fn($v) => $v['published']);
         $globalMin = PHP_INT_MAX;
@@ -231,6 +210,9 @@ class Tarefa1 extends Component
             $upIso = $v['published'];
 
             $buck = $this->getCommentsByBucketsRelevance($vid, $count, $upIso);
+
+            #dd($buck);
+
             $all  = $this->flattenCommentsFromBuckets($buck);
 
             $this->comentarios[$vid] = $all;
@@ -370,7 +352,9 @@ class Tarefa1 extends Component
 
 
 
-    protected function getCommentsByBucketsRelevance(string $videoId, int $commentCount, string $uploadAtIso, int $perBucket = 100, bool $withTox = true, bool $forceRefresh = false): array
+    protected function getCommentsByBucketsRelevance(
+        string $videoId, int $commentCount, string $uploadAtIso, int $perBucket = 100, 
+        bool $withTox = true, bool $forceRefresh = false): array
     {
         $videoId = trim($videoId);
         if ($videoId === '' || $commentCount < 0)
@@ -389,11 +373,7 @@ class Tarefa1 extends Component
         elseif ($commentCount <= 10000)                         $pages = 4;
         elseif ($commentCount > 10000)                          $pages = 5;
 
-        // 2) Cache diário
-        $cacheKey = sprintf('yt:comments:buckets:relevance:v1:%s:%s:%d:%d:%d', $videoId, $uploadAt->toDateString(), $pages, $perBucket, (int) floor($now->timestamp / 86400));
-        if (!$forceRefresh && Cache::has($cacheKey)) {
-            return Cache::get($cacheKey);
-        }
+
 
         // 3) Janelas temporais iguais (uploadAt..now), tamanho = $pages
         $windows = [];
@@ -421,13 +401,17 @@ class Tarefa1 extends Component
                 'textFormat' => 'plainText',
                 'order'      => $order,
             ];
-            if ($nextToken) $params['pageToken'] = $nextToken;
+            if ($nextToken) 
+                $params['pageToken'] = $nextToken;
 
             $url = $baseCT . '?' . http_build_query($params, '', '&', PHP_QUERY_RFC3986);
 
             Log::info('YT API (relevance)', ['page' => $p + 1, 'url' => $url, 'videoId' => $videoId]);
 
             $resp = Http::timeout(20)->get($url);
+
+            #dd($resp);
+
             if ($resp->failed()) {
                 $body = $resp->json();
                 Log::warning('YT API failed', ['status' => $resp->status(), 'body' => $body]);
@@ -444,6 +428,7 @@ class Tarefa1 extends Component
             if (!$items)
                 break;
 
+            #dd($items);
             foreach ($items as $it) {
                 $top = $it['snippet']['topLevelComment'] ?? [];
                 $sn  = $top['snippet'] ?? [];
@@ -477,6 +462,9 @@ class Tarefa1 extends Component
 
         // 5) Particionar por janela e ordenar cronologicamente dentro do bucket
         $bucketRows = array_fill(0, $pages, []);
+
+        #dd($col);
+
         foreach ($col as $row) {
             $dt = Carbon::parse($row['dt']);
             $idx = null;
@@ -486,7 +474,8 @@ class Tarefa1 extends Component
                     break;
                 }
             }
-            if ($idx === null) $idx = $pages - 1; // bordas vão pro último
+            if ($idx === null) 
+                $idx = $pages - 1; // bordas vão pro último
             $bucketRows[$idx][] = $row;
         }
 
@@ -505,7 +494,6 @@ class Tarefa1 extends Component
             ];
         }
 
-        Cache::put($cacheKey, $out, now()->addDay());
         return $out;
     }
 
@@ -600,56 +588,6 @@ class Tarefa1 extends Component
 
 
 
-
-    function setTox($txt)
-    {
-        return mt_rand() / mt_getrandmax();
-
-        $apiKey = env("PERSPECTIVE_API");
-        $url = 'https://commentanalyzer.googleapis.com/v1alpha1/comments:analyze?key=' . $apiKey;
-
-        $payload = [
-            'comment' => ['text' => $txt],
-            'languages' => ['pt', 'en'], // ou 'pt' se quiser
-            'requestedAttributes' => [
-                'TOXICITY' => new \stdClass()
-            ]
-        ];
-
-        $json = json_encode($payload);
-        $ch = curl_init($url);
-
-        curl_setopt_array($ch, [
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_POST => true,
-            CURLOPT_HTTPHEADER => ['Content-Type: application/json'],
-            CURLOPT_POSTFIELDS => $json,
-            CURLOPT_SSL_VERIFYPEER => true,
-            CURLOPT_SSL_VERIFYHOST => 2,
-        ]);
-
-        $response = curl_exec($ch);
-
-        if (curl_errno($ch)) {
-            dd('Erro cURL: ' . curl_error($ch));
-            curl_close($ch);
-            return null;
-        }
-
-        curl_close($ch);
-        $res = json_decode($response, true);
-
-        if (!is_array($res)) {
-            return null;
-        }
-
-        if (isset($res['attributeScores']['TOXICITY']['summaryScore']['value'])) {
-            $tox = round($res['attributeScores']['TOXICITY']['summaryScore']['value'], 3);
-        } else {
-            $tox = null; // ou 0, ou -1, ou qualquer valor que faça sentido no seu contexto
-        }
-        return $tox;
-    }
 
 
 

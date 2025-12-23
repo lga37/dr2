@@ -13,31 +13,31 @@
                 <!-- Navigation Links -->
                 <div class="hidden space-x-8 sm:-my-px sm:ms-10 sm:flex">
                     <x-nav-link :href="route('tarefa1')" :active="request()->routeIs('tarefa1')">
-                        {{ __('Tarefa1') }}
+                        {{ __('Widget1') }}
                     </x-nav-link>
                 </div>
 
                 <div class="hidden space-x-8 sm:-my-px sm:ms-10 sm:flex">
                     <x-nav-link :href="route('tarefa2')" :active="request()->routeIs('tarefa2')">
-                        {{ __('Tarefa2') }}
+                        {{ __('Widget2') }}
                     </x-nav-link>
                 </div>
 
                 <div class="hidden space-x-8 sm:-my-px sm:ms-10 sm:flex">
                     <x-nav-link :href="route('tarefa3')" :active="request()->routeIs('tarefa3')">
-                        {{ __('Tarefa3') }}
+                        {{ __('Widget3') }}
                     </x-nav-link>
                 </div>
 
                 <div class="hidden space-x-8 sm:-my-px sm:ms-10 sm:flex">
                     <x-nav-link :href="route('tarefa4')" :active="request()->routeIs('tarefa4')">
-                        {{ __('Tarefa4') }}
+                        {{ __('Widget4') }}
                     </x-nav-link>
                 </div>
 
                 <div class="hidden font-bold  space-x-8 sm:-my-px sm:ms-10 sm:flex">
                     <x-nav-link class="" :href="route('resultados')" :active="request()->routeIs('resultados')">
-                        Meus Resultados
+                        Avaliações
                     </x-nav-link>
                 </div>
 

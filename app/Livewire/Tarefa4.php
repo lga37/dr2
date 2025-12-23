@@ -13,15 +13,10 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Session;
 
 
-
-
-
-
 class Tarefa4 extends Component
 {
 
     use Comum;
-
 
     # params comuns ###########################################
     public array $canais = [];
@@ -38,11 +33,7 @@ class Tarefa4 extends Component
     public bool $mostrarFeedback = false;
     protected array $sessionPrefixes = ['t4_query', 't4_canais', 't4_checked', 't4_buscas', 't4_unchecked', 't4_videos_dos_canais']; // ajuste como preferir
 
-
     public array $unchecked = []; // ids que o usuário desmarcou
-
-    public array $grafico_t4 = [];
-
 
     function getTipoTarefa(): string
     {
@@ -66,15 +57,40 @@ class Tarefa4 extends Component
         Session::put('t4_buscas',   $this->buscas);
         Session::put('t4_checked',  $this->checked);
         Session::put('t4_unchecked', $this->unchecked);
+
+        if(!empty(Session::get('t4_canais'))){
+            $this->mostrarFeedback = true;
+
+        }
+
     }
 
+    public function salvarFeedback(): void
+    {
+
+        $tarefa_id = $this->getTarefaId();
+        $dados = [
+            'feedback'          => $this->feedback,
+
+        ];
+        $status             = 1;
+        $finished_at        = now();
+
+        $t = Tarefa::find($tarefa_id)->update(compact('dados', 'status', 'finished_at'));
+
+        $msg = $t ? 'Obrigado! Sua tarefa #' . $tarefa_id . ' foi concluída COM SUCESSO.' : 'Erro ao completar tarefa #' . $tarefa_id;
+
+        $this->clearSelecionados();
+        $this->msg($msg, 'info');
+
+        #dd($t);
+    }
 
 
     public function validarTarefa4()
     {
         // carrega seleção do array central
         $this->selecionados    = Session::get('t4_canais', $this->selecionados);
-        $this->mostrarFeedback = true;
 
         Session::forget('t4_videos');
         $sessVideos = [];
@@ -106,7 +122,7 @@ class Tarefa4 extends Component
                 $raw['channelId'],
                 $raw['channelDt'],
                 100,
-                10,
+                5,
                 1,
                 $raw['channelVideos']
             );
@@ -125,7 +141,30 @@ class Tarefa4 extends Component
                     continue;
                 }
 
-                $polarization = $this->setPolarization($texto);
+                #if ($tox100 !== null) $scores[] = $tox100;
+
+                $tox = $this->setTox($texto);
+                #$polarization = $this->setPolarization($texto);
+                if(is_null($tox)){
+                    continue;
+                }
+                $polarization = 100 * $tox;
+                
+
+                #$rawTox = $this->setTox($texto);     // 0..1 (provável)
+                $rawTox = $tox;                 // reaproveita
+
+                $tox100 = is_numeric($rawTox) ? round($rawTox * 100, 2) : null;
+
+                // Log::info('T4 tox debug', [
+                //   'canal' => $canalId,
+                //   'video' => $v['videoId'] ?? null,
+                //   'len'   => strlen($texto),
+                //   'sha1'  => sha1($texto),
+                //   'raw'   => $rawTox,
+                //   'tox100'=> $tox100,
+                //   'title' => mb_substr($titulo, 0, 60),
+                // ]);
 
                 if ($polarization === null) {
                     continue;
@@ -142,7 +181,7 @@ class Tarefa4 extends Component
 
             // Média simples (-1 a +1) -> percent
             $media = array_sum($polarizations) / max(count($polarizations), 1);  // fica -100..100
-            $media = round($media, 2); // -100 a 100
+            $media = round($media, 2); // 0 a 100
 
             // ⚠️ grava direto no ARRAY CENTRAL
             $this->selecionados[$canalId]['polariz'] = $media;
@@ -192,21 +231,28 @@ class Tarefa4 extends Component
             // se quiser ainda ter uma chave "grafico", manda o próprio selecionados
             'grafico'       => $this->selecionados,
         ]);
+
+        return redirect()->route('tarefa4'); // ou o nome que você tiver
+
     }
+
 
 
 
 
     private function seedCheckedFromBuscas(): void
     {
-        if (empty($this->buscas)) return;
+        if (empty($this->buscas)) 
+            return;
 
         foreach ($this->buscas as $r) {
             $id = $r['channelId'] ?? null;
-            if (!$id) continue;
+            if (!$id) 
+                continue;
 
             // NUNCA re-adiciona quem o usuário desmarcou
-            if (isset($this->unchecked[$id])) continue;
+            if (isset($this->unchecked[$id])) 
+                continue;
 
             // só marca por padrão se ainda não existe decisão do usuário
             if (!array_key_exists($id, $this->checked)) {
@@ -385,82 +431,6 @@ class Tarefa4 extends Component
 
 
 
-    /**
-     * Retorna vídeos de um canal (mais recentes primeiro) já com nlp1 (título)
-     * e nlp2 (descrição) calculados via setPolarization().
-     */
-    public function getAllVideos(
-        string $channelId,
-        ?string $channelCreatedAt = null,
-        int $max = 100,
-        int $maxPages = 10,
-        int $page = 1,
-        int $totalInformado = 0
-    ) {
-        static $acc = [];                // acumulador local (evita depender de $this->videos)
-        static $nextToken = null;
-
-        $key = env('YOUTUBE_API_KEY');
-        $url = "https://www.googleapis.com/youtube/v3/search"
-            . "?key={$key}"
-            . "&channelId={$channelId}"
-            . "&part=snippet"
-            . "&order=date"
-            . "&type=video"
-            . "&maxResults=50";
-
-        if ($page > 1 && $nextToken) {
-            $url .= "&pageToken={$nextToken}";
-        }
-
-        $resp = Http::timeout(15)->get($url);
-        if ($resp->failed()) {
-            return $acc; // devolve o que já tiver
-        }
-
-        $json  = $resp->json();
-        $items = $json['items'] ?? [];
-
-        foreach ($items as $item) {
-            $snippet = $item['snippet'] ?? [];
-
-            #dd($snippet);
-            $videoId = data_get($item, 'id.videoId');
-
-            if (!$videoId) continue;
-
-            $title = (string) ($snippet['title'] ?? '');
-            $desc  = (string) ($snippet['description'] ?? '');
-
-
-            $acc[] = [
-                'videoId'      => $videoId,
-                'videoTitle'   => $title,
-                'videoDesc'    => $desc,
-                'videoDt'      => $snippet['publishedAt'] ?? null,
-                'channelId'    => $snippet['channelId'] ?? '',
-                'channelTitle' => $snippet['channelTitle'] ?? '',
-                'videoThumb'   => data_get($snippet, 'thumbnails.medium.url'),
-            ];
-
-            if (count($acc) >= $max) break;
-        }
-
-        // paginação
-        $nextToken = $json['nextPageToken'] ?? null;
-        $temMais   = $nextToken && (count($acc) < $max) && ($page < $maxPages);
-
-        if ($temMais) {
-            return $this->getAllVideos($channelId, $channelCreatedAt, $max, $maxPages, $page + 1, $totalInformado);
-        }
-
-        // ordenar por data (desc)
-        usort($acc, fn($a, $b) => strtotime($b['videoDt'] ?? '1970-01-01') <=> strtotime($a['videoDt'] ?? '1970-01-01'));
-
-        return array_slice($acc, 0, $max);
-    }
-
-
 
 
     private function getVidIqMonthlyAvgUsd(string $channelId): ?float
@@ -576,30 +546,11 @@ class Tarefa4 extends Component
 
 
 
-    public function salvarFeedback(): void
-    {
 
-        $tarefa_id = $this->getTarefaId();
-        $dados = [
-            'feedback'          => $this->feedback,
-
-        ];
-        $status             = 1;
-        $finished_at        = now();
-
-        $t = Tarefa::find($tarefa_id)->update(compact('dados', 'status', 'finished_at'));
-
-        $msg = $t ? 'Obrigado! Sua tarefa #' . $tarefa_id . ' foi concluída COM SUCESSO.' : 'Erro ao completar tarefa #' . $tarefa_id;
-
-        $this->clearSelecionados();
-        $this->msg($msg, 'info');
-
-        #dd($t);
-    }
 
 
     ######## essa vai ser a funcao q finaliza tudo
-    public function avaliarCanais(): void
+    public function avaliarCanais333333333333333333333333(): void
     {
 
         if (count($this->selecionados) < 10)
@@ -621,3 +572,5 @@ class Tarefa4 extends Component
         return view('livewire.tarefa4');
     }
 }
+
+

@@ -99,9 +99,9 @@ class Tarefa2 extends Component
             $canalBD = $this->upsertCanal($ch, $buscaBD);
             #dump($canalBD);
 
-            $videos = $this->getAllVideos($raw['channelId'], $raw['channelDt'], 100, 10, 1, $raw['channelVideos']);
+            $videos = $this->getAllVideos($raw['channelId'], $raw['channelDt'], 100, 5, 1, $raw['channelVideos']);
 
-           
+            #dd($videos);
 
             foreach ($videos as $vd) {
                 $vd = [
@@ -133,6 +133,14 @@ class Tarefa2 extends Component
         }
 
         #dd($sessVideos);
+
+
+foreach ($this->videos_dos_canais as $ch => $vids) {
+    $bad = collect($vids)->filter(fn($v) => ($v['channelId'] ?? null) !== $ch)->take(3)->values()->all();
+    if ($bad) {
+        logger()->warning("MISTURA DETECTADA em $ch", $bad);
+    }
+}
 
         $this->buildChartPolarizacao($this->selecionados, $this->videos_dos_canais);
 
@@ -188,8 +196,12 @@ function buildChartPolarizacao(array $selecionados, array $todosVideos): void
         $localMin = PHP_INT_MAX;
         $localMax = PHP_INT_MIN;
 
+        # -------------- agora
+        $sumTitle = 0; $nTitle = 0;
+        $sumDesc  = 0; $nDesc  = 0;
+        # -------------- agora
+
         foreach ($videos as $v) {
-            // pega a data no formato novo
             $dt = $v['publishedAt'] ?? $v['videoDt'] ?? $v['dt'] ?? null;
             if (empty($dt)) {
                 continue;
@@ -203,25 +215,39 @@ function buildChartPolarizacao(array $selecionados, array $todosVideos): void
             $pTitle = $v['polar_title'] ?? $v['nlp1'] ?? null;
             $pDesc  = $v['polar_desc']  ?? $v['nlp2'] ?? null;
 
+            // if (is_numeric($pTitle)) {
+            //     $titlePoints[] = [
+            //         'x'     => $dayIdx,
+            //         'y'     => (float) $pTitle, // já -100..+100
+            //         'label' => mb_substr($v['videoTitle'] ?? $v['nome'] ?? '', 0, 20),
+            //     ];
+            //     $sum += $pTitle;
+            //     $n++;
+            // }
+
+            // if (is_numeric($pDesc)) {
+            //     $descPoints[] = [
+            //         'x'     => $dayIdx,
+            //         'y'     => (float) $pDesc,
+            //         'label' => mb_substr($v['videoDesc'] ?? $v['desc'] ?? '', 0, 20),
+            //     ];
+            //     $sum += $pDesc;
+            //     $n++;
+            // }
+
             if (is_numeric($pTitle)) {
-                $titlePoints[] = [
-                    'x'     => $dayIdx,
-                    'y'     => (float) $pTitle, // já -100..+100
-                    'label' => mb_substr($v['videoTitle'] ?? $v['nome'] ?? '', 0, 20),
-                ];
-                $sum += $pTitle;
-                $n++;
+                $titlePoints[] = ['x'=>$dayIdx,'y'=>(float)$pTitle,'label'=>mb_substr($v['videoTitle'] ?? $v['nome'] ?? '',0,20)];
+                $sumTitle += (float)$pTitle;
+                $nTitle++;
             }
 
             if (is_numeric($pDesc)) {
-                $descPoints[] = [
-                    'x'     => $dayIdx,
-                    'y'     => (float) $pDesc,
-                    'label' => mb_substr($v['videoDesc'] ?? $v['desc'] ?? '', 0, 20),
-                ];
-                $sum += $pDesc;
-                $n++;
+                $descPoints[]  = ['x'=>$dayIdx,'y'=>(float)$pDesc,'label'=>mb_substr($v['videoDesc'] ?? $v['desc'] ?? '',0,20)];
+                $sumDesc += (float)$pDesc;
+                $nDesc++;
             }
+
+
         }
 
         if ($localMin === PHP_INT_MAX) {
@@ -232,17 +258,25 @@ function buildChartPolarizacao(array $selecionados, array $todosVideos): void
         $globalMin = min($globalMin, $localMin);
         $globalMax = max($globalMax, $localMax);
 
-        $media = $n ? round($sum / $n, 2) : null;
-        $medias[$channelId] = $media;
+      
+
+        $avgTitle = $nTitle ? round($sumTitle / $nTitle, 2) : null;
+        $avgDesc  = $nDesc  ? round($sumDesc  / $nDesc, 2) : null;
+
+        $medias[$channelId] = $avgTitle;
+
 
         $series[$channelId] = [
-            'title'        => $selecionados[$channelId]['channelTitle'] ?? $channelId,
-            'points_title' => $titlePoints,
-            'points_desc'  => $descPoints,
-            'avg'          => $media,     // para linha horizontal
-            'startDay'     => $localMin,
-            'endDay'       => $localMax,
+        'title'        => $selecionados[$channelId]['channelTitle'] ?? $channelId,
+        'points_title' => $titlePoints,
+        'points_desc'  => $descPoints,
+        'avg'          => $avgTitle,   // média = título (pra bater com o Blade)
+        'avg_title'    => $avgTitle,
+        'avg_desc'     => $avgDesc,
+        'startDay'     => $localMin,
+        'endDay'       => $localMax,
         ];
+
 
         // samples p/ tabela (se quiser manter)
         $this->samples[$channelId] = $this->sample($videos, 12);
@@ -270,13 +304,9 @@ function buildChartPolarizacao(array $selecionados, array $todosVideos): void
     {
 
         $tarefa_id = $this->getTarefaId();
-       
-
         $dados = [
             'feedback'          => $this->feedback,
-            #'acertou'           => Session::get('t2_result')['acertou'],
             'polariz_media'           => $this->polarizMediaArray,
-            #'mais_polarizado'           => Session::get('t2_result')['mais_polarizado'],
             'mais_polarizado_real'           => $this->maisPolarizadoReal,
         ];
 
@@ -291,152 +321,7 @@ function buildChartPolarizacao(array $selecionados, array $todosVideos): void
     }
 
 
-
-
-    protected function getChannelVideosByBuckets(
-            string $channelId,
-            int $channelVideos,          // total do canal
-            string $channelDtIso,        // início da janela (ex.: 1º vídeo)
-            int $maxBuckets = 10,
-            bool $forceRefresh = false
-        ): array {
-        $channelId = trim($channelId);
-        if ($channelId === '' || $channelVideos < 0) return [];
-
-        $apiKey = env('YOUTUBE_API_KEY');
-        $baseS  = 'https://www.googleapis.com/youtube/v3/search';
-
-        $start = Carbon::parse($channelDtIso);
-        $now   = now();
-
-        // buckets = teto(vídeos/50), limitado a 10
-        $buckets = max(1, min($maxBuckets, (int) ceil($channelVideos / 50)));
-
-        // chave de cache diária
-        $cacheKey = sprintf(
-            'yt:channel:videos:buckets:v3:%s:%s:%d:%d',
-            $channelId,
-            $start->toDateString(),
-            $buckets,
-            (int) floor($now->timestamp / 86400)
-        );
-
-        if ($forceRefresh) {
-            Cache::forget($cacheKey);
-        }
-
-        return Cache::remember($cacheKey, now()->addDay(), function () use ($channelId, $channelVideos, $start, $now, $buckets, $apiKey, $baseS) {
-            Log::info('[YT] cache MISS', ['channelId' => $channelId, 'buckets' => $buckets]);
-
-            // janelas iguais no tempo
-            $wins = [];
-            $span = max(1, $start->diffInSeconds($now));
-            for ($i = 0; $i < $buckets; $i++) {
-                $after  = $start->copy()->addSeconds((int) floor($span * ($i / $buckets)));
-                $before = $start->copy()->addSeconds((int) floor($span * (($i + 1) / $buckets)));
-                $wins[] = ['after' => $after, 'before' => $before];
-            }
-
-            $outBuckets = [];
-            $flat = [];
-            $seen = [];
-
-            foreach ($wins as $i => $w) {
-                $params = [
-                    'key'            => $apiKey,
-                    'part'           => 'snippet',   // único permitido no search.list
-                    'channelId'      => $channelId,
-                    'type'           => 'video',
-                    'order'          => 'relevance', // pedido
-                    'maxResults'     => 50,          // pedido (fixo)
-                    'publishedAfter'  => $w['after']->toIso8601ZuluString(),
-                    'publishedBefore' => $w['before']->toIso8601ZuluString(),
-                ];
-
-                $url = $baseS . '?' . http_build_query($params);
-                Log::info(sprintf('[YT] search.list bucket %d/%d', $i + 1, $buckets), ['url' => $url]);
-
-                $resp  = file_get_contents($url);
-                if ($resp === false) 
-                    continue;
-
-                $data  = json_decode($resp ?: '[]', true);
-                $items = $data['items'] ?? [];
-
-                $rows = [];
-                foreach ($items as $it) {
-                    $vid = $it['id']['videoId'] ?? null;
-                    $sn  = $it['snippet'] ?? [];
-                    if (!$vid || isset($seen[$vid])) 
-                        continue;
-
-                    $seen[$vid] = true;
-
-                    $rows[] = [
-                        'videoId'     => $vid,
-                        'title'       => (string) ($sn['title'] ?? ''),
-                        'desc'        => (string) ($sn['description'] ?? ''),
-                        'publishedAt' => $sn['publishedAt'] ?? ($sn['publishTime'] ?? null), // manter para o gráfico
-                        'channelId'   => $sn['channelId'] ?? $channelId,
-                        'channelTitle' => $sn['channelTitle'] ?? null,
-                        // slots para futuras análises
-                        'tags'        => null,
-                        'duration'    => null,
-                        'stats'       => null,
-                        'polar'       => null,
-                    ];
-                }
-
-                // ordena por data asc dentro do bucket (opcional)
-                usort($rows, fn($a, $b) => strcmp($a['publishedAt'] ?? '', $b['publishedAt'] ?? ''));
-
-                $outBuckets[] = [
-                    'bucket'          => $i + 1,
-                    'publishedAfter'  => $w['after']->toIso8601ZuluString(),
-                    'publishedBefore' => $w['before']->toIso8601ZuluString(),
-                    'items'           => array_values($rows),
-                ];
-
-                $flat = array_merge($flat, $rows);
-            }
-
-            return [
-                'buckets'   => $outBuckets,
-                'flattened' => $flat,
-                'meta'      => [
-                    'channelId'    => $channelId,
-                    'start'        => $start->toIso8601ZuluString(),
-                    'end'          => $now->toIso8601ZuluString(),
-                    'buckets'      => $buckets,
-                    'perBucket'    => 50,
-                    'totalFetched' => count($flat),
-                    'order'        => 'relevance',
-                ],
-            ];
-        });
-    }
-
-    
-
-
-    /**
-     * Dummy de sentimento: devolve [-1..+1] de forma determinística
-     * baseado no conteúdo + uma semente (ex.: videoId e "t"/"d").
-     */
-    protected function sentimentScore(string $text, ?string $seed = null): ?float
-    {
-        $text = trim($text);
-        if ($text === '') return null;
-
-        // hash => 0..1
-        $h = md5(($seed ?? '') . '|' . $text);
-        $u = hexdec(substr($h, 0, 8)) / 0xFFFFFFFF; // 0..1
-
-        // mapeia p/ -1..+1
-        return (float) (-1.0 + 2.0 * $u);
-    }
-
-
+   
 
 
     /** Amostra N itens aleatórios de um array. */
@@ -447,31 +332,25 @@ function buildChartPolarizacao(array $selecionados, array $todosVideos): void
         $idx = array_rand($arr, $n);
         if (!is_array($idx))
             $idx = [$idx];
+
         return array_values(array_intersect_key($arr, array_flip($idx)));
     }
 
 
 
 
-   
-
-
-    /**
-     * Retorna vídeos de um canal (mais recentes primeiro) já com nlp1 (título)
-     * e nlp2 (descrição) calculados via setPolarization().
-     */
     public function getAllVideos(
-        string $channelId,
-        ?string $channelCreatedAt = null,
-        int $max = 100,
-        int $maxPages = 10,
-        int $page = 1,
-        int $totalInformado = 0
-    ) {
-        static $acc = [];                // acumulador local (evita depender de $this->videos)
-        static $nextToken = null;
-
+            string $channelId,
+            ?string $channelCreatedAt = null,
+            int $max = 100,
+            int $maxPages = 5,
+            int $page = 1,
+            int $totalInformado = 0,
+            array $acc = [],
+            ?string $pageToken = null
+        ) {
         $key = env('YOUTUBE_API_KEY');
+
         $url = "https://www.googleapis.com/youtube/v3/search"
             . "?key={$key}"
             . "&channelId={$channelId}"
@@ -480,13 +359,13 @@ function buildChartPolarizacao(array $selecionados, array $todosVideos): void
             . "&type=video"
             . "&maxResults=50";
 
-        if ($page > 1 && $nextToken) {
-            $url .= "&pageToken={$nextToken}";
+        if ($page > 1 && $pageToken) {
+            $url .= "&pageToken={$pageToken}";
         }
 
         $resp = Http::timeout(15)->get($url);
         if ($resp->failed()) {
-            return $acc; // devolve o que já tiver
+            return $acc;
         }
 
         $json  = $resp->json();
@@ -495,15 +374,14 @@ function buildChartPolarizacao(array $selecionados, array $todosVideos): void
         foreach ($items as $item) {
             $snippet = $item['snippet'] ?? [];
             $videoId = data_get($item, 'id.videoId');
-
             if (!$videoId) continue;
 
             $title = (string) ($snippet['title'] ?? '');
             $desc  = (string) ($snippet['description'] ?? '');
 
-            // ⚠️ NLP aqui (com cache interno da própria setPolarization)
-            $nlp1 = $this->setPolarization($title); // título
-            $nlp2 = $this->setPolarization($desc);  // descrição
+            // setTox => 0..1? (você tá convertendo pra 0..100 aqui)
+            $nlp1 = 100 * $this->setTox($title);
+            $nlp2 = 100 * $this->setTox($desc);
 
             $acc[] = [
                 'videoId'      => $videoId,
@@ -513,7 +391,6 @@ function buildChartPolarizacao(array $selecionados, array $todosVideos): void
                 'channelId'    => $snippet['channelId'] ?? '',
                 'channelTitle' => $snippet['channelTitle'] ?? '',
                 'videoThumb'   => data_get($snippet, 'thumbnails.medium.url'),
-                // novos campos:
                 'nlp1'         => is_numeric($nlp1) ? (float)$nlp1 : null,
                 'nlp2'         => is_numeric($nlp2) ? (float)$nlp2 : null,
             ];
@@ -521,20 +398,26 @@ function buildChartPolarizacao(array $selecionados, array $todosVideos): void
             if (count($acc) >= $max) break;
         }
 
-        // paginação
         $nextToken = $json['nextPageToken'] ?? null;
         $temMais   = $nextToken && (count($acc) < $max) && ($page < $maxPages);
 
         if ($temMais) {
-            return $this->getAllVideos($channelId, $channelCreatedAt, $max, $maxPages, $page + 1, $totalInformado);
+            return $this->getAllVideos(
+                $channelId,
+                $channelCreatedAt,
+                $max,
+                $maxPages,
+                $page + 1,
+                $totalInformado,
+                $acc,
+                $nextToken
+            );
         }
 
-        // ordenar por data (desc)
         usort($acc, fn($a, $b) => strtotime($b['videoDt'] ?? '1970-01-01') <=> strtotime($a['videoDt'] ?? '1970-01-01'));
 
-        return array_slice($acc, 0, $max);
-    }
-
+    return array_slice($acc, 0, $max);
+}
 
 
 

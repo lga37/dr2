@@ -1,116 +1,82 @@
 <div>
 
-    <x-slot name="header">
-        <div x-data="{
-            open: JSON.parse(localStorage.getItem('tarefa2_header_open') ?? 'true')
-        }" x-init="$watch('open', v => localStorage.setItem('tarefa2_header_open', JSON.stringify(v)))" class="relative">
-            <!-- Barra do título + botão -->
-            <div class="flex items-center justify-between mb-3">
-                <h2 class="text-xl font-semibold leading-tight text-gray-800">
-                    {{ __('Tarefa2 - Polarização do conteúdo (UGC)') }}
-                </h2>
+    {{-- WIDGET 2 | Cabeçalho informativo --}}
+    <div class="bg-white border rounded-2xl p-6 md:p-7 shadow-sm mb-6">
 
-                <button type="button" @click="open = !open"
-                    class="inline-flex items-center gap-2 text-sm px-3 py-1.5 rounded-lg border hover:bg-gray-50"
-                    :aria-expanded="open" aria-controls="t2-instrucoes">
-                    <svg x-show="!open" class="w-4 h-4" viewBox="0 0 20 20" fill="currentColor" x-cloak>
-                        <path d="M10 6l6 6H4l6-6z" />
-                    </svg>
-                    <svg x-show="open" class="w-4 h-4" viewBox="0 0 20 20" fill="currentColor" x-cloak>
-                        <path d="M10 14L4 8h12l-6 6z" />
-                    </svg>
-                    <span x-show="open" x-cloak>Ocultar instruções</span>
-                    <span x-show="!open" x-cloak>Mostrar instruções</span>
-                </button>
+        {{-- título --}}
+        <div class="flex items-start gap-4">
+            <div class="w-12 h-12 rounded-xl bg-purple-50 flex items-center justify-center shrink-0">
+                <svg class="w-7 h-7 text-purple-600" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <path d="M4 12h16" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
+                    <circle cx="6" cy="12" r="2" fill="currentColor" />
+                    <circle cx="18" cy="12" r="2" fill="currentColor" />
+                </svg>
             </div>
 
-            <!-- Bloco dobrável -->
-            <div id="t2-instrucoes" x-show="open" x-transition.opacity.scale.origin.top x-cloak
-                class="bg-white shadow-sm rounded-2xl p-6 md:p-8 border">
+            <div>
+                <h2 class="text-xl md:text-2xl font-semibold">
+                    WIDGET 2 — Toxicidade do conteúdo <span class="text-purple-700">(UGC)</span>
+                </h2>
+                <p class="mt-1 text-slate-600 text-sm md:text-base max-w-7xl">
+                    Compare a <strong>toxicidade do conteúdo</strong> produzido por <strong>2 a 3 canais</strong> ao
+                    longo do tempo,
+                    com base principalmente nos <strong>títulos (e descrições, quando disponível)</strong> dos vídeos.
+                </p>
+            </div>
+        </div>
 
-                <!-- INICIO -->
-                <div class="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div class="flex items-center gap-4 p-4 rounded-xl bg-slate-50">
-                        <svg class="w-10 h-10 text-purple-600" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                            <path d="M4 12h16" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
-                            <circle cx="6" cy="12" r="2" fill="currentColor" />
-                            <circle cx="18" cy="12" r="2" fill="currentColor" />
-                        </svg>
-                        <div>
-                            <h3 class="font-semibold">Como medimos</h3>
-                            <p class="text-slate-600 text-sm">
-                                Aplicamos um serviço de <strong>análise de sentimento</strong> aos textos de
-                                <em>título + descrição</em> de cada vídeo. O resultado vai de <code>–1</code> a
-                                <code>+1</code>
-                                e é convertido para <strong>–100% a +100%</strong>.
-                            </p>
-                        </div>
-                    </div>
+        {{-- boxes --}}
+        <div class="mt-5 grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
 
-                    <div class="flex items-center gap-4 p-4 rounded-xl bg-slate-50">
-                        <svg class="w-10 h-10 text-amber-600" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                            <rect x="3" y="5" width="18" height="4" rx="1.5" stroke="currentColor"
-                                stroke-width="1.5" />
-                            <rect x="3" y="10" width="18" height="4" rx="1.5" stroke="currentColor"
-                                stroke-width="1.5" />
-                            <rect x="3" y="15" width="18" height="4" rx="1.5" stroke="currentColor"
-                                stroke-width="1.5" />
-                        </svg>
-                        <div>
-                            <h3 class="font-semibold">Como coletamos os vídeos</h3>
-                            <p class="text-slate-600 text-sm">
-                                Para otimizar chamadas à API, coletamos no máximo <strong>~500 vídeos</strong> por
-                                canal.
-                                Se o canal tiver muitos vídeos, dividimos a linha do tempo em até <strong>10
-                                    janelas</strong>
-                                e pegamos até <strong>50 vídeos por janela</strong> (amostragem temporal).
-                            </p>
-                        </div>
-                    </div>
-                </div>
+            {{-- O que você faz --}}
+            <div class="p-4 rounded-xl bg-slate-50 border">
+                <h3 class="font-semibold mb-1">O que você faz</h3>
+                <p class="text-slate-700">
+                    Selecione canais por <strong>pesquisa</strong> ou adicione um canal via <strong>ID/URL</strong>.
+                    Depois, clique em <strong>Avaliar canais</strong>.
+                </p>
+            </div>
 
-                <div class="mt-6 grid md:grid-cols-3 gap-4 text-sm">
-                    <div class="p-4 rounded-xl border bg-white">
-                        <h4 class="font-semibold mb-2">O que você faz</h4>
-                        <ul class="list-disc ps-5 text-slate-700 space-y-1">
-                            <li>Selecione <strong>2 a 3 canais</strong> para comparar.</li>
-                            <li>Baseando-se nos metadados exibidos, indique <strong>qual canal é mais
-                                    polarizado</strong>
-                                (positivo ou negativo — vale o <em>valor absoluto</em>).</li>
-                        </ul>
-                    </div>
+            {{-- O que analisamos --}}
+            <div class="p-4 rounded-xl bg-slate-50 border">
+                <h3 class="font-semibold mb-1">O que analisamos</h3>
+                <p class="text-slate-700">
+                    Calculamos um <strong>score de toxicidade (0%–100%)</strong> por vídeo e a <strong>média do
+                        canal</strong>,
+                    permitindo observar a evolução temporal e comparar canais.
+                </p>
+            </div>
 
-                    <div class="p-4 rounded-xl border bg-white">
-                        <h4 class="font-semibold mb-2">O que nós calculamos</h4>
-                        <ul class="list-disc ps-5 text-slate-700 space-y-1">
-                            <li>Polarização de <em>títulos</em> e <em>descrições</em> de cada vídeo.</li>
-                            <li>Média de polarização do canal (linha horizontal no gráfico).</li>
-                            <li>Gráfico temporal com os pontos por vídeo, permitindo filtrar por “título” e “descrição”.
-                            </li>
-                        </ul>
-                    </div>
-
-                    <div class="p-4 rounded-xl border bg-white">
-                        <h4 class="font-semibold mb-2">Quando termina</h4>
-                        <ul class="list-disc ps-5 text-slate-700 space-y-1">
-                            <li>Exibimos a <strong>média</strong> de cada canal e quem teve o <strong>maior
-                                    |score|</strong>.</li>
-                            <li>Você confirma sua hipótese e deixa um <strong>feedback</strong> rápido.</li>
-                        </ul>
-                    </div>
-                </div>
-
-                <div class="mt-6 p-4 rounded-xl bg-sky-50 border border-sky-100 text-sky-900 text-sm">
-                    <span class="font-semibold">Nota metodológica:</span>
-                    a coleta é feita por janelas no tempo (até 10) com limite de 50 vídeos por janela. Isso fornece
-                    uma visão representativa da produção do canal, equilibrando custo de API e cobertura histórica.
-                </div>
-                <!-- FIM -->
-
+            {{-- Resultado --}}
+            <div class="p-4 rounded-xl bg-slate-50 border">
+                <h3 class="font-semibold mb-1">Resultado</h3>
+                <p class="text-slate-700">
+                    Visualize <strong>dados + gráfico</strong> de toxicidade no tempo e identifique
+                    qual canal apresenta a <strong>maior média</strong> (e maior intensidade geral).
+                </p>
             </div>
 
         </div>
-    </x-slot>
+
+        {{-- nota metodológica --}}
+        <div class="mt-5 p-4 rounded-xl bg-sky-50 border border-sky-100 text-sky-900 text-sm">
+            <span class="font-semibold">Nota metodológica:</span>
+            para reduzir custo de API, usamos <strong>amostragem</strong> (não coletamos todos os vídeos).
+            Quando um canal tem muitos uploads, dividimos a linha do tempo em <strong>janelas</strong> e coletamos um
+            número limitado por janela,
+            gerando uma visão representativa para <strong>fins acadêmicos</strong>.
+        </div>
+
+        {{-- feedback --}}
+        <div class="mt-4 p-4 rounded-xl bg-emerald-50 border border-emerald-100 text-emerald-900 text-sm">
+            <span class="font-semibold">Ao final:</span>
+            pedimos um <strong>feedback curto</strong> sobre como o WIDGET facilitou a obtenção e a sumarização das
+            informações.
+        </div>
+
+    </div>
+
+
 
     <x-msg />
 
@@ -153,10 +119,7 @@
                             <thead>
                                 <tr class="bg-gray-100 text-xs text-gray-700 text-center">
                                     @php
-                                        #$videosSessao = session('t2_videos', []);
                                         $videosSessao = $videos_dos_canais;
-
-                                        #dd($videosSessao);
                                         $numVids = max(count($videosSessao), 1); // evita /0
                                         $colWidth = number_format(100 / ($numVids * 7), 2);
                                     @endphp
@@ -214,7 +177,7 @@
                                                     {{ isset($c['videoDt']) ? \Carbon\Carbon::parse($c['videoDt'])->format('d/m/Y') : '--' }}
                                                 </td>
                                                 <td class="border border-gray-300 w-[10px] text-gray-800 text-[10px]">
-                                                    {{ isset($c['nlp1']) ? number_format($c['nlp1'] * 100, 1) . '%' : 'X' }}
+                                                    {{ isset($c['nlp1']) ? number_format($c['nlp1'], 2) . '%' : 'X' }}
                                                 </td>
                                             @else
                                                 <td colspan="7"
@@ -232,9 +195,9 @@
                                     class="bg-gray-50 border-t border-gray-300 text-[11px] text-gray-700 font-semibold text-center">
                                     @foreach ($polarizMediaArray as $video_id => $polarizMedia)
                                         <td colspan="7" class="border py-3 text-5xl bg-indigo-50 text-indigo-900">
-                                            Polariz. média (titulo):
+                                            Tox. média (titulo):
                                             <span class="font-bold text-5xl">
-                                                {{ $polarizMedia ? number_format($polarizMedia * 100, 1) . '%' : 'n/a' }}
+                                                {{ $polarizMedia ? number_format($polarizMedia, 2) . '%' : 'n/a' }}
                                             </span>
                                         </td>
                                     @endforeach
@@ -250,7 +213,8 @@
                                 </label>
                                 <textarea rows="3" wire:model.defer="feedback"
                                     class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                                    placeholder="Ex.: Pelo nome e engajamento (views, data de criação, tags, etc.) , achei que este canal seria mais polarizado positivamente, ou negativamente."></textarea>
+                                    placeholder="Ex.: Pelo nome e engajamento (views, data de criação, tags, etc.) , achei que este canal seria mais 
+                                    toxico, etc ..."></textarea>
 
                                 <div class="flex items-center gap-3">
                                     <x-primary-button wire:click="salvarFeedback" wire:loading.attr="disabled"
@@ -276,12 +240,12 @@
 
 
     <div class="mx-auto p-6 w-full max-w-[1400px]">
-        <h2 class="text-xl font-semibold mb-2">Polarização (-100..+100) no tempo real</h2>
+        <h2 class="text-xl font-semibold mb-2">Toxicidade (0 .. 100%) no tempo real</h2>
 
         {{-- filtros globais de tipo --}}
         <div class="flex items-center gap-4 text-sm mb-2">
             <label><input id="polOnlyTitle" type="checkbox" checked> Títulos</label>
-            <label><input id="polOnlyDesc" type="checkbox" checked> Descrições</label>
+            {{-- <label><input id="polOnlyDesc" type="checkbox" checked> Descrições</label> --}}
             <label><input id="polOnlyAvg" type="checkbox" checked> Médias</label>
         </div>
 
@@ -399,7 +363,8 @@
                     } catch (_) {}
                     delete window._polCharts[elId];
                 }
-                if (legendHost) legendHost.innerHTML = '';
+                if (legendHost)
+                    legendHost.innerHTML = '';
 
                 const datasets = [];
                 const markers = [];
@@ -443,17 +408,47 @@
                     });
 
                     // linha da média
-                    if (typeof s.avg === 'number' && isFinite(s.avg)) {
+                    // if (typeof s.avg === 'number' && isFinite(s.avg)) {
+                    //     datasets.push({
+                    //         label: labelBase + ' — média',
+                    //         type: 'line',
+                    //         data: [{
+                    //                 x: minX,
+                    //                 y: s.avg
+                    //             },
+                    //             {
+                    //                 x: maxX,
+                    //                 y: s.avg
+                    //             },
+                    //         ],
+                    //         parsing: false,
+                    //         borderColor: color.line,
+                    //         borderWidth: 2,
+                    //         borderDash: [6, 4],
+                    //         pointRadius: 0,
+                    //         channelId,
+                    //         metaTipo: 'avg',
+                    //     });
+                    // }
+
+                    // linha da média
+                    let avgRaw = Number(s.avg);
+
+                    // se vier em escala 0..1, converte pra 0..100
+                    if (!Number.isNaN(avgRaw) && isFinite(avgRaw)) {
+                        //const avgVal = (avgRaw >= -1 && avgRaw <= 1) ? avgRaw * 100 : avgRaw;
+                        const avgVal = avgRaw;
+
                         datasets.push({
                             label: labelBase + ' — média',
                             type: 'line',
                             data: [{
                                     x: minX,
-                                    y: s.avg
+                                    y: avgVal
                                 },
                                 {
                                     x: maxX,
-                                    y: s.avg
+                                    y: avgVal
                                 },
                             ],
                             parsing: false,
@@ -464,7 +459,10 @@
                             channelId,
                             metaTipo: 'avg',
                         });
+
+                        console.log('Média canal', channelId, 'raw:', avgRaw, 'chart:', avgVal);
                     }
+
 
                     if (typeof s.startDay === 'number' && isFinite(s.startDay))
                         markers.push({
@@ -502,11 +500,11 @@
                                 },
                             },
                             y: {
-                                min: -100,
+                                min: 0,
                                 max: 100,
                                 title: {
                                     display: true,
-                                    text: 'Polarização (-100 .. +100)'
+                                    text: 'Toxicidade (0 .. 100)'
                                 },
                             },
                         },
@@ -619,9 +617,9 @@
 
             document.addEventListener('DOMContentLoaded', boot);
 
-           
 
-           
+
+
 
             // Evento vindo do Livewire (v3)
             Livewire.on('t2-chart-updated', (payload) => {

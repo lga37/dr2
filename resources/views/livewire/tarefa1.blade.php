@@ -1,147 +1,70 @@
 <div>
 
-    <x-slot name="header">
-        <div x-data="{
-            open: JSON.parse(localStorage.getItem('tarefa2_header_open') ?? 'true')
-        }" x-init="$watch('open', v => localStorage.setItem('tarefa2_header_open', JSON.stringify(v)))" class="relative">
-            <!-- Barra do título + botão -->
-            <div class="flex items-center justify-between mb-3">
-                <h2 class="text-xl font-semibold leading-tight text-gray-800">
-                    {{ __('Tarefa1 - Toxicidade de audiencia') }}
-                </h2>
 
-                <button type="button" @click="open = !open"
-                    class="inline-flex items-center gap-2 text-sm px-3 py-1.5 rounded-lg border hover:bg-gray-50"
-                    :aria-expanded="open" aria-controls="t1-instrucoes">
-                    <svg x-show="!open" class="w-4 h-4" viewBox="0 0 20 20" fill="currentColor" x-cloak>
-                        <path d="M10 6l6 6H4l6-6z" />
-                    </svg>
-                    <svg x-show="open" class="w-4 h-4" viewBox="0 0 20 20" fill="currentColor" x-cloak>
-                        <path d="M10 14L4 8h12l-6 6z" />
-                    </svg>
-                    <span x-show="open" x-cloak>Ocultar instruções</span>
-                    <span x-show="!open" x-cloak>Mostrar instruções</span>
-                </button>
+    {{-- Idget 1 | Cabeçalho informativo --}}
+    <div class="bg-white border rounded-2xl p-6 md:p-7 shadow-sm mb-6">
+
+        {{-- título --}}
+        <div class="flex items-start gap-4">
+            <div class="w-12 h-12 rounded-xl bg-rose-50 flex items-center justify-center shrink-0">
+                <svg class="w-7 h-7 text-rose-600" viewBox="0 0 24 24" fill="none">
+                    <path d="M4 5h16a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-7l-4.5 3v-3H4a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2z"
+                        stroke="currentColor" stroke-width="1.5" />
+                </svg>
             </div>
 
-            <!-- Bloco dobrável -->
-            <div id="t1-instrucoes" x-show="open" x-transition.opacity.scale.origin.top x-cloak
-                class="bg-white shadow-sm rounded-2xl p-6 md:p-8 border">
+            <div>
+                <h2 class="text-xl md:text-2xl font-semibold">
+                    Widget 1 — Qual vídeo gera <span class="text-rose-600">reações mais tóxicas</span>?
+                </h2>
+                <p class="mt-1 text-slate-600 text-sm md:text-base max-w-7xl">
+                    Compare a toxicidade da audiência de vídeos do YouTube a partir dos comentários,
+                    utilizando métricas acadêmicas baseadas na <strong>Perspective API (Google Jigsaw)</strong>.
+                </p>
+            </div>
+        </div>
 
-                <!-- INICIO -->
+        {{-- boxes --}}
+        <div class="mt-5 grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
 
+            {{-- Como funciona --}}
+            <div class="p-4 rounded-xl bg-slate-50 border">
+                <h3 class="font-semibold mb-1">Como funciona</h3>
+                <p class="text-slate-700">
+                    Escolha vídeos por busca temática ou adicione URLs específicas.
+                    Em seguida, clique em <strong>Avaliar vídeos</strong> para iniciar a análise.
+                </p>
+            </div>
 
-                <!-- título + subtítulo -->
-                <div class="flex items-start gap-4">
-                    <!-- ícone “analisar vídeo” -->
-                    <svg class="w-12 h-12 shrink-0 text-indigo-600" viewBox="0 0 24 24" fill="none"
-                        aria-hidden="true">
-                        <rect x="2" y="4" width="20" height="14" rx="3" stroke="currentColor"
-                            stroke-width="1.5" />
-                        <path d="M10 11.5v-3l4 2-4 2z" fill="currentColor" />
-                        <circle cx="7" cy="16.5" r="1" fill="currentColor" />
-                        <circle cx="11" cy="16.5" r="1" fill="currentColor" />
-                        <circle cx="15" cy="16.5" r="1" fill="currentColor" />
-                    </svg>
+            {{-- O que analisamos --}}
+            <div class="p-4 rounded-xl bg-slate-50 border">
+                <h3 class="font-semibold mb-1">O que analisamos</h3>
+                <p class="text-slate-700">
+                    Comentários raiz são coletados por relevância e avaliados quanto à
+                    <strong>toxicidade</strong>, com cálculo de médias e distribuição.
+                </p>
+            </div>
 
-                    <div>
-                        <h2 class="text-2xl md:text-3xl font-semibold leading-tight">
-                            Tarefa 1 — Qual vídeo gera <span class="text-rose-600">reações mais tóxicas</span>?
-                        </h2>
-                        <p class="mt-1 text-slate-600">
-                            Você verá os <strong>metadados</strong> de 2–3 vídeos (título, descrição, tags, miniatura,
-                            idioma, etc.).
-                            <span class="font-medium">Sem ler comentários</span>, escolha aquele que você acredita gerar
-                            <strong>comentários raiz mais tóxicos</strong>.
-                        </p>
-                    </div>
-                </div>
-
-                <!-- faixa ilustrativa -->
-                <div class="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div class="flex items-center gap-4 p-4 rounded-xl bg-slate-50">
-                        <!-- ícone “comentários tóxicos” -->
-                        <svg class="w-10 h-10 text-rose-600" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                            <path
-                                d="M4 5h16a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-7l-4.5 3v-3H4a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2z"
-                                stroke="currentColor" stroke-width="1.5" />
-                            <circle cx="9" cy="10" r="1" fill="currentColor" />
-                            <circle cx="15" cy="10" r="1" fill="currentColor" />
-                            <path d="M8 13.5c1.2-.8 2.8-.8 4 0" stroke="currentColor" stroke-width="1.5"
-                                stroke-linecap="round" />
-                        </svg>
-                        <div>
-                            <h3 class="font-semibold">Hipótese do participante</h3>
-                            <p class="text-slate-600 text-sm">
-                                Com base apenas no que o vídeo “comunica” (título, descrição, visual, palavras-chave),
-                                qual deles tende a provocar reações mais ásperas no público?
-                            </p>
-                        </div>
-                    </div>
-
-                    <div class="flex items-center gap-4 p-4 rounded-xl bg-slate-50">
-                        <!-- ícone “método/avaliação” -->
-                        <svg class="w-10 h-10 text-emerald-600" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                            <circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="1.5" />
-                            <path d="M20 20l-3.5-3.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
-                            <path d="M8 13c1.3-1 3.7-1 5 0" stroke="currentColor" stroke-width="1.5"
-                                stroke-linecap="round" />
-                        </svg>
-                        <div>
-                            <h3 class="font-semibold">Como validaremos sua escolha</h3>
-                            <p class="text-slate-600 text-sm">
-                                Nós coletamos uma amostra de <strong>comentários raiz</strong> por <em>relevância</em>
-                                (otimizando o número de
-                                chamadas de API) e calculamos a <strong>média de toxicidade</strong> usando a
-                                <a class="text-indigo-600 underline" href="https://www.perspectiveapi.com/"
-                                    target="_blank" rel="noopener">Perspective API</a>
-                                (Google/Jigsaw), amplamente usada em pesquisas acadêmicas.
-                            </p>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- instruções -->
-                <div class="mt-6 grid md:grid-cols-3 gap-4 text-sm">
-                    <div class="p-4 rounded-xl border bg-white">
-                        <h4 class="font-semibold mb-2">O que você faz</h4>
-                        <ul class="list-disc ps-5 text-slate-700 space-y-1">
-                            <li>Pesquise um tema ou cole um vídeo específico.</li>
-                            <li>Selecione <strong>2 a 3 vídeos</strong> para comparar.</li>
-                            <li>Com base nos metadados, <strong>marque o mais tóxico</strong>.</li>
-                        </ul>
-                    </div>
-                    <div class="p-4 rounded-xl border bg-white">
-                        <h4 class="font-semibold mb-2">O que nós calculamos</h4>
-                        <ul class="list-disc ps-5 text-slate-700 space-y-1">
-                            <li>Coleta de comentários raiz por <em>relevância</em> (≥ 100 quando possível).</li>
-                            <li>Atribuição de <em>score</em> de toxicidade por comentário via Perspective API.</li>
-                            <li>Média geral por vídeo e gráfico com a distribuição.</li>
-                        </ul>
-                    </div>
-                    <div class="p-4 rounded-xl border bg-white">
-                        <h4 class="font-semibold mb-2">Quando termina</h4>
-                        <ul class="list-disc ps-5 text-slate-700 space-y-1">
-                            <li>Mostramos o <strong>resultado</strong> (acertou/errou) e o gráfico das médias.</li>
-                            <li>Você deixa um <strong>feedback</strong> rápido sobre sua decisão.</li>
-                        </ul>
-                    </div>
-                </div>
-
-                <!-- dica rápida -->
-                <div class="mt-6 p-4 rounded-xl bg-amber-50 border border-amber-100 text-amber-900 text-sm">
-                    <span class="font-semibold">Dica:</span> foque em sinais de “confronto” nos metadados —
-                    <em>palavras-chave polarizadoras</em>, tom do título/miniatura e framing da descrição.
-                </div>
-
-
-
-                <!-- FIM -->
-
+            {{-- Resultado --}}
+            <div class="p-4 rounded-xl bg-slate-50 border">
+                <h3 class="font-semibold mb-1">Resultado</h3>
+                <p class="text-slate-700">
+                    Visualize dados comparativos e gráficos de toxicidade.
+                    Ao final, registre sua percepção sobre a utilidade da ferramenta.
+                </p>
             </div>
 
         </div>
-    </x-slot>
+
+           {{-- feedback --}}
+        <div class="mt-4 p-4 rounded-xl bg-emerald-50 border border-emerald-100 text-emerald-900 text-sm">
+            <span class="font-semibold">Ao final:</span>
+            pedimos um <strong>feedback curto</strong> sobre como o WIDGET facilitou a obtenção e a sumarização das
+            informações.
+        </div>
+    </div>
+
+
 
     <x-msg />
 
@@ -302,6 +225,9 @@
                                     @foreach ($comentariosSessao as $loopIndex => $dados)
                                         @php
                                             $c = $dados[$i] ?? null;
+
+                                            #dump($c);
+
                                         @endphp
 
                                         @if ($c)
@@ -402,7 +328,7 @@
         </div>
     </div>
 
-   
+
 
 </div>
 

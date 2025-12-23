@@ -11,19 +11,31 @@
     <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.bunny.net">
     <link href="https://fonts.bunny.net/css?family=figtree:400,500,600&display=swap" rel="stylesheet" />
+    <script src="https://cdn.jsdelivr.net/npm/wordcloud@1.2.2/src/wordcloud2.min.js"></script>
 
     @vite(['resources/css/app.css', 'resources/js/app.js'])
     @livewireScripts
 
 
     <style>
-        tr:has(input[type="checkbox"]:checked) {
-            background-color: #e0e0e0;
-            /* Or any color you prefer */
+        .wcTextCloud {
+            width: 100%;
+            min-height: 180px;
+            padding: 10px 12px;
+            display: flex;
+            flex-wrap: wrap;
+            align-content: flex-start;
+            gap: 10px 14px;
+            /* espaço entre palavras */
+            line-height: 1;
+            overflow: hidden;
         }
 
-        [x-cloak] {
-            display: none !important;
+        .wcWord {
+            font-weight: 700;
+            letter-spacing: -0.02em;
+            user-select: none;
+            white-space: nowrap;
         }
     </style>
 
@@ -60,7 +72,7 @@
             @endif
         </main>
     </div>
-    @livewire('wire-elements-modal')
+    {{-- @livewire('wire-elements-modal') --}}
 
     @stack('scripts')
 </body>
@@ -70,14 +82,14 @@
 
 @push('scripts')
     <script>
-        document.addEventListener('alpine:init', () => {
-            Alpine.data('collapsible', (storageKey, defOpen = true) => ({
-                open: JSON.parse(localStorage.getItem(storageKey) ?? JSON.stringify(defOpen)),
-                toggle() {
-                    this.open = !this.open;
-                    localStorage.setItem(storageKey, JSON.stringify(this.open));
-                }
-            }));
-        });
+        // document.addEventListener('alpine:init', () => {
+        //     Alpine.data('collapsible', (storageKey, defOpen = true) => ({
+        //         open: JSON.parse(localStorage.getItem(storageKey) ?? JSON.stringify(defOpen)),
+        //         toggle() {
+        //             this.open = !this.open;
+        //             localStorage.setItem(storageKey, JSON.stringify(this.open));
+        //         }
+        //     }));
+        // });
     </script>
 @endpush
