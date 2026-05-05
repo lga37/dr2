@@ -13,25 +13,25 @@
                 <!-- Navigation Links -->
                 <div class="hidden space-x-8 sm:-my-px sm:ms-10 sm:flex">
                     <x-nav-link :href="route('tarefa1')" :active="request()->routeIs('tarefa1')">
-                        {{ __('Widget1') }}
+                        {{ __('C1:T-P') }}
                     </x-nav-link>
                 </div>
 
                 <div class="hidden space-x-8 sm:-my-px sm:ms-10 sm:flex">
                     <x-nav-link :href="route('tarefa2')" :active="request()->routeIs('tarefa2')">
-                        {{ __('Widget2') }}
+                        {{ __('C2:T-M') }}
                     </x-nav-link>
                 </div>
 
                 <div class="hidden space-x-8 sm:-my-px sm:ms-10 sm:flex">
                     <x-nav-link :href="route('tarefa3')" :active="request()->routeIs('tarefa3')">
-                        {{ __('Widget3') }}
+                        {{ __('C3:P-M') }}
                     </x-nav-link>
                 </div>
 
                 <div class="hidden space-x-8 sm:-my-px sm:ms-10 sm:flex">
                     <x-nav-link :href="route('tarefa4')" :active="request()->routeIs('tarefa4')">
-                        {{ __('Widget4') }}
+                        {{ __('C4:P-M-T') }}
                     </x-nav-link>
                 </div>
 

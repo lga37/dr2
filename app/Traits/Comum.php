@@ -12,8 +12,7 @@ use Illuminate\Support\Str;
 use Livewire\Attributes\Url;
 use Illuminate\Support\Carbon;
 use Prism\Prism\Facades\Prism;
-use Prism\Prism\Enums\Provider;
-use App\Services\YoutubeStorage;
+
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Http;
 use Prism\Prism\Schema\NumberSchema;
@@ -447,13 +446,6 @@ trait Comum
 
         $result = $items ? $this->hydrateVideosFromSearchResults($items) : [];
 
-        // 👉 indexa por videoId e adiciona a query 'q' em cada registro
-        // $result = collect($result)
-        //     ->filter(fn($row) => !empty($row['videoId'])) // por segurança
-        //     ->map(fn($row) => $row + ['q' => $q])
-        //     ->keyBy('videoId')
-        //     ->toArray();
-
         $tipo_tarefa = $this->getTipoTarefa();
 
         $result = collect($result)
@@ -461,14 +453,12 @@ trait Comum
             ->when(
                 $tipo_tarefa == 't1',
                 fn($col) => $col->filter(fn($row) =>
-                    isset($row['commentCount']) && $row['commentCount'] <= 600
+                    isset($row['commentCount']) && $row['commentCount'] <= 300
                 )
             )
             ->map(fn($row) => $row + ['q' => $q])
             ->keyBy('videoId')
             ->toArray();
-
-            #dd($result);
 
         Cache::put($cacheKey, $result, now()->addDay());
 
@@ -525,6 +515,9 @@ trait Comum
 
         // 4) preserva a ordem do search e adiciona 'q'
         $out = [];
+
+        #dd($items);
+
         foreach ($items as $it) {
             $chId = $it['id']['channelId'] ?? null;
             if (!$chId || empty($detailsById[$chId])) 
@@ -838,8 +831,6 @@ public function removeSelecionado(string $registroId): void
     #pode vir mais de 50 videos ele chunka por 50
     # 550 video_ids => 550 video_details --------- chunk 50 - 4 parts API YT
 
-
-
     public function getVideoDetailsByListVideoIds(array $ids): array
     {
         $apiKey = env('YOUTUBE_API_KEY');
@@ -904,8 +895,6 @@ public function removeSelecionado(string $registroId): void
 
     # 1 canal_id => 1 canal_details --------- 
     # 550 canais_ids => 550 canais_details --------- 
-
-
 
     public function getCanaisDetailsByListCanaisIds(array $channelIds): array
     {
@@ -1122,106 +1111,7 @@ public function removeSelecionado(string $registroId): void
 
 
 
-
-    public function setPolarization3333333333333(string $texto): ?float
-    {
-        $texto = trim($texto);
-        if ($texto === '') {
-            return null;
-        }
-
-        // Limitar tamanho pra não estourar token / custo
-        if (mb_strlen($texto) > 3000) {
-            $texto = mb_substr($texto, 0, 3000);
-        }
-
-        // cache 30 dias por hash do texto (igual tua lógica antiga)
-        $cacheKey = 'polarization:' . sha1($texto);
-
-        return Cache::remember($cacheKey, now()->addDays(30), function () use ($texto) {
-
-            $schema = $this->sentimentSchema();
-
-            // Prompt bem explicadinho pra PT/EN
-            $prompt = <<<PROMPT
-                Você é um analisador de sentimento especializado em texto curto ou médio.
-
-                TAREFA:
-                - Analise o sentimento global do texto a seguir.
-                - Considere o tom geral, emoção predominante, polaridade (positivo/negativo) e intensidade.
-                - O texto pode estar em português ou em inglês.
-
-                ESCALA:
-                - Score deve ser um número entre -100 e 100.
-                    -100  = extremamente negativo / hostil
-                    -50   = claramente negativo
-                    0   = neutro ou misto equilibrado
-                    +50   = claramente positivo
-                    +100  = extremamente positivo / entusiasmado
-
-                MAPEAMENTO DE RÓTULOS:
-                - very_negative: score <= -60
-                - negative:      -60 < score < -10
-                - neutral:       -10 <= score <= 10
-                - positive:      10 < score < 60
-                - very_positive: score >= 60
-
-                IMPORTANTE:
-                - Se o texto estiver em português, explique em português.
-                - Se o texto estiver em inglês, explique em inglês.
-                - A saída DEVE seguir estritamente o schema fornecido (score, label, explanation).
-
-                TEXTO ALVO:
-                \"\"\"{$texto}\"\"\"
-                PROMPT;
-
-            try {
-                $response = Prism::structured()
-                    ->using(Provider::OpenAI, 'gpt-4o') // ou o modelo que você estiver usando
-                    ->withSchema($schema)
-                    ->withProviderOptions([
-                        'schema' => [
-                            'strict' => true, // força aderência ao schema quando suportado
-                        ],
-                    ])
-                    ->withPrompt($prompt)
-                    ->asStructured();
-
-                $data = $response->structured ?? [];
-
-                $score = $data['score'] ?? null;
-
-                // Se vier string, tenta converter
-                if (!is_null($score) && !is_float($score) && !is_int($score)) {
-                    if (is_string($score)) {
-                        $score = floatval($score);
-                    }
-                }
-
-                if (!is_numeric($score)) {
-                    Log::warning('Polarization: score não numérico', ['data' => $data]);
-                    return null;
-                }
-
-                $score = (float) $score;
-
-                // Garantir limite -100..100
-                if ($score > 100)  $score = 100;
-                if ($score < -100) $score = -100;
-
-                // Se você quiser equivalente -1..1 em algum lugar:
-                // $normalized = $score / 100.0;
-
-                return round($score, 2);
-            } catch (\Throwable $e) {
-                Log::error('Erro ao chamar Prism/OpenAI em setPolarization', [
-                    'message' => $e->getMessage(),
-                ]);
-
-                return null;
-            }
-        });
-    }
+    
 
     protected function sentimentSchema(): ObjectSchema
     {
@@ -1248,109 +1138,7 @@ public function removeSelecionado(string $registroId): void
 
 
 
-    function setPolarization22222222222(string $texto): ?float
-    {
-        #return mt_rand(-100, 100);
-
-        $texto = trim($texto);
-        if ($texto === '') return null;
-
-        // opcional: limitar tamanho pra evitar timeout/quotas
-        if (mb_strlen($texto) > 3000) {
-            $texto = mb_substr($texto, 0, 3000);
-        }
-
-        dump($texto);
-        // cache 30 dias por hash do texto
-        #$cacheKey = 'nlp:' . sha1($texto);
-        #return Cache::remember($cacheKey, now()->addDays(30), function () use ($texto) {
-        $url   = 'https://api.gotit.ai/NLU/v1.5/Analyze';
-        $basic = env('GOTIT_API_KEY') . ':' . env('GOTIT_SECRET_KEY');
-
-        $payload = json_encode([
-            "T" => $texto,
-            #"T" => "Victor comeu uma pizza deliciosa.",
-            "S" => true,
-            #"EM" => true
-        ]);
-        $headers = [
-            "Content-Type: application/json",
-            "Authorization: Basic " . base64_encode($basic),
-        ];
-
-        ###################################
-
-
-
-
-
-
-
-        // $data_array = [];
-        // $data_array["T"] = "Victor comeu uma pizza deliciosa.";
-        // $data_array["S"] = true;
-        // $data = json_encode($data_array);
-        // $options = array(
-        //     'http' => array(
-        //         'header' => $headers,
-        //         'method' => 'POST',
-        //         'content' => $data
-        //     )
-        // );
-        // $context  = stream_context_create($options);
-        // $result = file_get_contents('https://api.gotit.ai/NLU/v1.5/Analyze', false, $context);
-        // $result = json_decode($result, true);
-        // dd($result);
-
-
-
-
-
-
-
-
-
-
-        ###################################
-        $ch = curl_init($url);
-        curl_setopt_array($ch, [
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_POST => true,
-            CURLOPT_POSTFIELDS => $payload,
-            CURLOPT_HTTPHEADER => $headers,
-            CURLOPT_CONNECTTIMEOUT => 5,
-            CURLOPT_TIMEOUT => 15,
-            CURLOPT_SSL_VERIFYHOST => 0,
-            CURLOPT_SSL_VERIFYPEER => 0,
-        ]);
-
-        $result = curl_exec($ch);
-        if (curl_errno($ch)) {
-            dd('NLP timeout/erro : ' . curl_error($ch));
-            $this->msg('NLP timeout/erro : ' . curl_error($ch));
-            curl_close($ch);
-            return null;
-        }
-        $http = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
-
-        if ($http !== 200) {
-            dd('NLP HTTP não-200: ' . $http);
-            $this->msg('NLP HTTP não-200: ' . $http);
-            return null;
-        }
-
-        dd($result);
-
-        $res = json_decode($result, true);
-        $score = data_get($res, 'sentiment.score'); // pode vir 0 (falsy), então não use empty()
-
-        dd($score);
-
-        return is_numeric($score) ? round((float)$score, 2) : null;
-        #});
-    }
-
+    
 
 
 
@@ -1487,4 +1275,1056 @@ public function removeSelecionado(string $registroId): void
         $coment->save();
         return $coment;
     }
+
+
+    #############################################################
+    #################### funcoes added final ####################
+    #############################################################
+
+    // function pmt_polarizacao_video(array $video, array $channel = [], array $comments = [], ?string $transcript = null): array
+    // {
+    //     $payload = [
+    //         'video' => [
+    //             'titulo' => $video['videoTitle'] ?? $video['nome'] ?? null,
+    //             'descricao' => mb_substr($video['videoDesc'] ?? $video['desc'] ?? '', 0, 4000),
+    //             'data' => $video['published'] ?? $video['dt'] ?? null,
+    //         ],
+    //         'canal' => [
+    //             'nome' => $channel['channelTitle'] ?? $channel['nome'] ?? null,
+    //             'descricao' => mb_substr($channel['channelDesc'] ?? $channel['desc'] ?? '', 0, 3000),
+    //         ],
+    //         'transcricao' => mb_substr($transcript ?? '', 0, 8000),
+    //         'comentarios_amostra' => collect($comments)
+    //             ->take(20)
+    //             ->map(fn ($c) => $c['texto'] ?? $c['text'] ?? '')
+    //             ->filter()
+    //             ->values()
+    //             ->all(),
+    //     ];
+
+    //     $prompt = <<<PROMPT
+    //     Você é um classificador acadêmico para análise de vídeos do YouTube.
+
+    //     Classifique o conteúdo segundo:
+    //     1. categoria temática principal:
+    //     - politica
+    //     - religiao
+    //     - ciencia
+    //     - saude
+    //     - economia
+    //     - entretenimento
+    //     - educacao
+    //     - tecnologia
+    //     - outro
+
+    //     2. Se a categoria for politica, classifique o polo ideológico:
+    //     - esquerda
+    //     - direita
+    //     - centro
+    //     - indefinido
+
+    //     3. Atribua um score de polarização entre 0 e 1:
+    //     0 = não polarizado
+    //     1 = altamente polarizado
+
+    //     4. Atribua uma confiança entre 0 e 1.
+
+    //     5. Explique brevemente a decisão.
+
+    //     Retorne EXCLUSIVAMENTE JSON válido neste formato:
+
+    //     {
+    //     "categoria": "...",
+    //     "polo_ideologico": "...",
+    //     "polarizacao_score": 0.0,
+    //     "confianca": 0.0,
+    //     "justificativa": "..."
+    //     }
+    //     PROMPT;
+
+    //     try {
+    //         $res = Http::withToken(env('OPENAI_API_KEY'))
+    //             ->timeout(60)
+    //             ->post('https://api.openai.com/v1/chat/completions', [
+    //                 'model' => 'gpt-4o-mini',
+    //                 'temperature' => 0.1,
+    //                 'messages' => [
+    //                     [
+    //                         'role' => 'system',
+    //                         'content' => 'Responda apenas JSON válido, sem markdown.'
+    //                     ],
+    //                     [
+    //                         'role' => 'user',
+    //                         'content' => $prompt . "\n\nDADOS:\n" . json_encode($payload, JSON_UNESCAPED_UNICODE)
+    //                     ],
+    //                 ],
+    //             ]);
+
+    //         if (!$res->successful()) {
+    //             Log::warning('Erro OpenAI polarização PMT', [
+    //                 'status' => $res->status(),
+    //                 'body' => $res->body(),
+    //             ]);
+
+    //             return pmt_polarizacao_fallback('erro_openai');
+    //         }
+
+    //         $content = $res->json('choices.0.message.content');
+
+    //         $json = json_decode($content, true);
+
+    //         if (!is_array($json)) {
+    //             return pmt_polarizacao_fallback('json_invalido', $content);
+    //         }
+
+    //         return [
+    //             'categoria' => $json['categoria'] ?? 'outro',
+    //             'polo_ideologico' => $json['polo_ideologico'] ?? 'indefinido',
+    //             'polarizacao_score' => (float) ($json['polarizacao_score'] ?? 0),
+    //             'confianca' => (float) ($json['confianca'] ?? 0),
+    //             'justificativa' => $json['justificativa'] ?? null,
+    //         ];
+
+    //     } catch (\Throwable $e) {
+    //         Log::warning('Exception polarização PMT', [
+    //             'erro' => $e->getMessage(),
+    //         ]);
+
+    //         return pmt_polarizacao_fallback('exception');
+    //     }
+    // }
+
+    // function pmt_polarizacao_fallback(string $motivo = 'indefinido', ?string $raw = null): array
+    // {
+    //     return [
+    //         'categoria' => 'outro',
+    //         'polo_ideologico' => 'indefinido',
+    //         'polarizacao_score' => 0,
+    //         'confianca' => 0,
+    //         'justificativa' => 'Classificação não realizada: ' . $motivo,
+    //         'raw' => $raw,
+    //     ];
+    // }
+
+    // function pmt_get_transcript(string $videoId): ?string
+    // {
+    //     try {
+    //         $res = Http::connectTimeout(20)
+    //             ->timeout(240)
+    //             ->retry(2, 5000)
+    //             ->get('https://www.searchapi.io/api/v1/search', [
+    //                 'engine' => 'youtube_transcripts',
+    //                 'video_id' => $videoId,
+    //                 'api_key' => env('SEARCHAPI_TRANSCRIPTS_YOUTUBE_API'),
+    //                 'only_available' => 'true',
+    //                 'transcript_type' => 'auto',
+    //             ]);
+
+    //         if (!$res->successful()) {
+    //             return null;
+    //         }
+
+    //         $texts = [];
+
+    //         foreach ($res->json('transcripts') ?? [] as $item) {
+    //             $text = trim($item['text'] ?? '');
+    //             if ($text === '') continue;
+    //             if (preg_match('/^\[(music|applause|laughter)\]$/i', $text)) continue;
+    //             $texts[] = $text;
+    //         }
+
+    //         return mb_substr(preg_replace('/\s+/', ' ', implode(' ', $texts)), 0, 30000);
+
+    //     } catch (\Throwable $e) {
+    //         Log::warning('Erro transcript PMT', [
+    //             'videoId' => $videoId,
+    //             'erro' => $e->getMessage(),
+    //         ]);
+
+    //         return null;
+    //     }
+    // }
+
+    
+    // $transcript = pmt_get_transcript($video->cod);
+
+    // $polarizacao = pmt_polarizacao_video(
+    //     video: [
+    //         'videoTitle' => $video->nome,
+    //         'videoDesc' => $video->desc,
+    //         'published' => $video->dt,
+    //     ],
+    //     channel: [
+    //         'channelTitle' => $video->canal->nome ?? null,
+    //         'channelDesc' => $video->canal->desc ?? null,
+    //     ],
+    //     comments: $video->comentarios->take(20)->toArray(),
+    //     transcript: $transcript
+    // );
+
+    // Resultado esperado:
+
+    // [
+    //     'categoria' => 'politica',
+    //     'polo_ideologico' => 'esquerda',
+    //     'polarizacao_score' => 1,
+    //     'confianca' => 0.95,
+    //     'justificativa' => '...'
+    // ]    
+
+
+/*
+|--------------------------------------------------------------------------
+| PMT - TRANSCRIÇÃO
+|--------------------------------------------------------------------------
+*/
+
+
+function pmt_get_transcript(string $videoId): ?string
+    {
+        try {
+            $res = Http::connectTimeout(20)
+                ->timeout(240)
+                ->retry(2, 5000)
+                ->get('https://www.searchapi.io/api/v1/search', [
+                    'engine' => 'youtube_transcripts',
+                    'video_id' => $videoId,
+                    'api_key' => env('SEARCHAPI_TRANSCRIPTS_YOUTUBE_API'),
+                    'only_available' => 'true',
+                    'transcript_type' => 'auto',
+                ]);
+
+            if (!$res->successful()) {
+                Log::warning('Erro SearchAPI transcript', [
+                    'videoId' => $videoId,
+                    'status' => $res->status(),
+                    'body' => $res->body(),
+                ]);
+                return null;
+            }
+
+            $texts = [];
+
+            foreach ($res->json('transcripts') ?? [] as $item) {
+                $text = trim($item['text'] ?? '');
+                if ($text === '') continue;
+                if (preg_match('/^\[(music|applause|laughter)\]$/i', $text)) continue;
+
+                $texts[] = $text;
+            }
+
+            return mb_substr(
+                preg_replace('/\s+/', ' ', implode(' ', $texts)),
+                0,
+                30000
+            );
+
+        } catch (\Throwable $e) {
+            Log::warning('Exception transcript PMT', [
+                'videoId' => $videoId,
+                'erro' => $e->getMessage(),
+            ]);
+
+            return null;
+        }
+    }
+
+
+
+function pmt_transcript_stats(?string $transcript): array
+    {
+        $transcript = trim($transcript ?? '');
+
+        return [
+            'chars' => mb_strlen($transcript),
+            'words' => $transcript ? str_word_count(strip_tags($transcript)) : 0,
+            'sample' => mb_substr($transcript, 0, 500),
+        ];
+    }
+
+    
+
+/*
+|--------------------------------------------------------------------------
+| PMT - POLARIZAÇÃO
+|--------------------------------------------------------------------------
+*/
+
+
+function pmt_polarizacao_video(
+        array $video,
+        array $channel = [],
+        array $comments = [],
+        ?string $transcript = null
+    ): array {
+        $payload = [
+            'video' => [
+                'titulo' => $video['videoTitle'] ?? $video['nome'] ?? null,
+                'descricao' => mb_substr($video['videoDesc'] ?? $video['desc'] ?? '', 0, 4000),
+                'data_publicacao' => $video['published'] ?? $video['dt'] ?? null,
+                'views' => $video['viewCount'] ?? $video['views'] ?? null,
+                'likes' => $video['likeCount'] ?? $video['likes'] ?? null,
+                'comentarios' => $video['commentCount'] ?? $video['comments'] ?? null,
+            ],
+            'canal' => [
+                'nome' => $channel['channelTitle'] ?? $channel['nome'] ?? null,
+                'descricao' => mb_substr($channel['channelDesc'] ?? $channel['desc'] ?? '', 0, 3000),
+                'inscritos' => $channel['subscriberCount'] ?? $channel['inscritos'] ?? null,
+            ],
+            'transcricao' => mb_substr($transcript ?? '', 0, 8000),
+            'comentarios_amostra' => collect($comments)
+                ->take(20)
+                ->map(fn ($c) => $c['texto'] ?? $c['text'] ?? '')
+                ->filter()
+                ->values()
+                ->all(),
+        ];
+
+        $prompt = <<<PROMPT
+        Você é um classificador acadêmico para análise de vídeos do YouTube.
+
+        Classifique o conteúdo segundo estes campos:
+
+        1. categoria_temática:
+        - politica
+        - religiao
+        - ciencia
+        - saude
+        - economia
+        - entretenimento
+        - educacao
+        - tecnologia
+        - outro
+
+        2. polo_ideologico:
+        Use somente quando a categoria for politica.
+        Valores possíveis:
+        - esquerda
+        - direita
+        - centro
+        - indefinido
+
+        3. polarizacao_score:
+        Número entre 0 e 1.
+        0 = não polarizado.
+        1 = altamente polarizado.
+
+        4. confianca:
+        Número entre 0 e 1 indicando confiança da classificação.
+
+        5. justificativa:
+        Breve explicação acadêmica da decisão.
+
+        Retorne exclusivamente JSON válido, sem markdown, neste formato:
+
+        {
+        "categoria": "politica",
+        "polo_ideologico": "esquerda",
+        "polarizacao_score": 1.0,
+        "confianca": 0.95,
+        "justificativa": "..."
+        }
+        PROMPT;
+
+        try {
+            $res = Http::withToken(env('OPENAI_API_KEY'))
+                ->timeout(90)
+                ->post('https://api.openai.com/v1/chat/completions', [
+                    'model' => 'gpt-4o-mini',
+                    'temperature' => 0.1,
+                    'messages' => [
+                        [
+                            'role' => 'system',
+                            'content' => 'Responda apenas JSON válido, sem markdown.'
+                        ],
+                        [
+                            'role' => 'user',
+                            'content' => $prompt . "\n\nDADOS:\n" . json_encode($payload, JSON_UNESCAPED_UNICODE)
+                        ],
+                    ],
+                ]);
+
+            if (!$res->successful()) {
+                Log::warning('Erro OpenAI polarização PMT', [
+                    'status' => $res->status(),
+                    'body' => $res->body(),
+                ]);
+
+                return pmt_polarizacao_fallback('erro_openai');
+            }
+
+            $content = trim($res->json('choices.0.message.content') ?? '');
+
+            $content = preg_replace('/^```json\s*/i', '', $content);
+            $content = preg_replace('/```$/', '', $content);
+
+            $json = json_decode(trim($content), true);
+
+            if (!is_array($json)) {
+                return pmt_polarizacao_fallback('json_invalido', $content);
+            }
+
+            return [
+                'categoria' => $json['categoria'] ?? $json['categoria_tematica'] ?? 'outro',
+                'polo_ideologico' => $json['polo_ideologico'] ?? 'indefinido',
+                'polarizacao_score' => (float) ($json['polarizacao_score'] ?? 0),
+                'confianca' => (float) ($json['confianca'] ?? $json['confidence'] ?? 0),
+                'justificativa' => $json['justificativa'] ?? null,
+            ];
+
+        } catch (\Throwable $e) {
+            Log::warning('Exception polarização PMT', [
+                'erro' => $e->getMessage(),
+            ]);
+
+            return pmt_polarizacao_fallback('exception');
+        }
+    }
+
+
+
+function pmt_polarizacao_fallback(string $motivo = 'indefinido', ?string $raw = null): array
+    {
+        return [
+            'categoria' => 'outro',
+            'polo_ideologico' => 'indefinido',
+            'polarizacao_score' => 0,
+            'confianca' => 0,
+            'justificativa' => 'Classificação não realizada: ' . $motivo,
+            'raw' => $raw,
+        ];
+    }
+
+
+
+/*
+|--------------------------------------------------------------------------
+| PMT - TOXICIDADE
+|--------------------------------------------------------------------------
+*/
+
+
+function pmt_toxicidade_comentarios(array $comments, int $limit = 100): array
+    {
+        $scores = [];
+        $commentsWithTox = [];
+
+        foreach (array_slice($comments, 0, $limit) as $comment) {
+            $texto = $comment['texto'] ?? $comment['text'] ?? '';
+
+            $score = pmt_perspective_toxicity($texto);
+
+            $comment['tox'] = $score;
+            $commentsWithTox[] = $comment;
+
+            if ($score !== null) {
+                $scores[] = $score;
+            }
+
+            usleep(150000);
+        }
+
+        return [
+            'summary' => [
+                'n' => count($scores),
+                'avg_toxicity' => $scores ? round(array_sum($scores) / count($scores), 4) : null,
+                'max_toxicity' => $scores ? round(max($scores), 4) : null,
+                'high_toxicity_rate' => $scores
+                    ? round(count(array_filter($scores, fn ($x) => $x >= 0.7)) / count($scores), 4)
+                    : null,
+            ],
+            'comments' => $commentsWithTox,
+        ];
+    }
+
+
+
+function pmt_perspective_toxicity(string $text): ?float
+    {
+        try {
+            if (trim($text) === '') {
+                return null;
+            }
+
+            $res = Http::timeout(30)->post(
+                'https://commentanalyzer.googleapis.com/v1alpha1/comments:analyze?key=' . env('PERSPECTIVE_API'),
+                [
+                    'comment' => ['text' => mb_substr($text, 0, 3000)],
+                    'requestedAttributes' => [
+                        'TOXICITY' => new \stdClass(),
+                    ],
+                ]
+            );
+
+            if (!$res->successful()) {
+                Log::warning('Perspective API erro', [
+                    'status' => $res->status(),
+                    'body' => $res->body(),
+                ]);
+
+                return null;
+            }
+
+            return $res->json('attributeScores.TOXICITY.summaryScore.value');
+
+        } catch (\Throwable $e) {
+            Log::warning('Perspective exception', [
+                'erro' => $e->getMessage(),
+            ]);
+
+            return null;
+        }
+    }
+
+
+
+/*
+|--------------------------------------------------------------------------
+| PMT - MONETIZAÇÃO
+|--------------------------------------------------------------------------
+*/
+
+
+function pmt_monetizacao_video(array $video, array $channel = []): array
+    {
+        $channelId = $channel['channelId']
+            ?? $channel['youtube_id']
+            ?? $video['channelId']
+            ?? null;
+
+        $videoDesc = $video['videoDesc'] ?? $video['desc'] ?? '';
+        $channelDesc = $channel['channelDesc'] ?? $channel['desc'] ?? '';
+
+        $videoUrls = $this->pmt_extract_external_urls($videoDesc);
+        $channelUrls = $this->pmt_extract_external_urls($channelDesc);
+        $externalUrls = array_values(array_unique(array_merge($videoUrls, $channelUrls)));
+
+        $vidiq = $channelId ? $this->pmt_get_vidiq_monthly_avg_usd($channelId) : null;
+
+        return [
+            'vidiq_monthly_avg_usd' => $vidiq,
+            'video_urls_count' => count($videoUrls),
+            'channel_urls_count' => count($channelUrls),
+            'external_urls_count' => count($externalUrls),
+            'external_urls' => $externalUrls,
+            'off_platform_detected' => count($externalUrls) > 0,
+        ];
+    }
+
+
+
+function pmt_extract_external_urls(?string $text): array
+    {
+        $text = $text ?? '';
+
+        preg_match_all('~https?://[^\s<>"\']+~i', $text, $matches);
+
+        $urls = collect($matches[0] ?? [])
+            ->map(fn ($u) => trim($u, " \t\n\r\0\x0B.,);]"))
+            ->filter()
+            ->reject(fn ($u) => str_contains($u, 'youtube.com') || str_contains($u, 'youtu.be'))
+            ->values()
+            ->all();
+
+        return array_values(array_unique($urls));
+    }
+
+
+    function pmt_get_vidiq_monthly_avg_usd(string $channelId): ?float
+    {
+        $url = "https://vidiq.com/youtube-stats/channel/{$channelId}/";
+
+        try {
+            $res = Http::withHeaders([
+                'User-Agent' => 'Mozilla/5.0',
+                'Accept-Language' => 'pt-BR,pt;q=0.9,en-US,en;q=0.8',
+            ])->timeout(30)->get($url);
+
+            if (!$res->ok()) {
+                return null;
+            }
+
+            $html = $res->body();
+
+            if (preg_match(
+                '~Ganhos\s+mensais\s+estimados.*?<p[^>]*>\s*([^<]+)\s*</p>~is',
+                $html,
+                $m
+            )) {
+                return pmt_parse_money_to_usd(trim($m[1]));
+            }
+
+            if (preg_match(
+                '~Est\.\s*Monthly\s*Earnings.*?<p[^>]*>\s*([^<]+)\s*</p>~is',
+                $html,
+                $m
+            )) {
+                return pmt_parse_money_to_usd(trim($m[1]));
+            }
+
+            if (preg_match(
+                '~(?:Ganhos\s+mensais\s+estimados|Monthly\s*Earnings).*?(\$[0-9][0-9\.,]*\s*[KkMm]?)~is',
+                $html,
+                $m
+            )) {
+                return pmt_parse_money_to_usd(trim($m[1]));
+            }
+
+            return null;
+
+        } catch (\Throwable $e) {
+            Log::warning('Erro VidIQ PMT', [
+                'channelId' => $channelId,
+                'erro' => $e->getMessage(),
+            ]);
+
+            return null;
+        }
+    }
+
+
+
+function pmt_parse_money_to_usd(string $value): ?float
+    {
+        $value = html_entity_decode($value, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $value = trim(strip_tags($value));
+
+        if (preg_match('~\$?\s*([0-9][0-9\.,]*)\s*([KkMm])?\s*-\s*\$?\s*([0-9][0-9\.,]*)\s*([KkMm])?~', $value, $m)) {
+            $min = pmt_to_number($m[1], $m[2] ?? null);
+            $max = pmt_to_number($m[3], $m[4] ?? null);
+
+            return ($min + $max) / 2;
+        }
+
+        if (preg_match('~\$?\s*([0-9][0-9\.,]*)\s*([KkMm])?~', $value, $m)) {
+            return pmt_to_number($m[1], $m[2] ?? null);
+        }
+
+        return null;
+    }
+
+    
+
+function pmt_to_number(string $num, ?string $suffix = null): float
+    {
+        $num = str_replace(',', '', $num);
+        $val = (float) $num;
+
+        return match (strtolower($suffix ?? '')) {
+            'k' => $val * 1000,
+            'm' => $val * 1000000,
+            default => $val,
+        };
+    }
+
+
+
+/*
+|--------------------------------------------------------------------------
+| PMT - FUNÇÃO AGREGADORA PARA WIDGETS
+|--------------------------------------------------------------------------
+*/
+
+
+    function pmt_analisar_video_para_widgets(
+        array $video,
+        array $channel = [],
+        array $comments = [],
+        bool $usarTranscript = true,
+        bool $usarToxicidade = true,
+        bool $usarMonetizacao = true,
+        bool $usarPolarizacao = true
+    ): array {
+        $bench = [];
+        $totalStart = microtime(true);
+
+        $mark = function (string $label, callable $fn) use (&$bench) {
+            $ini = microtime(true);
+            $result = $fn();
+            $bench[$label] = round(microtime(true) - $ini, 3);
+            return $result;
+        };
+
+        $videoId = $video['videoId'] ?? $video['cod'] ?? null;
+
+        $transcript = null;
+        $transcriptStats = null;
+
+        if ($usarTranscript && $videoId) {
+            $transcript = $mark('transcript', fn () => pmt_get_transcript($videoId));
+            $transcriptStats = pmt_transcript_stats($transcript);
+        }
+
+        $toxicity = null;
+        $commentsWithTox = $comments;
+
+        if ($usarToxicidade) {
+            $toxResult = $mark('toxicidade', fn () => pmt_toxicidade_comentarios($comments));
+            $toxicity = $toxResult['summary'];
+            $commentsWithTox = $toxResult['comments'];
+        }
+
+        $monetization = null;
+
+        if ($usarMonetizacao) {
+            $monetization = $mark('monetizacao', fn () => pmt_monetizacao_video($video, $channel));
+        }
+
+        $polarization = null;
+
+        if ($usarPolarizacao) {
+            $polarization = $mark('polarizacao', fn () => pmt_polarizacao_video(
+                $video,
+                $channel,
+                $commentsWithTox,
+                $transcript
+            ));
+        }
+
+        $bench['TOTAL'] = round(microtime(true) - $totalStart, 3);
+
+        return [
+            'video' => $video,
+            'channel' => $channel,
+            'comments' => $commentsWithTox,
+            'comments_sample' => array_slice($commentsWithTox, 0, 10),
+            'transcript' => $transcript,
+            'transcript_stats' => $transcriptStats,
+            'toxicity' => $toxicity,
+            'monetization' => $monetization,
+            'polarization' => $polarization,
+            'bench' => $bench,
+        ];
+    }
+
+
+
+    // $result = pmt_analisar_video_para_widgets(
+    //     video: [
+    //         'cod' => $video->cod,
+    //         'nome' => $video->nome,
+    //         'desc' => $video->desc,
+    //         'dt' => $video->dt,
+    //         'views' => $video->views,
+    //         'likes' => $video->likes,
+    //         'comments' => $video->comments,
+    //     ],
+    //     channel: [
+    //         'youtube_id' => $video->canal->youtube_id ?? null,
+    //         'nome' => $video->canal->nome ?? null,
+    //         'desc' => $video->canal->desc ?? null,
+    //         'inscritos' => $video->canal->inscritos ?? null,
+    //     ],
+    //     comments: $video->comentarios->take(100)->toArray()
+    // );
+
+    // Agora os widgets conseguem chamar:
+
+    // $result['polarization']
+    // $result['toxicity']
+    // $result['monetization']
+    // $result['transcript_stats']
+    // $result['bench']
+
+
+    function pmt_bucket_periods(?string $channelCreatedAt, int $n = 5): array
+    {
+        if (!$channelCreatedAt) {
+            return [];
+        }
+
+        $start = \Carbon\Carbon::parse($channelCreatedAt);
+        $end = now();
+
+        $days = max(1, $start->diffInDays($end));
+        $step = max(1, intdiv($days, $n));
+
+        $buckets = [];
+
+        for ($i = 0; $i < $n; $i++) {
+            $after = $start->copy()->addDays($i * $step);
+            $before = $i === ($n - 1)
+                ? $end->copy()
+                : $start->copy()->addDays(($i + 1) * $step);
+
+            $buckets[] = [
+                'idx' => $i + 1,
+                'after' => $after->toIso8601String(),
+                'before' => $before->toIso8601String(),
+                'label' => $after->format('Y') . '–' . $before->format('Y'),
+            ];
+        }
+
+        return $buckets;
+    }
+
+    function pmt_word_freq(string $text, int $limit = 25): array
+    {
+        $text = mb_strtolower(strip_tags($text));
+
+        $text = preg_replace('/[^\p{L}\p{N}\s]/u', ' ', $text);
+        $words = preg_split('/\s+/u', $text, -1, PREG_SPLIT_NO_EMPTY);
+
+        $stop = [
+            'a','o','os','as','um','uma','de','da','do','das','dos','em','no','na','nos','nas',
+            'para','por','com','sem','sobre','que','e','ou','se','ao','aos','à','às',
+            'the','and','or','to','of','in','on','for','with','is','are'
+        ];
+
+        $freq = [];
+
+        foreach ($words as $w) {
+            if (mb_strlen($w) < 3) continue;
+            if (in_array($w, $stop, true)) continue;
+
+            $freq[$w] = ($freq[$w] ?? 0) + 1;
+        }
+
+        arsort($freq);
+
+        return array_slice($freq, 0, $limit, true);
+    }
+
+    
+    function pmt_analisar_bucket_pm(array $channel, array $videos): array
+    {
+        $titles = '';
+        $descs = '';
+        $tags = '';
+        $transcripts = '';
+
+        $polarizacoes = [];
+        $urlsCounts = [];
+
+        foreach ($videos as $v) {
+            $titles .= ' ' . ($v['videoTitle'] ?? $v['title'] ?? $v['nome'] ?? '');
+            $descs .= ' ' . ($v['videoDesc'] ?? $v['desc'] ?? '');
+
+            $videoTags = $v['videoTags'] ?? $v['tags'] ?? [];
+            if (is_array($videoTags)) {
+                $tags .= ' ' . implode(' ', $videoTags);
+            }
+
+            $urls = $this->pmt_extract_external_urls(($v['videoDesc'] ?? $v['desc'] ?? ''));
+            $urlsCounts[] = count($urls);
+
+            $videoId = $v['videoId'] ?? $v['cod'] ?? null;
+
+            $transcript = null;
+            if ($videoId) {
+                $transcript = $this->pmt_get_transcript($videoId);
+                $transcripts .= ' ' . mb_substr($transcript ?? '', 0, 4000);
+            }
+
+            $polarizacoes[] = $this->pmt_polarizacao_video(
+                video: $v,
+                channel: $channel,
+                comments: [],
+                transcript: $transcript
+            );
+        }
+
+        $scores = collect($polarizacoes)
+            ->pluck('polarizacao_score')
+            ->filter(fn ($x) => is_numeric($x))
+            ->map(fn ($x) => (float) $x);
+
+        $confs = collect($polarizacoes)
+            ->pluck('confianca')
+            ->filter(fn ($x) => is_numeric($x))
+            ->map(fn ($x) => (float) $x);
+
+        $categorias = collect($polarizacoes)
+            ->pluck('categoria')
+            ->filter()
+            ->countBy()
+            ->sortDesc();
+
+        $polos = collect($polarizacoes)
+            ->pluck('polo_ideologico')
+            ->filter()
+            ->countBy()
+            ->sortDesc();
+
+        return [
+            'videos_count' => count($videos),
+
+            'polarizacao' => [
+                'score_medio' => $scores->count() ? round($scores->avg(), 3) : null,
+                'confianca_media' => $confs->count() ? round($confs->avg(), 3) : null,
+                'categoria_dominante' => $categorias->keys()->first() ?? 'indefinido',
+                'polo_dominante' => $polos->keys()->first() ?? 'indefinido',
+                'raw' => $polarizacoes,
+            ],
+
+            'monetizacao_off_platform' => [
+                'urls_media_por_video' => count($urlsCounts)
+                    ? round(array_sum($urlsCounts) / count($urlsCounts), 2)
+                    : 0,
+                'urls_total' => array_sum($urlsCounts),
+            ],
+
+            'wordclouds' => [
+                'titulos' => $this->pmt_word_freq($titles),
+                'descricoes' => $this->pmt_word_freq($descs),
+                'transcricoes' => $this->pmt_word_freq($transcripts),
+                'tags' => $this->pmt_word_freq($tags),
+            ],
+        ];
+    }
+
+
+############################## tarefa2
+
+
+
+public function pmt_analisar_bucket_mt(
+    array $channel,
+    array $videos,
+    int $maxVideosParaComentarios = 7,
+    int $maxComentariosPorVideo = 30,
+    int $maxComentariosBucket = 50
+): array {
+    $urlsCounts = [];
+    $urlsTotal = [];
+    $comentariosAmostra = [];
+    $toxScores = [];
+
+    foreach ($videos as $v) {
+        $desc = $v['videoDesc'] ?? $v['desc'] ?? '';
+
+        $urls = $this->pmt_extract_external_urls($desc);
+
+        $urlsCounts[] = count($urls);
+        $urlsTotal = array_merge($urlsTotal, $urls);
+    }
+
+    // escolhe vídeos espaçados no bucket, não só os primeiros
+    $videosParaComentarios = collect($videos)
+        ->filter(fn ($v) => !empty($v['videoId'] ?? $v['cod'] ?? null))
+        ->values();
+
+    if ($videosParaComentarios->count() > $maxVideosParaComentarios) {
+        $step = max(1, floor($videosParaComentarios->count() / $maxVideosParaComentarios));
+
+        $videosParaComentarios = $videosParaComentarios
+            ->filter(fn ($v, $i) => $i % $step === 0)
+            ->take($maxVideosParaComentarios)
+            ->values();
+    }
+
+    foreach ($videosParaComentarios as $v) {
+        $videoId = $v['videoId'] ?? $v['cod'] ?? null;
+
+        if (!$videoId) {
+            continue;
+        }
+
+        $comments = $this->getTopComments($videoId, $maxComentariosPorVideo);
+
+        foreach ($comments as $c) {
+            $c['videoId'] = $videoId;
+            $c['videoTitle'] = $v['videoTitle'] ?? $v['nome'] ?? null;
+
+            $comentariosAmostra[] = $c;
+
+            if (count($comentariosAmostra) >= $maxComentariosBucket) {
+                break 2;
+            }
+        }
+    }
+
+    // embaralha levemente para não ficar só o primeiro vídeo do bucket
+    $comentariosAmostra = collect($comentariosAmostra)
+        ->shuffle()
+        ->take($maxComentariosBucket)
+        ->values()
+        ->toArray();
+
+    foreach ($comentariosAmostra as &$c) {
+        $texto = $c['texto'] ?? $c['text'] ?? '';
+
+        $tox = $this->pmt_perspective_toxicity($texto);
+
+        $c['tox'] = $tox;
+
+        if (is_numeric($tox)) {
+            $toxScores[] = (float) $tox;
+        }
+
+        usleep(150000);
+    }
+
+    $urlsTotal = array_values(array_unique($urlsTotal));
+
+    return [
+        'videos_count' => count($videos),
+
+        'toxicity' => [
+            'n' => count($toxScores),
+            'media' => count($toxScores) ? round(array_sum($toxScores) / count($toxScores), 4) : null,
+            'max' => count($toxScores) ? round(max($toxScores), 4) : null,
+            'alta_taxa' => count($toxScores)
+                ? round(count(array_filter($toxScores, fn ($x) => $x >= 0.7)) / count($toxScores), 4)
+                : null,
+            'scores' => $toxScores,
+        ],
+
+        'monetizacao_off_platform' => [
+            'urls_media_por_video' => count($urlsCounts)
+                ? round(array_sum($urlsCounts) / count($urlsCounts), 2)
+                : 0,
+            'urls_total' => count($urlsTotal),
+            'urls' => $urlsTotal,
+        ],
+
+        'comentarios_sample' => array_slice($comentariosAmostra, 0, 5),
+    ];
+}
+
+
+public function getTopComments(string $videoId, int $max = 100): array
+{
+    $res = Http::timeout(30)->get('https://www.googleapis.com/youtube/v3/commentThreads', [
+        'key' => env('YOUTUBE_API_KEY'),
+        'videoId' => $videoId,
+        'part' => 'snippet',
+        'maxResults' => min($max, 100),
+        'order' => 'relevance',
+        'textFormat' => 'plainText',
+    ]);
+
+    if (!$res->successful()) {
+        Log::warning('Erro YouTube comments', [
+            'videoId' => $videoId,
+            'status' => $res->status(),
+            'body' => $res->body(),
+        ]);
+
+        return [];
+    }
+
+    return collect($res->json('items') ?? [])
+        ->map(function ($item) {
+            $top = $item['snippet']['topLevelComment'] ?? [];
+            $sn = $top['snippet'] ?? [];
+
+            return [
+                'cod' => $top['id'] ?? $item['id'] ?? null,
+                'username' => $sn['authorDisplayName'] ?? null,
+                'texto' => $sn['textDisplay'] ?? '',
+                'likes' => (int) ($sn['likeCount'] ?? 0),
+                'dt' => $sn['publishedAt'] ?? null,
+            ];
+        })
+        ->filter(fn ($c) => !empty($c['cod']) && trim($c['texto']) !== '')
+        ->values()
+        ->all();
+}
+
+
+
+
+
+
 }

@@ -81,11 +81,15 @@ class Tarefa1 extends Component
             't1_comentarios',
             'tarefa1_mais_toxico',
             't1_query',            // aproveita e zera a query salva
+            #'polarizacoes',
+
         ]);
+
+        #$this->dispatch('$refresh');
     }
 
 
-
+public $polarizacoes = [];
     public function avaliarVideos(): void
     {
 
@@ -176,6 +180,45 @@ class Tarefa1 extends Component
 
         $this->maisToxicoReal = $this->pickMaisToxico($this->toxMediaArray);
 
+
+
+
+        
+$polarizacoes = [];
+
+foreach ($this->selecionados as $videoId => $raw) {
+
+    $comentariosVideo = $this->comentarios[$videoId] ?? [];
+
+    $transcript = $this->pmt_get_transcript($videoId);
+
+    $polarizacoes[$videoId] = $this->pmt_polarizacao_video(
+        video: [
+            'cod' => $raw['videoId'] ?? $videoId,
+            'nome' => $raw['videoTitle'] ?? null,
+            'desc' => $raw['videoDesc'] ?? null,
+            'dt' => $raw['published'] ?? null,
+            'views' => $raw['viewCount'] ?? null,
+            'likes' => $raw['likeCount'] ?? null,
+            'comments' => $raw['commentCount'] ?? null,
+        ],
+        channel: [
+            'youtube_id' => $raw['channelId'] ?? null,
+            'nome' => $raw['channelTitle'] ?? null,
+            'desc' => $raw['channelDesc'] ?? null,
+        ],
+        comments: array_slice($comentariosVideo, 0, 20),
+        transcript: $transcript
+    );
+
+    $polarizacoes[$videoId]['transcript_words'] = $transcript
+        ? str_word_count(strip_tags($transcript))
+        : 0;
+}        
+
+            $this->polarizacoes = $polarizacoes;
+
+
         Session::put('t1_result', [
             'selecionados'      => $this->selecionados,
             'tox_media'         => $this->toxMediaArray,
@@ -184,12 +227,13 @@ class Tarefa1 extends Component
             #'acertou'           => $this->acertou,
             'comentarios'       => $this->comentarios,
             'buscas'            => $this->buscas,
+            #'polarizacoes'      => $polarizacoes,
+
 
         ]);
 
 
-        #$this->mostrarAvaliacao = true;
-        #aqui esta OK
+
         $this->dispatch('t1-chart-updated', chart: $this->chart);
         #dump($this->chart);
     }
@@ -368,10 +412,12 @@ class Tarefa1 extends Component
 
         // 1) Quantos buckets/páginas (régua por contagem)
         $pages = 1;
-        if ($commentCount > 500 && $commentCount <= 2000)       $pages = 2;
-        elseif ($commentCount <= 5000)                          $pages = 3;
-        elseif ($commentCount <= 10000)                         $pages = 4;
-        elseif ($commentCount > 10000)                          $pages = 5;
+        // if ($commentCount > 500 && $commentCount <= 2000)       $pages = 2;
+        // elseif ($commentCount <= 5000)                          $pages = 3;
+        // elseif ($commentCount <= 10000)                         $pages = 4;
+        // elseif ($commentCount > 10000)                          $pages = 5;
+
+        #vou so pegar 1 pag e ta bom demais - latencia
 
 
 

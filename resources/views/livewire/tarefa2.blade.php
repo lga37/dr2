@@ -114,96 +114,6 @@
 
 
                     <div class="overflow-x-auto mt-8">
-                        <table
-                            class="divide-y divide-gray-200 divide-solid table-auto min-w-full text-sm tracking-tight leading-tight">
-                            <thead>
-                                <tr class="bg-gray-100 text-xs text-gray-700 text-center">
-                                    @php
-                                        $videosSessao = $videos_dos_canais;
-                                        $numVids = max(count($videosSessao), 1); // evita /0
-                                        $colWidth = number_format(100 / ($numVids * 7), 2);
-                                    @endphp
-                                    @foreach ($videosSessao as $canal_id => $dados)
-                                        <th colspan="7" style="width: {{ $colWidth * 7 }}%;"
-                                            class="border border-gray-300 px-2 py-4">
-                                            <x-linkcanal :canalId="$canal_id" :titulo="$selecionados[$canal_id]['channelTitle'] ?? ''" />
-                                        </th>
-                                    @endforeach
-                                </tr>
-                            </thead>
-
-                            <tbody>
-                                @php
-                                    $max = collect($videosSessao)->map(fn($d) => count($d))->max() ?? 0;
-                                @endphp
-
-                                @for ($i = 0; $i < $max; $i++)
-                                    @if ($i == 0)
-                                        <tr
-                                            class="border border-gray-300 w-[10px] font-bold text-center text-indigo-800 text-[10px] ">
-                                            <td>#</td>
-                                            <td>Titulo</td>
-                                            <td>Likes</td>
-                                            <td>Views</td>
-                                            <td>Comments</td>
-                                            <td>Data</td>
-                                            <td>NLP</td>
-                                        </tr>
-                                    @endif
-
-                                    <tr class="">
-                                        @foreach ($videosSessao as $loopIndex => $dados)
-                                            @php
-                                                $c = $dados[$i] ?? null;
-                                            @endphp
-                                            @if ($c)
-                                                <td
-                                                    class="border border-gray-300 w-[10px] text-left text-gray-800 text-[10px] ">
-                                                    {{ $i + 1 }}</td>
-                                                <td
-                                                    class="border text-xs border-gray-300 w-[420px] max-w-[420px] truncate break-all">
-                                                    <a href="{{ $c['videoId'] }}" target="_blank">
-                                                        {{ \Illuminate\Support\Str::limit(strip_tags($c['videoTitle'] ?? '[---]'), 120) }}
-                                                    </a>
-                                                </td>
-
-                                                <td class="border border-gray-300 w-[10px] text-gray-800 text-[10px]">
-                                                    {{ $c['videoLikeCount'] ?? '-' }}</td>
-                                                <td class="border border-gray-300 w-[10px] text-gray-800 text-[10px]">
-                                                    {{ $c['videoViewCount'] ?? '-' }}</td>
-                                                <td class="border border-gray-300 w-[10px] text-gray-800 text-[10px]">
-                                                    {{ $c['videoCommentCount'] ?? '-' }}</td>
-                                                <td class="border border-gray-300 w-[20px] text-gray-800 text-[10px]">
-                                                    {{ isset($c['videoDt']) ? \Carbon\Carbon::parse($c['videoDt'])->format('d/m/Y') : '--' }}
-                                                </td>
-                                                <td class="border border-gray-300 w-[10px] text-gray-800 text-[10px]">
-                                                    {{ isset($c['nlp1']) ? number_format($c['nlp1'], 2) . '%' : 'X' }}
-                                                </td>
-                                            @else
-                                                <td colspan="7"
-                                                    class="border border-gray-300 w-full text-gray-900 text-center italic text-[11px]">
-                                                    --</td>
-                                            @endif
-                                        @endforeach
-                                    </tr>
-                                @endfor
-                            </tbody>
-
-
-                            <tfoot>
-                                <tr
-                                    class="bg-gray-50 border-t border-gray-300 text-[11px] text-gray-700 font-semibold text-center">
-                                    @foreach ($polarizMediaArray as $video_id => $polarizMedia)
-                                        <td colspan="7" class="border py-3 text-5xl bg-indigo-50 text-indigo-900">
-                                            Tox. média (titulo):
-                                            <span class="font-bold text-5xl">
-                                                {{ $polarizMedia ? number_format($polarizMedia, 2) . '%' : 'n/a' }}
-                                            </span>
-                                        </td>
-                                    @endforeach
-                                </tr>
-                            </tfoot>
-                        </table>
 
                         <!-- feedback -->
                         <div class="rounded-lg p-4 ring-4 w-full max-w-6xl mx-auto my-4 bg-green-50  ring-green-300">
@@ -237,30 +147,159 @@
         </div>
     </div>
 
+@php
+    #$pm = session('pm_result', []);
+    $mtResult = $this->mtResult;
+@endphp
+@if (!empty($mtResult))
+    <div class="mx-auto max-w-[1500px] p-6">
+        <h2 class="text-xl font-semibold mb-4">
+            Widget M–T — Monetização e Toxicidade por buckets temporais
+        </h2>
+
+        @foreach ($mtResult as $channelId => $row)
+            @php
+                $isGreen = ($row['cor'] ?? '') === 'green';
+
+                $border = $isGreen ? 'border-green-500' : 'border-red-500';
+                $bg = $isGreen ? 'bg-green-50' : 'bg-red-50';
+                $text = $isGreen ? 'text-green-800' : 'text-red-800';
+
+                $vidiqUrl = 'https://vidiq.com/youtube-stats/channel/' . $channelId . '/';
+            @endphp
+
+            <div class="mb-8 rounded-2xl border-2 {{ $border }} {{ $bg }} p-5 shadow-sm">
+                <div class="flex justify-between items-start mb-4">
+                    <div>
+                        <div class="text-xs text-slate-500">ID: {{ $channelId }}</div>
+                        <h3 class="text-lg font-bold {{ $text }}">
+                            {{ $row['channel']['channelTitle'] ?? $channelId }}
+                        </h3>
+                    </div>
+
+                    <div class="text-right text-sm">
+                        <div><strong>Tox. canal:</strong>
+                            {{ isset($row['tox_canal']['media']) ? number_format($row['tox_canal']['media'] * 100, 2, ',', '.') . '%' : '-' }}
+                        </div>
+                        <div><strong>Comentários analisados:</strong>
+                            {{ $row['tox_canal']['n'] ?? 0 }}
+                        </div>
+                        <div><strong>URLs externas:</strong>
+                            {{ $row['monetizacao_canal']['external_urls_count'] ?? 0 }}
+                        </div>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-6 gap-3">
+                    @foreach ($row['buckets'] as $bucket)
+                        @php
+                            $a = $bucket['analysis'];
+                            $t = $a['toxicity'];
+                            $m = $a['monetizacao_off_platform'];
+                        @endphp
+
+                        <div class="rounded-xl bg-white border p-3 text-xs shadow-sm">
+                            <div class="font-bold {{ $text }}">
+                                Bucket {{ $bucket['idx'] }}
+                            </div>
+
+                            <div class="text-slate-500 mb-2">
+                                {{ $bucket['label'] }}
+                            </div>
+
+                            <div><strong>Vídeos:</strong> {{ $a['videos_count'] }}</div>
+                            <div><strong>Comentários:</strong> {{ $t['n'] ?? 0 }}</div>
+                            <div><strong>Tox. média:</strong>
+                                {{ isset($t['media']) ? number_format($t['media'] * 100, 2, ',', '.') . '%' : '-' }}
+                            </div>
+                            <div><strong>Tox. máx:</strong>
+                                {{ isset($t['max']) ? number_format($t['max'] * 100, 2, ',', '.') . '%' : '-' }}
+                            </div>
+                            <div><strong>Alta tox.:</strong>
+                                {{ isset($t['alta_taxa']) ? number_format($t['alta_taxa'] * 100, 1, ',', '.') . '%' : '-' }}
+                            </div>
+                            <div><strong>URLs/vídeo:</strong> {{ $m['urls_media_por_video'] ?? 0 }}</div>
+
+                            <div class="mt-3 border-t pt-2">
+                                <strong>Comentários amostra</strong>
+
+                                @foreach (($a['comentarios_sample'] ?? []) as $c)
+                                    <div class="mt-2 p-2 rounded bg-slate-50 border">
+                                        <div class="text-slate-500">
+                                            tox:
+                                            {{ isset($c['tox']) ? number_format($c['tox'] * 100, 1, ',', '.') . '%' : '-' }}
+                                        </div>
+                                        <div>
+                                            {{ \Illuminate\Support\Str::limit($c['texto'] ?? $c['text'] ?? '', 80) }}
+                                        </div>
+                                    </div>
+                                @endforeach
+                            </div>
+                        </div>
+                    @endforeach
+
+                    <div
+                        class="rounded-xl border-2 {{ $border }} p-3 text-xs shadow-sm relative overflow-hidden"
+                        style="
+                            background-image: repeating-linear-gradient(
+                                135deg,
+                                rgba(255,255,255,0.95) 0px,
+                                rgba(255,255,255,0.95) 8px,
+                                rgba(0,0,0,0.035) 8px,
+                                rgba(0,0,0,0.035) 16px
+                            );
+                        "
+                    >
+                        <div class="absolute top-0 left-0 right-0 h-1 {{ $isGreen ? 'bg-green-500' : 'bg-red-500' }}"></div>
+
+                        <div class="font-bold {{ $text }} mb-3">
+                            Monetização
+                        </div>
+
+                        <div class="mt-2">
+                            <strong>VidIQ/mês:</strong><br>
+                            US$ {{ number_format($row['monetizacao_canal']['vidiq_monthly_avg_usd'] ?? 0, 0, ',', '.') }}
+                        </div>
+
+                        <div class="mt-2">
+                            <strong>Off-platform:</strong><br>
+                            {{ $row['monetizacao_canal']['external_urls_count'] ?? 0 }} URLs
+                        </div>
+
+                        <div class="mt-3 pt-3 border-t border-slate-200">
+                            <a
+                                href="{{ $vidiqUrl }}"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                class="inline-flex items-center gap-1 px-2 py-1 rounded-md {{ $isGreen ? 'bg-green-100 text-green-800 hover:bg-green-200' : 'bg-red-100 text-red-800 hover:bg-red-200' }} font-semibold"
+                            >
+                                Conferir no VidIQ ↗
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        @endforeach
+    </div>
+@endif    
 
 
-    <div class="mx-auto p-6 w-full max-w-[1400px]">
+    {{-- <div class="mx-auto p-6 w-full max-w-[1400px]">
         <h2 class="text-xl font-semibold mb-2">Toxicidade (0 .. 100%) no tempo real</h2>
-
-        {{-- filtros globais de tipo --}}
         <div class="flex items-center gap-4 text-sm mb-2">
             <label><input id="polOnlyTitle" type="checkbox" checked> Títulos</label>
-            {{-- <label><input id="polOnlyDesc" type="checkbox" checked> Descrições</label> --}}
             <label><input id="polOnlyAvg" type="checkbox" checked> Médias</label>
         </div>
-
-        {{-- legenda HTML com link para o canal --}}
         <div id="polLegend" class="flex flex-wrap gap-4 items-center mb-3"></div>
-
-        <div class="w-full" style="height: 420px;"> {{-- ajuste a altura aqui --}}
+        <div class="w-full" style="height: 420px;">
             <canvas id="polChart"></canvas>
         </div>
-    </div>
+    </div> --}}
 
 
 
 </div>
-
+{{-- 
 @push('scripts')
     <script>
         (function() {
@@ -631,4 +670,4 @@
 
         })();
     </script>
-@endpush
+@endpush --}}

@@ -1,50 +1,51 @@
 <?php
 
 #use App\Livewire\Monet;
-use App\Livewire\Nlp;
-
-use App\Livewire\Graf;
-use App\Livewire\Tese;
+use App\Http\Controllers\ProfileController;
 use App\Livewire\Arxiv;
-
-
 use App\Livewire\Busca;
 use App\Livewire\Canal;
+use App\Livewire\Comentario;
+use App\Livewire\Graf;
 use App\Livewire\Monet;
-use App\Livewire\Toxic;
-use App\Livewire\Video;
-use App\Livewire\Vidiq;
-use Twilio\Rest\Client;
+use App\Livewire\Monetizacao;
+use App\Livewire\Nlp;
+use App\Livewire\Polarizacao;
+use App\Livewire\Resultados;
 use App\Livewire\Tarefa1;
 use App\Livewire\Tarefa2;
 use App\Livewire\Tarefa3;
 use App\Livewire\Tarefa4;
-use App\Models\WaMessage;
-use App\Livewire\Comentario;
-use App\Livewire\Resultados;
+use App\Livewire\Tese;
+use App\Livewire\Toxic;
 use App\Livewire\Toxicidade;
-use Illuminate\Http\Request;
-use App\Livewire\Monetizacao;
-use App\Livewire\Polarizacao;
+use App\Livewire\Video;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
-use Twilio\Security\RequestValidator;
-use App\Http\Controllers\ProfileController;
+use Illuminate\Support\Facades\Storage;
+use Symfony\Component\Process\Process;
+use Illuminate\Support\Str;
+
+
+################################# INICIO INDUCAO PMT ####################################
+#######################################################################################
+
+
+
+
+
+
+#######################################################################################
+#######################################################################################
 
 
 #Auth::loginUsingId(7);
 
 Route::get('/', function () {
-    #return redirect()->route('busca');
     return view('home');
 })->name('home');
 
-
-
-
-#######################################################################################
-#######################################################################################
 
 
     Route::get('tarefa1', Tarefa1::class)->name('tarefa1');

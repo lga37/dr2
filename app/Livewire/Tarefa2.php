@@ -53,16 +53,13 @@ class Tarefa2 extends Component
 
     public function mount()
     {
-        #$this->selecionados   = Session::get('t2_canais', []);
-        #$this->query = Session::get('t2_query', '');
-        #$this->avaliarCanaisGpt();
     }
 
   
     public function validarTarefa2()
     {
 
-        #$this->selecionados = Session::get('t2_canais', $this->selecionados);
+        $this->selecionados = Session::get('t2_canais', $this->selecionados);
         $this->mostrarAvaliacao = true;
 
 
@@ -70,13 +67,15 @@ class Tarefa2 extends Component
             return;
 
         #$this->mostrarAvaliacao = true;
-        $this->videos_dos_canais  = [];
-        $this->maisPolarizado = null;
-        $this->polarizMediaArray = [];   // [videoId => float]
+        #$this->videos_dos_canais  = [];
+        #$this->maisPolarizado = null;
+        #$this->polarizMediaArray = [];   // [videoId => float]
 
         #Session::forget('t2_videos');
         $sessVideos = [];
 
+
+        $this->avaliarMonetizacaoToxicidade();
         foreach ($this->selecionados as $canalId => $raw) {
             $q = $raw['q'] ?? '--';
             $buscaBD = $this->upsertBusca($q);
@@ -99,7 +98,7 @@ class Tarefa2 extends Component
             $canalBD = $this->upsertCanal($ch, $buscaBD);
             #dump($canalBD);
 
-            $videos = $this->getAllVideos($raw['channelId'], $raw['channelDt'], 100, 5, 1, $raw['channelVideos']);
+            $videos = $this->getAllVideos($raw['channelId'], $raw['channelDt'], 30, 2, 1, $raw['channelVideos']);
 
             #dd($videos);
 
@@ -126,40 +125,171 @@ class Tarefa2 extends Component
                 #dump($videoBD);
             }
 
-            $ordenados = collect($videos)->filter(fn($c) => !empty($c['videoId']))->sortBy(fn($c) => $c['videoDt'])->values()->toArray();
+            #$ordenados = collect($videos)->filter(fn($c) => !empty($c['videoId']))->sortBy(fn($c) => $c['videoDt'])->values()->toArray();
 
-            $this->videos_dos_canais[$canalId] = $ordenados;
-            $sessVideos[$canalId] = $ordenados;
+            #$this->videos_dos_canais[$canalId] = $ordenados;
+            #$sessVideos[$canalId] = $ordenados;
         }
 
         #dd($sessVideos);
 
 
-foreach ($this->videos_dos_canais as $ch => $vids) {
-    $bad = collect($vids)->filter(fn($v) => ($v['channelId'] ?? null) !== $ch)->take(3)->values()->all();
-    if ($bad) {
-        logger()->warning("MISTURA DETECTADA em $ch", $bad);
-    }
-}
+        // foreach ($this->videos_dos_canais as $ch => $vids) {
+        //     $bad = collect($vids)->filter(fn($v) => ($v['channelId'] ?? null) !== $ch)->take(3)->values()->all();
+        //     if ($bad) {
+        //         logger()->warning("MISTURA DETECTADA em $ch", $bad);
+        //     }
+        // }
 
-        $this->buildChartPolarizacao($this->selecionados, $this->videos_dos_canais);
-
-        
-
-        $this->recalcularMedias(); #$this->polarizMediaArray; so sai o id=>media
-        #dump($this->polarizMediaArray);
-        $arrayMaisPolarizados = $this->pickMaisPolariz($this->polarizMediaArray);
-        $mais_polarizado_posit = $arrayMaisPolarizados['mais_polarizado_posit']['id'];
-        $mais_polarizado_negat = $arrayMaisPolarizados['mais_polarizado_negat']['id'];
-        $this->maisPolarizadoReal = $arrayMaisPolarizados['mais_polarizado']['id'];
+        #$this->buildChartPolarizacao($this->selecionados, $this->videos_dos_canais);
 
 
-        $this->dispatch('t2-chart-updated', chart: $this->chart);
+        #$this->recalcularMedias(); #$this->polarizMediaArray; so sai o id=>media
+        #$arrayMaisPolarizados = $this->pickMaisPolariz($this->polarizMediaArray);
+        #$mais_polarizado_posit = $arrayMaisPolarizados['mais_polarizado_posit']['id'];
+        #$mais_polarizado_negat = $arrayMaisPolarizados['mais_polarizado_negat']['id'];
+        #$this->maisPolarizadoReal = $arrayMaisPolarizados['mais_polarizado']['id'];
+
+
+        #$this->dispatch('t2-chart-updated', chart: $this->chart);
 
         #dd($this->chart);
 
       
     }
+
+
+
+
+
+public array $mtResult = [];
+public function avaliarMonetizacaoToxicidade(): void
+{
+    $selecionados = Session::get('t2_canais', []);
+
+    #dd('hh');
+
+    if (count($selecionados) < 2) {
+        return;
+    }
+
+    $resultado = [];
+    $cores = ['green', 'red'];
+
+    #dd($selecionados);
+
+    foreach (array_values($selecionados) as $idx => $canalRaw) {
+
+        $channelId = $canalRaw['channelId'] ?? $canalRaw['youtube_id'] ?? null;
+
+        if (!$channelId) {
+            continue;
+        }
+
+        $channel = [
+            'channelId' => $channelId,
+            'channelTitle' => $canalRaw['channelTitle'] ?? $canalRaw['nome'] ?? null,
+            'channelDesc' => $canalRaw['channelDesc'] ?? $canalRaw['desc'] ?? null,
+            'channelDt' => $canalRaw['channelDt'] ?? $canalRaw['dt'] ?? null,
+            'subscriberCount' => $canalRaw['channelSubs'] ?? $canalRaw['inscritos'] ?? null,
+        ];
+
+        $buckets = $this->pmt_bucket_periods($channel['channelDt'], 5);
+
+        // 1) pega até 50 vídeos uma única vez
+        $videosBase = $this->getAllVideos($channelId, max: 50);
+
+        $ids = collect($videosBase)
+            ->pluck('videoId')
+            ->filter()
+            ->values()
+            ->all();
+
+        // 2) hidrata para obter desc, tags, published etc.
+        $videosOrdenados = $this->getVideoDetailsByListVideoIds($ids);
+
+        $videosOrdenados = collect($videosOrdenados)
+            ->filter(fn ($v) => !empty($v['published']))
+            ->sortBy('published')
+            ->values()
+            ->toArray();
+
+        $bucketResults = [];
+        $toxTodas = [];
+
+        foreach ($buckets as $bucket) {
+
+            $videosBucket = collect($videosOrdenados)
+                ->filter(function ($v) use ($bucket) {
+                    $dt = $v['published'] ?? null;
+
+                    if (!$dt) {
+                        return false;
+                    }
+
+                    return $dt >= $bucket['after'] && $dt <= $bucket['before'];
+                })
+                ->values()
+                ->toArray();
+
+            $analysis = $this->pmt_analisar_bucket_mt(
+                channel: $channel,
+                videos: $videosBucket,
+                maxVideosParaComentarios: 7,
+                maxComentariosPorVideo: 30,
+                maxComentariosBucket: 50
+            );
+
+            foreach (($analysis['toxicity']['scores'] ?? []) as $score) {
+                if (is_numeric($score)) {
+                    $toxTodas[] = (float) $score;
+                }
+            }
+
+            $bucketResults[] = [
+                'idx' => $bucket['idx'],
+                'label' => $bucket['label'],
+                'after' => $bucket['after'],
+                'before' => $bucket['before'],
+                'videos_count' => count($videosBucket),
+                'analysis' => $analysis,
+            ];
+        }
+
+        $toxCanalMedia = count($toxTodas)
+            ? round(array_sum($toxTodas) / count($toxTodas), 4)
+            : null;
+
+        $toxCanalMax = count($toxTodas)
+            ? round(max($toxTodas), 4)
+            : null;
+
+        $monet = $this->pmt_monetizacao_video([], [
+            'youtube_id' => $channelId,
+            'nome' => $channel['channelTitle'],
+            'desc' => $channel['channelDesc'],
+        ]);
+
+        $resultado[$channelId] = [
+            'cor' => $cores[$idx] ?? 'slate',
+            'channel' => $channel,
+            'total_videos_coletados' => count($videosOrdenados),
+            'tox_canal' => [
+                'n' => count($toxTodas),
+                'media' => $toxCanalMedia,
+                'max' => $toxCanalMax,
+            ],
+            'buckets' => $bucketResults,
+            'monetizacao_canal' => $monet,
+        ];
+    }
+
+    $this->mtResult = $resultado;
+}
+
+
+
+
 
  /** Constrói $this->chart, $this->samples, $this->canalMedias */
 function buildChartPolarizacao(array $selecionados, array $todosVideos): void
@@ -215,25 +345,6 @@ function buildChartPolarizacao(array $selecionados, array $todosVideos): void
             $pTitle = $v['polar_title'] ?? $v['nlp1'] ?? null;
             $pDesc  = $v['polar_desc']  ?? $v['nlp2'] ?? null;
 
-            // if (is_numeric($pTitle)) {
-            //     $titlePoints[] = [
-            //         'x'     => $dayIdx,
-            //         'y'     => (float) $pTitle, // já -100..+100
-            //         'label' => mb_substr($v['videoTitle'] ?? $v['nome'] ?? '', 0, 20),
-            //     ];
-            //     $sum += $pTitle;
-            //     $n++;
-            // }
-
-            // if (is_numeric($pDesc)) {
-            //     $descPoints[] = [
-            //         'x'     => $dayIdx,
-            //         'y'     => (float) $pDesc,
-            //         'label' => mb_substr($v['videoDesc'] ?? $v['desc'] ?? '', 0, 20),
-            //     ];
-            //     $sum += $pDesc;
-            //     $n++;
-            // }
 
             if (is_numeric($pTitle)) {
                 $titlePoints[] = ['x'=>$dayIdx,'y'=>(float)$pTitle,'label'=>mb_substr($v['videoTitle'] ?? $v['nome'] ?? '',0,20)];
@@ -381,7 +492,7 @@ function buildChartPolarizacao(array $selecionados, array $todosVideos): void
 
             // setTox => 0..1? (você tá convertendo pra 0..100 aqui)
             $nlp1 = 100 * $this->setTox($title);
-            $nlp2 = 100 * $this->setTox($desc);
+            #$nlp2 = 100 * $this->setTox($desc);
 
             $acc[] = [
                 'videoId'      => $videoId,
@@ -392,7 +503,7 @@ function buildChartPolarizacao(array $selecionados, array $todosVideos): void
                 'channelTitle' => $snippet['channelTitle'] ?? '',
                 'videoThumb'   => data_get($snippet, 'thumbnails.medium.url'),
                 'nlp1'         => is_numeric($nlp1) ? (float)$nlp1 : null,
-                'nlp2'         => is_numeric($nlp2) ? (float)$nlp2 : null,
+                #'nlp2'         => is_numeric($nlp2) ? (float)$nlp2 : null,
             ];
 
             if (count($acc) >= $max) break;
@@ -548,9 +659,12 @@ function buildChartPolarizacao(array $selecionados, array $todosVideos): void
 
         // 4) preserva a ordem do search e adiciona 'q'
         $out = [];
+
+        #"channelVideos" => 1124
         foreach ($items as $it) {
             $chId = $it['id']['channelId'] ?? null;
-            if (!$chId || empty($detailsById[$chId])) continue;
+            if (!$chId || empty($detailsById[$chId])) 
+                continue;
 
             $row = $detailsById[$chId];
             $row['q'] = $q;           // anota a query usada
@@ -558,6 +672,13 @@ function buildChartPolarizacao(array $selecionados, array $todosVideos): void
         }
 
         #dd($out);
+
+        $out = array_filter($out, function ($row) {
+            return ($row['channelVideos'] ?? 0) <= 300;
+        });
+
+        #AQUI E A LIMITACAO PARA NAO EXIBIR GDES NUMEROS EVITAR TIMEOUT
+
 
         // 5) cache + retorno
         Cache::put($cacheKey, $out, now()->addDay());

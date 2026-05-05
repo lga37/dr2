@@ -340,7 +340,7 @@
                     ctx.font = '600 12px system-ui, -apple-system, Segoe UI, Inter, Roboto';
                     const cx = (C[0].x + C[1].x + C[2].x) / 3;
                     const cy = (C[0].y + C[1].y + C[2].y) / 3;
-                    ctx.fillText('Contribuição da Tese', cx - 70, cy + 4);
+                    ctx.fillText('GAP', cx - 15, cy + 4);
                     ctx.restore();
                 }
             };

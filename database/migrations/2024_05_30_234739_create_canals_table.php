@@ -19,16 +19,12 @@ return new class extends Migration
             $table->id();
             $table->string('nome')->nullable();
             $table->string('slug')->nullable(); #slug do nome
-
-            $table->timestamp('del_at')->nullable();
-
-            
+            $table->timestamp('del_at')->nullable();                  
             $table->string('handle')->nullable();
             $table->string('youtube_id');
             
             $table->text('desc')->nullable();
             $table->json('keywords')->nullable();
-
             #$table->boolean('parse')->default(false);
             #$table->boolean('verificado')->default(false);
             $table->bigInteger('inscritos')->nullable();
@@ -46,13 +42,10 @@ return new class extends Migration
             $table->float('frequency')->nullable();
             $table->float('length')->nullable();
 
-
             #$table->foreignIdFor(Video::class);
             $table->foreignIdFor(Busca::class)->nullable();
             $table->foreignIdFor(Tarefa::class)->nullable();
-
             $table->unique(['youtube_id', 'tarefa_id']);
-
             $table->timestamps();
         });
     }

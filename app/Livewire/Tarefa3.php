@@ -47,6 +47,7 @@ class Tarefa3 extends Component
 
     }
 
+    public array $pmResult = [];
 
     public function validarTarefa3()
     {
@@ -55,6 +56,8 @@ class Tarefa3 extends Component
 
         Session::forget('t3_videos');
         $sessVideos = [];
+
+        $this->avaliarPolarizacaoMonetizacao();
 
         foreach ($this->selecionados as $canalId => $raw) {
 
@@ -81,10 +84,9 @@ class Tarefa3 extends Component
 
             $videos = $this->getAllVideos($raw['channelId'], $raw['channelDt'], 100, 10, 1, $raw['channelVideos']);
 
-            $arr = $this->rankWordsFromVideoTitles($videos);
-
-            $this->word_ranking[$canalId] = $this->rankWordsFromVideoTitles($videos, top: 60, minLen: 2);
-            $this->cloudTokens[$canalId] = $this->buildWordCloudTokens($arr, 60);
+            #$arr = $this->rankWordsFromVideoTitles($videos);
+            #$this->word_ranking[$canalId] = $this->rankWordsFromVideoTitles($videos, top: 60, minLen: 2);
+            #$this->cloudTokens[$canalId] = $this->buildWordCloudTokens($arr, 60);
 
 
 
@@ -127,6 +129,119 @@ class Tarefa3 extends Component
 
         ]);
     }
+
+
+
+    
+
+
+public function avaliarPolarizacaoMonetizacao(): void
+{
+    $selecionados = Session::get('t3_canais', []);
+
+    if (count($selecionados) < 2) {
+        return;
+    }
+
+    $resultado = [];
+    $cores = ['green', 'red'];
+
+    foreach (array_values($selecionados) as $idx => $canalRaw) {
+        $channelId = $canalRaw['channelId'] ?? $canalRaw['youtube_id'] ?? null;
+
+        if (!$channelId) {
+            continue;
+        }
+
+        $channel = [
+            'channelId' => $channelId,
+            'channelTitle' => $canalRaw['channelTitle'] ?? $canalRaw['nome'] ?? null,
+            'channelDesc' => $canalRaw['channelDesc'] ?? $canalRaw['desc'] ?? null,
+            'channelDt' => $canalRaw['channelDt'] ?? $canalRaw['dt'] ?? null,
+            'subscriberCount' => $canalRaw['channelSubs'] ?? $canalRaw['inscritos'] ?? null,
+        ];
+
+        $buckets = $this->pmt_bucket_periods($channel['channelDt'], 5);
+
+        // pega uma vez só
+        #$videos = $this->getAllVideos($channelId, max: 50);
+        // $videosOrdenados = collect($videos)
+        //     ->filter(fn ($v) => !empty($v['videoDt']))
+        //     ->sortBy('videoDt')
+        //     ->values()
+        //     ->toArray();
+
+
+
+        $videos = $this->getAllVideos($channelId, max: 50);
+
+        $ids = collect($videos)
+            ->pluck('videoId')
+            ->filter()
+            ->values()
+            ->all();
+
+        $videosOrdenados = $this->getVideoDetailsByListVideoIds($ids);
+
+        $videosOrdenados = collect($videosOrdenados)
+            ->filter(fn ($v) => !empty($v['published']))
+            ->sortBy('published')
+            ->values()
+            ->toArray();
+
+       
+
+
+        $bucketResults = [];
+
+        foreach ($buckets as $bucket) {
+            $videosBucket = collect($videosOrdenados)
+                ->filter(function ($v) use ($bucket) {
+                    $dt = $v['published'] ?? null;
+
+                    if (!$dt) {
+                        return false;
+                    }
+
+                    return $dt >= $bucket['after'] && $dt <= $bucket['before'];
+                })
+                ->values()
+                ->toArray();
+
+            $bucketResults[] = [
+                'idx' => $bucket['idx'],
+                'label' => $bucket['label'],
+                'after' => $bucket['after'],
+                'before' => $bucket['before'],
+                'videos_count' => count($videosBucket),
+                'analysis' => $this->pmt_analisar_bucket_pm($channel, $videosBucket),
+            ];
+        }
+
+
+        $monet = $this->pmt_monetizacao_video([], [
+            'youtube_id' => $channelId,
+            'nome' => $channel['channelTitle'],
+            'desc' => $channel['channelDesc'],
+        ]);
+
+        $resultado[$channelId] = [
+            'cor' => $cores[$idx] ?? 'slate',
+            'channel' => $channel,
+            'total_videos_coletados' => count($videosOrdenados),
+            'buckets' => $bucketResults,
+            'monetizacao_canal' => $monet,
+        ];
+    }
+
+    $this->pmResult = $resultado;
+    #Session::put('pm_result', $resultado);
+}
+
+
+
+
+
 
 
 private function buildWordCloudTokens(array $items, int $maxWords = 60): array
@@ -266,7 +381,9 @@ protected function stopwordsArtigos(): array
 {
     return [
         'a','o','as','os',
-        'um','uma','uns','umas'
+        'um','uma','uns','umas',
+        ############################## outras q fui pondo conforme
+        'que','se','voce',
     ];
 }
 

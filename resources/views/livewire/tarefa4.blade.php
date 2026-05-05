@@ -15,7 +15,7 @@
 
             <div>
                 <h2 class="text-xl md:text-2xl font-semibold">
-                    WIDGET 4 — Intersecção entre <span class="text-emerald-700">toxicidade</span> e <span
+                    WIDGET 4 — Intersecção entre <span class="text-emerald-700">polarizacao</span>, <span class="text-emerald-700">toxicidade</span> e <span
                         class="text-emerald-700">monetização</span>
                 </h2>
                 <p class="mt-1 text-slate-600 text-sm md:text-base max-w-7xl">

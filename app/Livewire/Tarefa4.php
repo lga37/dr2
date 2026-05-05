@@ -92,10 +92,35 @@ class Tarefa4 extends Component
         // carrega seleção do array central
         $this->selecionados    = Session::get('t4_canais', $this->selecionados);
 
+
+        #dd($this->selecionados);
+        // se tiver mais que 4, pega 4 aleatórios
+       
+        // se tiver mais que 4 canais
+        if (count($this->selecionados) > 4) {
+
+            $this->selecionados = collect($this->selecionados)
+
+                // ordena pelos canais com menos vídeos
+                ->sortBy(function ($row) {
+                    return $row['channelVideos'] ?? PHP_INT_MAX;
+                })
+
+                // pega apenas 4
+                ->take(4)
+
+                // reindexa
+                ->values()
+
+                ->all();
+        }
+
         Session::forget('t4_videos');
         $sessVideos = [];
 
         #dd($this->selecionados);
+
+
 
         foreach ($this->selecionados as $canalId => $raw) {
 
@@ -122,20 +147,21 @@ class Tarefa4 extends Component
                 $raw['channelId'],
                 $raw['channelDt'],
                 100,
-                5,
+                2,
                 1,
                 $raw['channelVideos']
             );
 
             if (empty($videos) || !is_array($videos)) {
-                dd('erro');
+                #dd('erro');
             }
 
             $polarizations = [];
             foreach ($videos as $v) {
                 $titulo = $v['videoTitle'] ?? '';
                 $desc   = $v['videoDesc']  ?? '';
-                $texto  = trim($titulo . "\n" . $desc);
+                $texto  = trim($titulo);
+                #$texto  = trim($titulo . "\n" . $desc);
 
                 if ($texto === '' || strlen($texto) <= 10) {
                     continue;
@@ -174,7 +200,7 @@ class Tarefa4 extends Component
             }
 
             if (count($polarizations) === 0) {
-                dd('erro2');
+                #dd('erro2');
             }
 
             Log::info('media', [ $canalId, $polarizations ]);

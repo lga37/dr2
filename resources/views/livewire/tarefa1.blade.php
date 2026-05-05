@@ -320,6 +320,104 @@
         </div>
     </div>
 
+@php
+    $t1 = session('t1_result', []);
+    $selecionados = $t1['selecionados'] ?? [];
+    $polarizacoes = $this->polarizacoes ?? [];
+    $toxMedias = $t1['tox_media'] ?? [];
+@endphp
+
+
+@if (!empty($polarizacoes) && count($selecionados) > 0)
+    <div class="mx-auto p-6 w-full max-w-[1400px]">
+        <h2 class="text-xl font-semibold mb-4">Classificação de polarização dos vídeos selecionados</h2>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+@foreach ($polarizacoes as $videoId => $pol)
+    @php
+        $raw = $selecionados[$videoId] ?? [];
+        $tox = $toxMedias[$videoId] ?? null;
+
+        // DEFINE COR PELO ÍNDICE (igual chart)
+        $idx = array_search($videoId, array_keys($polarizacoes));
+
+        if ($idx === 0) {
+            $border = 'border-green-500';
+            $bg = 'bg-green-50';
+            $accent = 'text-green-700';
+            $tag = 'bg-green-100 text-green-700';
+        } else {
+            $border = 'border-red-500';
+            $bg = 'bg-red-50';
+            $accent = 'text-red-700';
+            $tag = 'bg-red-100 text-red-700';
+        }
+    @endphp
+
+    <div class="rounded-xl border-2 {{ $border }} {{ $bg }} p-4 shadow-md hover:shadow-lg transition">
+
+        <div class="flex justify-between items-center mb-2">
+            <div class="text-xs text-slate-500">
+                ID: {{ $videoId }}
+            </div>
+
+            <span class="px-2 py-1 text-xs rounded {{ $tag }}">
+                Vídeo {{ $idx + 1 }}
+            </span>
+        </div>
+
+        <h3 class="font-semibold {{ $accent }} leading-snug mb-3">
+            {{ $raw['videoTitle'] ?? $videoId }}
+        </h3>
+
+        <div class="grid grid-cols-2 gap-2 text-sm">
+            <div>
+                <span class="text-slate-500">Categoria</span><br>
+                <strong>{{ $pol['categoria'] ?? 'n/d' }}</strong>
+            </div>
+
+            <div>
+                <span class="text-slate-500">Polo</span><br>
+                <strong>{{ $pol['polo_ideologico'] ?? 'indefinido' }}</strong>
+            </div>
+
+            <div>
+                <span class="text-slate-500">Score P</span><br>
+                <strong>
+                    {{ isset($pol['polarizacao_score']) ? number_format($pol['polarizacao_score'], 2, ',', '.') : '-' }}
+                </strong>
+            </div>
+
+            <div>
+                <span class="text-slate-500">Confiança</span><br>
+                <strong>
+                    {{ isset($pol['confianca']) ? number_format($pol['confianca'], 2, ',', '.') : '-' }}
+                </strong>
+            </div>
+
+            <div>
+                <span class="text-slate-500">Tox. média</span><br>
+                <strong class="{{ $accent }}">
+                    {{ $tox !== null ? number_format($tox * 100, 2, ',', '.') . '%' : '-' }}
+                </strong>
+            </div>
+
+            <div>
+                <span class="text-slate-500">Transcript</span><br>
+                <strong>{{ $pol['transcript_words'] ?? 0 }} palavras</strong>
+            </div>
+        </div>
+
+        @if (!empty($pol['justificativa']))
+            <p class="mt-3 text-xs text-slate-600 border-t pt-2">
+                {{ $pol['justificativa'] }}
+            </p>
+        @endif
+    </div>
+@endforeach        </div>
+    </div>
+@endif
+
 
     <div class="mx-auto p-6 w-full max-w-[1400px]">
         <h2 class="text-xl font-semibold mb-4">Toxicidade (0–100%) no tempo</h2>

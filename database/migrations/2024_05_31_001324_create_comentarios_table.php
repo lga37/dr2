@@ -21,7 +21,6 @@ return new class extends Migration
 
             $table->string('cod');
 
-
             $table->text('texto');
             $table->unsignedInteger('likes')->nullable();
             $table->unsignedInteger('dislikes')->nullable();
@@ -29,10 +28,8 @@ return new class extends Migration
             $table->float('tox')->nullable();
 
             $table->timestamps();
-
             $table->foreignIdFor(Video::class);
             $table->foreignIdFor(Tarefa::class);
-
 
             $table->unique(['cod', 'tarefa_id', 'video_id']);
 
