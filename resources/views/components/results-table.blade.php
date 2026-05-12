@@ -52,7 +52,11 @@
 
     <tbody class="bg-white divide-y divide-gray-200 divide-solid">
         @forelse ($items as $row)
+
+        
             @php
+
+                #dd($row);
                 $id = $row[$idKey] ?? null;
                 $checked = $id && in_array($id, $selected, true);
             @endphp

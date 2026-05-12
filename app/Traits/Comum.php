@@ -2,39 +2,31 @@
 
 namespace App\Traits;
 
-use Log;
 use App\Models\Busca;
 use App\Models\Canal;
-use App\Models\Video;
-use App\Models\Tarefa;
 use App\Models\Comentario;
+use App\Models\Tarefa;
+use App\Models\Video;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Session;
 use Illuminate\Support\Str;
 use Livewire\Attributes\Url;
-use Illuminate\Support\Carbon;
-use Prism\Prism\Facades\Prism;
-
-use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Http;
+use Log;
 use Prism\Prism\Schema\NumberSchema;
 use Prism\Prism\Schema\ObjectSchema;
 use Prism\Prism\Schema\StringSchema;
-use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\Session;
-
 
 trait Comum
 {
-
-
-
     #[Url()]
     public string $query = '';
 
     public ?Tarefa $tarefa = null;
+
     private array $cache = [];
-
-
-
 
     protected function ISO8601ToSeconds($duration): ?int
     {
@@ -54,6 +46,7 @@ trait Comum
             $h = (int) ($m[1] ?? 0);
             $i = (int) $m[2];
             $s = (int) $m[3];
+
             return $h * 3600 + $i * 60 + $s;
         }
 
@@ -62,6 +55,7 @@ trait Comum
             $iv = new \DateInterval($duration);
             // somar também dias (e opcionalmente semanas/meses/anos, se usar)
             $days = property_exists($iv, 'days') && $iv->days !== false ? (int) $iv->days : (int) $iv->d;
+
             return ($days * 86400) + ($iv->h * 3600) + ($iv->i * 60) + $iv->s;
         } catch (\Throwable $e) {
             // formato desconhecido
@@ -69,36 +63,41 @@ trait Comum
         }
     }
 
-
-
     private function fmtDuration(int $seconds): string
     {
         $h = intdiv($seconds, 3600);
         $m = intdiv($seconds % 3600, 60);
-        if ($h > 0)  return sprintf('%d h %02d min', $h, $m);
+        if ($h > 0) {
+            return sprintf('%d h %02d min', $h, $m);
+        }
+
         return sprintf('%d min', $m);
     }
-
 
     private function toNumber(string $num, ?string $suffix): ?float
     {
         $n = str_replace([' ', ','], ['', '.'], $num);
-        if (!is_numeric($n)) return null;
+        if (! is_numeric($n)) {
+            return null;
+        }
 
-        $v = (float)$n;
+        $v = (float) $n;
         if ($suffix) {
             $s = strtolower($suffix);
-            if ($s === 'k') $v *= 1_000;
-            if ($s === 'm') $v *= 1_000_000;
+            if ($s === 'k') {
+                $v *= 1_000;
+            }
+            if ($s === 'm') {
+                $v *= 1_000_000;
+            }
         }
+
         return $v;
     }
-
 
     // Normalizador simples pra não sujar a sessão
     private function normalizeQuery(string $value): string
     {
-
 
         $value = trim(preg_replace('/\s+/u', ' ', $value)); // 1+ espaços -> 1 espaço
         $value = strip_tags($value);
@@ -106,6 +105,7 @@ trait Comum
         $value = mb_strimwidth($value, 0, 30, '');
 
         $this->upsertBusca($value);
+
         return $value;
     }
 
@@ -116,27 +116,25 @@ trait Comum
 
         $this->query = $this->normalizeQuery($value);
 
-        Session::put($tipo_tarefa . '_query', $this->query);
+        Session::put($tipo_tarefa.'_query', $this->query);
 
         // Se quiser buscar a cada mudança, faça com um gate simples:
         if (mb_strlen($this->query) >= 2) {
             // cuidado para não spammar a API:
             if ($tipo_tarefa == 't1') {
                 $videos = $this->getVideos();
-                Session::put($tipo_tarefa . '_videos', $videos);
+                Session::put($tipo_tarefa.'_videos', $videos);
             } else {
                 $canais = $this->getCanais();
-                #dd($canais);
-
+                // dd($canais);
 
                 // Trait Comum (onde monta a grid)
-                #$key = $tipo_tarefa . '_canais:' . session()->getId();      // chave por sessão do usuário
-                #Cache::put($key, $canais, now()->addHours(4)); // guarda a GRID no cache
-                Session::put($tipo_tarefa . '_buscas', $canais);           // guarda só o ponteiro
+                // $key = $tipo_tarefa . '_canais:' . session()->getId();      // chave por sessão do usuário
+                // Cache::put($key, $canais, now()->addHours(4)); // guarda a GRID no cache
+                Session::put($tipo_tarefa.'_buscas', $canais);           // guarda só o ponteiro
 
-
-                #Session::put($tipo_tarefa . '_canais', $canais);
-                #dd(session()->all());
+                // Session::put($tipo_tarefa . '_canais', $canais);
+                // dd(session()->all());
 
             }
         }
@@ -148,21 +146,35 @@ trait Comum
         $this->query = $this->normalizeQuery($this->query);
         $tipo = $this->getTipoTarefa();
 
-
         if (mb_strlen($this->query) < 2) {
             $this->msg('Digite pelo menos 2 caracteres para pesquisar.', 'warn');
+
             return;
         }
 
-
         $forceRefresh = false;
         $this->buscas = $this->getVideos($forceRefresh);
-        Session::put($tipo . '_query', $this->query);
+
+        if ($tipo == 't4') {
+            $this->checked = collect($this->buscas)
+                ->pluck('videoId')
+                ->filter()
+                ->mapWithKeys(fn ($id) => [$id => true])
+                ->toArray();
+
+            Session::put('t4_checked', $this->checked);
+
+        }
+
+        // dd($this->buscas);
+        Session::put($tipo.'_query', $this->query);
     }
 
     private function squashSpaces(?string $text): ?string
     {
-        if ($text === null) return null;
+        if ($text === null) {
+            return null;
+        }
 
         // remove HTML, normaliza entidades (&nbsp;), etc
         $text = html_entity_decode(strip_tags($text), ENT_QUOTES | ENT_HTML5, 'UTF-8');
@@ -194,26 +206,32 @@ trait Comum
         foreach ($m[0] as $i => $full) {
             $t = $m[1][$i] !== '' ? $m[1][$i] : $m[2][$i];
             $t = trim($t, " \t\n\r\0\x0B\"'");
-            if ($t !== '') $kw[] = $t;
+            if ($t !== '') {
+                $kw[] = $t;
+            }
         }
 
         // 5) Remove duplicatas preservando ordem
         return array_values(array_unique($kw));
     }
 
-
     protected function toDate(?string $v): ?string
     {
-        if (!$v) return null;
+        if (! $v) {
+            return null;
+        }
         try {
             return Carbon::parse($v)->toDateString();
         } catch (\Throwable) {
             return null;
         }
     }
+
     protected function toDateTime(?string $v): ?string
     {
-        if (!$v) return null;
+        if (! $v) {
+            return null;
+        }
         try {
             return Carbon::parse($v)->toDateTimeString();
         } catch (\Throwable) {
@@ -221,8 +239,7 @@ trait Comum
         }
     }
 
-
-    ########################################### Trait canais
+    // ########################################## Trait canais
 
     public function clearSelecionados(): void
     {
@@ -248,7 +265,7 @@ trait Comum
             return Str::startsWith($key, $prefixes);
         }));
 
-        if (!empty($toForget)) {
+        if (! empty($toForget)) {
             Session::forget($toForget);
         }
     }
@@ -259,32 +276,32 @@ trait Comum
 
         if (mb_strlen($this->query) < 2) {
             $this->msg('Digite pelo menos 2 caracteres para pesquisar.', 'warn');
+
             return;
         }
 
         $this->getCanais();
     }
 
-
-    ################################################# atencao - ta vinculado a t3
+    // ################################################ atencao - ta vinculado a t3
     protected function persistSelecionados(): void
     {
 
         $this->selecionados = array_filter(
             $this->selecionados,
-            static fn($value, $key) => is_string($key) && is_array($value) && !empty($value),
+            static fn ($value, $key) => is_string($key) && is_array($value) && ! empty($value),
             ARRAY_FILTER_USE_BOTH
         );
 
-        #dump($this->selecionados);
+        // dump($this->selecionados);
 
         $t = $this->getTipoTarefa();
-        #dd($t);
+        // dd($t);
 
         if ($t == 't1') {
-            $nome_sess = "sel_videos";
+            $nome_sess = 'sel_videos';
         } else {
-            $nome_sess = $t . "_canais";
+            $nome_sess = $t.'_canais';
         }
 
         if (empty($this->selecionados)) {
@@ -294,14 +311,11 @@ trait Comum
         }
     }
 
-
-
-
     public function add(string $canalId): void
     {
-        if (!isset($this->selecionados[$canalId])) {
+        if (! isset($this->selecionados[$canalId])) {
             $tem = false;
-            #dd($this->buscas);
+            // dd($this->buscas);
             foreach ($this->buscas as $reg_canal) {
                 if ($reg_canal['channelId'] == $canalId) {
                     $data = $reg_canal;
@@ -309,51 +323,48 @@ trait Comum
                     break;
                 }
             }
-            if (!$tem) {
+            if (! $tem) {
                 $dadosCanal = $this->getCanaisDetailsByListCanaisIds([$canalId]);
                 $data = $dadosCanal[$canalId] ?? null;   // pega só o registro do canal
-                if (!$data) {
+                if (! $data) {
                     $this->msg('Não foi possível obter os detalhes do canal.', 'error');
+
                     return;
                 }
                 $data['q'] = '--';
             }
-            if (is_array($data) && !empty($data)) {
+            if (is_array($data) && ! empty($data)) {
                 $this->selecionados[$canalId] = $data;
-                #dd($this->selecionados);
+                // dd($this->selecionados);
                 $this->persistSelecionados();
-                $this->msg('Registro ' . $canalId . ' adicionado corretamente', 'success');
+                $this->msg('Registro '.$canalId.' adicionado corretamente', 'success');
             }
         } else {
             $this->msg('Nao adicionado pois já consta', 'error');
         }
-        #$this->reset('addInput'); // limpa o input na view
+        // $this->reset('addInput'); // limpa o input na view
 
     }
-
-
-
 
     public function addCanalByInput(): void
     {
         $input = trim($this->addInput);
 
-        if ($input === '')
+        if ($input === '') {
             return;
+        }
 
         $id = $this->parseCanalIdentifier($input);
 
-
-
-
-        if ($id && !in_array($id, $this->selecionados, true)) {
-            #dd($id);
+        if ($id && ! in_array($id, $this->selecionados, true)) {
+            // dd($id);
             $this->add($id);
             $t = $this->getTipoTarefa();
             if ($t == 't4') {
                 $monet = $this->getVidIqMonthlyAvgUsd($id);
                 if (empty($monet)) {
                     $this->msg('Monetizacao inexistente', 'error');
+
                     return;
                 }
                 $this->selecionados[$id]['monete'] = $monet;
@@ -364,7 +375,6 @@ trait Comum
         $this->reset('addInput'); // limpa o input na view
 
     }
-
 
     protected function parseCanalIdentifier(string $input): bool|string
     {
@@ -378,45 +388,46 @@ trait Comum
         }
         // @handle (ou URL com /@handle)
         if (preg_match('~@([A-Za-z0-9._-]{3,30})~', $input, $m)) {
-            $handle = '@' . $m[1];
+            $handle = '@'.$m[1];
             $id = $this->pegaChannelIdViaHandle($handle);
+
             return $id;
-            #dd($id);
+            // dd($id);
 
         }
+
         // fallback: tentar achar pelo nome
         return false;
     }
 
-
-    function pegaChannelIdViaHandle(string $handle)
+    public function pegaChannelIdViaHandle(string $handle)
     {
 
-        #dd($handle);
+        // dd($handle);
         $apiKey = env('YOUTUBE_API_KEY');
         $params = [
-            'key'             => $apiKey,
-            'part'            => 'id',
-            'forHandle'       => $handle,
+            'key' => $apiKey,
+            'part' => 'id',
+            'forHandle' => $handle,
         ];
 
-        $url = 'https://www.googleapis.com/youtube/v3/channels?' . http_build_query($params);
+        $url = 'https://www.googleapis.com/youtube/v3/channels?'.http_build_query($params);
         $res = file_get_contents($url);
         if ($res) {
             $json = json_decode($res, true) ?: [];
-            # dd($json);
+            // dd($json);
             $id = $json['items'][0]['id'] ?? false;
+
             return $id;
         } else {
             $this->msg('Erro ao resolver @handle na API', 'error');
+
             return false;
         }
     }
 
-
-
-    ########## atencao pus na comum - updated query chama getVideos
-    ####################################################################################
+    // ######### atencao pus na comum - updated query chama getVideos
+    // ###################################################################################
     public function getVideos(bool $forceRefresh = false): array
     {
         $q = trim((string) $this->query);
@@ -424,24 +435,24 @@ trait Comum
             return $this->buscas;
         }
 
-        $cacheKey = 'yt:search:v2:' . md5(mb_strtolower($q));
-        if (!$forceRefresh && Cache::has($cacheKey)) {
+        $cacheKey = 'yt:search:v2:'.md5(mb_strtolower($q));
+        if (! $forceRefresh && Cache::has($cacheKey)) {
             return $this->buscas = Cache::get($cacheKey);
         }
 
         $apiKey = env('YOUTUBE_API_KEY');
 
-        $url = 'https://www.googleapis.com/youtube/v3/search?' . http_build_query([
-            'key'        => $apiKey,
-            'part'       => 'snippet',
-            'q'          => $q,
-            'type'       => 'video',
+        $url = 'https://www.googleapis.com/youtube/v3/search?'.http_build_query([
+            'key' => $apiKey,
+            'part' => 'snippet',
+            'q' => $q,
+            'type' => 'video',
             'maxResults' => 50,
         ]);
-        Log::info('YT API:' . __CLASS__ . ' / ' . __FUNCTION__ . '()', ['url' => $url]);
+        Log::info('YT API:'.__CLASS__.' / '.__FUNCTION__.'()', ['url' => $url]);
 
-        $resp  = file_get_contents($url);
-        $json  = json_decode($resp ?? '[]', true);
+        $resp = file_get_contents($url);
+        $json = json_decode($resp ?? '[]', true);
         $items = collect($json['items'] ?? [])->values()->all();
 
         $result = $items ? $this->hydrateVideosFromSearchResults($items) : [];
@@ -449,25 +460,37 @@ trait Comum
         $tipo_tarefa = $this->getTipoTarefa();
 
         $result = collect($result)
-            ->filter(fn($row) => !empty($row['videoId'])) // segurança básica
+            ->filter(fn ($row) => ! empty($row['videoId'])) // segurança básica
             ->when(
                 $tipo_tarefa == 't1',
-                fn($col) => $col->filter(fn($row) =>
-                    isset($row['commentCount']) && $row['commentCount'] <= 300
+                fn ($col) => $col->filter(fn ($row) => isset($row['commentCount']) && $row['commentCount'] <= 300
                 )
             )
-            ->map(fn($row) => $row + ['q' => $q])
+            ->when(
+                $tipo_tarefa == 't4',
+                fn ($col) => $col->filter(function ($row) {
+                    if (empty($row['channelDt'])) {
+                        return false;
+                    }
+                    $dtCanal = \Carbon\Carbon::parse($row['channelDt']);
+                    $limite = now()->subYears(7);
+
+                    return $dtCanal->lte($limite); // canal com pelo menos 5 anos
+                })
+            )
+
+            ->map(fn ($row) => $row + ['q' => $q])
             ->keyBy('videoId')
             ->toArray();
 
         Cache::put($cacheKey, $result, now()->addDay());
 
-        #dd($result);
+        // dd($result);
 
         return $this->buscas = $result;
     }
 
-    # pega os canais via query
+    // pega os canais via query
     public function getCanais(bool $forceRefresh = false): array
     {
 
@@ -477,36 +500,38 @@ trait Comum
         }
 
         // cache por query (case-insensitive)
-        $cacheKey = 'yt:search:channels:v1:' . md5(mb_strtolower($q));
-        if (!$forceRefresh && Cache::has($cacheKey)) {
+        $cacheKey = 'yt:search:channels:v1:'.md5(mb_strtolower($q));
+        if (! $forceRefresh && Cache::has($cacheKey)) {
             return $this->buscas = Cache::get($cacheKey);
         }
 
         $apiKey = env('YOUTUBE_API_KEY');
 
         // 1) Busca canais (máx 50)
-        $url = 'https://www.googleapis.com/youtube/v3/search?' . http_build_query([
-            'key'        => $apiKey,
-            'part'       => 'snippet',
-            'q'          => $q,
-            'type'       => 'channel',
+        $url = 'https://www.googleapis.com/youtube/v3/search?'.http_build_query([
+            'key' => $apiKey,
+            'part' => 'snippet',
+            'q' => $q,
+            'type' => 'channel',
             'maxResults' => 50,
         ]);
-        Log::info('YT API:' . __CLASS__ . ' / ' . __FUNCTION__ . '()', ['url' => $url]);
+        Log::info('YT API:'.__CLASS__.' / '.__FUNCTION__.'()', ['url' => $url]);
 
-        $resp  = file_get_contents($url);
-        $json  = json_decode($resp ?? '[]', true);
+        $resp = file_get_contents($url);
+        $json = json_decode($resp ?? '[]', true);
         $items = collect($json['items'] ?? [])->values()->all();
 
-        if (!$items) {
+        if (! $items) {
             Cache::put($cacheKey, [], now()->addDay());
+
             return $this->buscas = [];
         }
 
         // 2) Extrai os channelIds corretos (id.channelId)
         $channelIds = collect($items)->pluck('id.channelId')->filter()->unique()->values()->all();
-        if (!$channelIds) {
+        if (! $channelIds) {
             Cache::put($cacheKey, [], now()->addDay());
+
             return $this->buscas = [];
         }
 
@@ -516,19 +541,20 @@ trait Comum
         // 4) preserva a ordem do search e adiciona 'q'
         $out = [];
 
-        #dd($items);
+        // dd($items);
 
         foreach ($items as $it) {
             $chId = $it['id']['channelId'] ?? null;
-            if (!$chId || empty($detailsById[$chId])) 
+            if (! $chId || empty($detailsById[$chId])) {
                 continue;
+            }
 
             $row = $detailsById[$chId];
             $row['q'] = $q;           // anota a query usada
-            #$out[] = $row;
-            if($this->getTipoTarefa() == 't3'){
-                #dd('ff');
-                if($row['channelCountry']== 'BR'){
+            // $out[] = $row;
+            if ($this->getTipoTarefa() == 't3') {
+                // dd('ff');
+                if ($row['channelCountry'] == 'BR') {
                     $out[] = $row;
                 }
             } else {
@@ -536,10 +562,11 @@ trait Comum
             }
         }
 
-        #dd($out);
+        // dd($out);
 
         // 5) cache + retorno
         Cache::put($cacheKey, $out, now()->addDay());
+
         return $this->buscas = $out;
     }
 
@@ -547,68 +574,68 @@ trait Comum
     {
         $q = trim((string) $this->query);
         if ($q !== '') {
-            Cache::forget('yt:search:channels:v1:' . md5(mb_strtolower($q)));
+            Cache::forget('yt:search:channels:v1:'.md5(mb_strtolower($q)));
         }
     }
 
-    ########################################### fIM Trait canais
+    // ########################################## fIM Trait canais
 
-
-
-    #comum
+    // comum
     public function removeSelecionado33333333333333333(string $registroId): void
     {
         unset($this->selecionados[$registroId]);
         $this->persistSelecionados();
     }
 
+    public function removeSelecionado(string $registroId): void
+    {
+        unset($this->selecionados[$registroId]);
 
-public function removeSelecionado(string $registroId): void
-{
-    unset($this->selecionados[$registroId]);
+        // limpa estados derivados (tabela / médias / gráfico)
+        if (property_exists($this, 'samples')) {
+            unset($this->samples[$registroId]);
+        }
+        if (property_exists($this, 'comentarios')) {
+            unset($this->comentarios[$registroId]);
+        }
+        if (property_exists($this, 'toxMediaArray')) {
+            unset($this->toxMediaArray[$registroId]);
+        }
 
-    // limpa estados derivados (tabela / médias / gráfico)
-    if (property_exists($this, 'samples'))      unset($this->samples[$registroId]);
-    if (property_exists($this, 'comentarios'))  unset($this->comentarios[$registroId]);
-    if (property_exists($this, 'toxMediaArray'))unset($this->toxMediaArray[$registroId]);
+        // limpa caches de sessão relacionados (T1)
+        $sess = session('t1_comentarios', []);
+        unset($sess[$registroId]);
+        session()->put('t1_comentarios', $sess);
 
+        // persiste selecionados (sel_videos)
+        $this->persistSelecionados();
 
-    // limpa caches de sessão relacionados (T1)
-    $sess = session('t1_comentarios', []);
-    unset($sess[$registroId]);
-    session()->put('t1_comentarios', $sess);
-
-    // persiste selecionados (sel_videos)
-    $this->persistSelecionados();
-
-    // opcional: se quiser forçar sumir o bloco de avaliação quando ficar <2
-    if (count($this->selecionados) < 2) {
-        $this->mostrarAvaliacao = false;
-        $this->feedback = '';
+        // opcional: se quiser forçar sumir o bloco de avaliação quando ficar <2
+        if (count($this->selecionados) < 2) {
+            $this->mostrarAvaliacao = false;
+            $this->feedback = '';
+        }
     }
-}
-
-
 
     public function getAllVideos(
-            string $channelId,
-            ?string $channelCreatedAt = null,
-            int $max = 100,
-            int $maxPages = 5,
-            int $page = 1,
-            int $totalInformado = 0,
-            array $acc = [],
-            ?string $pageToken = null
-        ) {
+        string $channelId,
+        ?string $channelCreatedAt = null,
+        int $max = 100,
+        int $maxPages = 5,
+        int $page = 1,
+        int $totalInformado = 0,
+        array $acc = [],
+        ?string $pageToken = null
+    ) {
         $key = env('YOUTUBE_API_KEY');
 
-        $url = "https://www.googleapis.com/youtube/v3/search"
-            . "?key={$key}"
-            . "&channelId={$channelId}"
-            . "&part=snippet"
-            . "&order=date"
-            . "&type=video"
-            . "&maxResults=50";
+        $url = 'https://www.googleapis.com/youtube/v3/search'
+            ."?key={$key}"
+            ."&channelId={$channelId}"
+            .'&part=snippet'
+            .'&order=date'
+            .'&type=video'
+            .'&maxResults=50';
 
         if ($page > 1 && $pageToken) {
             $url .= "&pageToken={$pageToken}";
@@ -619,38 +646,41 @@ public function removeSelecionado(string $registroId): void
             return $acc;
         }
 
-        $json  = $resp->json();
+        $json = $resp->json();
         $items = $json['items'] ?? [];
 
         foreach ($items as $item) {
             $snippet = $item['snippet'] ?? [];
             $videoId = data_get($item, 'id.videoId');
-            if (!$videoId) continue;
+            if (! $videoId) {
+                continue;
+            }
 
             $title = (string) ($snippet['title'] ?? '');
-            $desc  = (string) ($snippet['description'] ?? '');
+            $desc = (string) ($snippet['description'] ?? '');
 
-            #$nlp1 = 100 * $this->setTox($title);
-            #$nlp2 = 100 * $this->setTox($desc);
+            // $nlp1 = 100 * $this->setTox($title);
+            // $nlp2 = 100 * $this->setTox($desc);
 
             $acc[] = [
-                'videoId'      => $videoId,
-                'videoTitle'   => $title,
-                'videoDesc'    => $desc,
-                'videoDt'      => $snippet['publishedAt'] ?? null,
-                'channelId'    => $snippet['channelId'] ?? '',
+                'videoId' => $videoId,
+                'videoTitle' => $title,
+                'videoDesc' => $desc,
+                'videoDt' => $snippet['publishedAt'] ?? null,
+                'channelId' => $snippet['channelId'] ?? '',
                 'channelTitle' => $snippet['channelTitle'] ?? '',
-                'videoThumb'   => data_get($snippet, 'thumbnails.medium.url'),
-                #'nlp1'         => is_numeric($nlp1) ? (float)$nlp1 : null,
-                #'nlp2'         => is_numeric($nlp2) ? (float)$nlp2 : null,
+                'videoThumb' => data_get($snippet, 'thumbnails.medium.url'),
+                // 'nlp1'         => is_numeric($nlp1) ? (float)$nlp1 : null,
+                // 'nlp2'         => is_numeric($nlp2) ? (float)$nlp2 : null,
             ];
 
-            if (count($acc) >= $max) 
+            if (count($acc) >= $max) {
                 break;
+            }
         }
 
         $nextToken = $json['nextPageToken'] ?? null;
-        $temMais   = $nextToken && (count($acc) < $max) && ($page < $maxPages);
+        $temMais = $nextToken && (count($acc) < $max) && ($page < $maxPages);
 
         if ($temMais) {
             return $this->getAllVideos(
@@ -665,29 +695,33 @@ public function removeSelecionado(string $registroId): void
             );
         }
 
-        usort($acc, fn($a, $b) => strtotime($b['videoDt'] ?? '1970-01-01') <=> strtotime($a['videoDt'] ?? '1970-01-01'));
+        usort($acc, fn ($a, $b) => strtotime($b['videoDt'] ?? '1970-01-01') <=> strtotime($a['videoDt'] ?? '1970-01-01'));
 
-    return array_slice($acc, 0, $max);
-}
-
-
-
-
+        return array_slice($acc, 0, $max);
+    }
 
     protected function parseVideoId(string $ref): ?string
     {
         $ref = trim($ref);
         // aceita 3 formatos: ID cru, youtu.be/ID, ...watch?v=ID...
-        if (preg_match('~^[A-Za-z0-9_-]{11}$~', $ref)) return $ref;
+        if (preg_match('~^[A-Za-z0-9_-]{11}$~', $ref)) {
+            return $ref;
+        }
 
         // youtu.be/ID
-        if (preg_match('~youtu\.be/([A-Za-z0-9_-]{11})~i', $ref, $m)) return $m[1];
+        if (preg_match('~youtu\.be/([A-Za-z0-9_-]{11})~i', $ref, $m)) {
+            return $m[1];
+        }
 
         // watch?v=ID  (pega exatamente 11 chars após v=)
-        if (preg_match('~[?&]v=([A-Za-z0-9_-]{11})~i', $ref, $m)) return $m[1];
+        if (preg_match('~[?&]v=([A-Za-z0-9_-]{11})~i', $ref, $m)) {
+            return $m[1];
+        }
 
         // fallback (últimos 11 que parecem ID)
-        if (preg_match('~([A-Za-z0-9_-]{11})$~', $ref, $m)) return $m[1];
+        if (preg_match('~([A-Za-z0-9_-]{11})$~', $ref, $m)) {
+            return $m[1];
+        }
 
         return null;
     }
@@ -695,7 +729,7 @@ public function removeSelecionado(string $registroId): void
     protected function msg(string $txt, string $type = 'error'): void
     {
         $types = ['error', 'warn', 'info', 'success'];
-        if (!in_array($type, $types, true)) {
+        if (! in_array($type, $types, true)) {
             $type = 'info';
         }
 
@@ -704,7 +738,6 @@ public function removeSelecionado(string $registroId): void
             'text' => $txt,
         ]);
     }
-
 
     private function tokenizaKeywordsMesmoComEspaco($rawKW): array
     {
@@ -728,13 +761,11 @@ public function removeSelecionado(string $registroId): void
         return $keywords;
     }
 
-
-
     /** Retorna a tarefa aberta do tipo (cria se não existir). */
     public function current(): Tarefa
     {
 
-        #$k = $this->key($tipo);
+        // $k = $this->key($tipo);
 
         $tipo = $this->getTipoTarefa();
 
@@ -768,16 +799,17 @@ public function removeSelecionado(string $registroId): void
             ->first();
 
         // 4) se não há, cria uma nova
-        if (!$t) {
+        if (! $t) {
             $t = Tarefa::create([
                 'user_id' => Auth::id(),   // garanta que a rota está sob 'auth'
-                'tipo'    => $tipo,
-                'status'  => 0,
+                'tipo' => $tipo,
+                'status' => 0,
             ]);
         }
 
         // 5) persiste apenas o id na sessão e guarda no cache local
         Session::put($k, $t->id);
+
         return $this->cache[$k] = $t;
     }
 
@@ -794,7 +826,7 @@ public function removeSelecionado(string $registroId): void
         $t->finished_at = $extra['finished_at'] ?? now();
         $t->save();
 
-        #$k = $this->key($tipo);
+        // $k = $this->key($tipo);
         $k = $this->getTipoTarefa();
 
         Session::forget($k);
@@ -806,7 +838,7 @@ public function removeSelecionado(string $registroId): void
     /** Apenas limpa o id da sessão (sem fechar a tarefa) */
     public function forget(string $tipo): void
     {
-        #$k = $this->key($tipo);
+        // $k = $this->key($tipo);
         $k = $this->getTipoTarefa();
 
         Session::forget($k);
@@ -826,28 +858,30 @@ public function removeSelecionado(string $registroId): void
         return $this->current();
     }
 
-    #####################################################
+    // ####################################################
 
-    #pode vir mais de 50 videos ele chunka por 50
-    # 550 video_ids => 550 video_details --------- chunk 50 - 4 parts API YT
+    // pode vir mais de 50 videos ele chunka por 50
+    // 550 video_ids => 550 video_details --------- chunk 50 - 4 parts API YT
 
     public function getVideoDetailsByListVideoIds(array $ids): array
     {
         $apiKey = env('YOUTUBE_API_KEY');
 
         $ids = array_values(array_unique(array_filter($ids)));
-        if (!$ids) return [];
+        if (! $ids) {
+            return [];
+        }
 
         $out = [];
 
         foreach (array_chunk($ids, 50) as $pack) {
             $params = [
-                'key'  => $apiKey,
-                'id'   => implode(',', $pack),
+                'key' => $apiKey,
+                'id' => implode(',', $pack),
                 'part' => 'snippet,statistics,contentDetails',
             ];
-            $url = 'https://www.googleapis.com/youtube/v3/videos?' . http_build_query($params);
-            Log::info('YT API:' . __CLASS__ . ' / ' . __FUNCTION__ . '()', ['url' => $url]);
+            $url = 'https://www.googleapis.com/youtube/v3/videos?'.http_build_query($params);
+            Log::info('YT API:'.__CLASS__.' / '.__FUNCTION__.'()', ['url' => $url]);
 
             $res = file_get_contents($url);
             $json = json_decode($res, true) ?: [];
@@ -859,92 +893,94 @@ public function removeSelecionado(string $registroId): void
 
                 $out[] = [
                     // ids/refs
-                    'videoId'       => $v['id'] ?? null,
-                    'channelId'     => $sn['channelId'] ?? null,
-                    'channelTitle'  => $sn['channelTitle'] ?? null,
-                    'published'           => $sn['publishedAt'] ?? null,
-
-
+                    'videoId' => $v['id'] ?? null,
+                    'channelId' => $sn['channelId'] ?? null,
+                    'channelTitle' => $sn['channelTitle'] ?? null,
+                    'published' => $sn['publishedAt'] ?? null,
 
                     // metadados do vídeo
-                    'videoTitle'        => $sn['title'] ?? '',
-                    'videoDesc'         => $sn['description'] ?? null,
-                    'videoTags'         => $sn['tags'] ?? null,                 // array|nul
-                    'videoCategId'      => $sn['categoryId'] ?? null,
-                    'lang'         => $sn['defaultAudioLanguage'] ?? ($sn['defaultLanguage'] ?? null),
-                    'thumbnail'         => $sn['thumbnails']['default']['url'] ?? null,
+                    'videoTitle' => $sn['title'] ?? '',
+                    'videoDesc' => $sn['description'] ?? null,
+                    'videoTags' => $sn['tags'] ?? null,                 // array|nul
+                    'videoCategId' => $sn['categoryId'] ?? null,
+                    'lang' => $sn['defaultAudioLanguage'] ?? ($sn['defaultLanguage'] ?? null),
+                    'thumbnail' => $sn['thumbnails']['default']['url'] ?? null,
 
                     // stats
-                    'viewCount'    => isset($st['viewCount'])    ? (int) $st['viewCount']    : null,
-                    'likeCount'    => isset($st['likeCount'])    ? (int) $st['likeCount']    : null,
+                    'viewCount' => isset($st['viewCount']) ? (int) $st['viewCount'] : null,
+                    'likeCount' => isset($st['likeCount']) ? (int) $st['likeCount'] : null,
                     'commentCount' => isset($st['commentCount']) ? (int) $st['commentCount'] : null,
 
                     // duração
-                    //'videoDurationIso'  => $cd['duration'] ?? 'PT0S',
+                    // 'videoDurationIso'  => $cd['duration'] ?? 'PT0S',
                     // se quiser em segundos: descomente e implemente ISO8601ToSeconds
-                    'duration'      => $this->ISO8601ToSeconds($cd['duration'] ?? null),
+                    'duration' => $this->ISO8601ToSeconds($cd['duration'] ?? null),
                 ];
             }
         }
 
         // ordena por data do vídeo (quando disponível)
-        usort($out, fn($a, $b) => strcmp($a['videoDt'] ?? '', $b['videoDt'] ?? ''));
+        usort($out, fn ($a, $b) => strcmp($a['videoDt'] ?? '', $b['videoDt'] ?? ''));
+
         return $out;
     }
 
-
-    # 1 canal_id => 1 canal_details --------- 
-    # 550 canais_ids => 550 canais_details --------- 
+    // 1 canal_id => 1 canal_details ---------
+    // 550 canais_ids => 550 canais_details ---------
 
     public function getCanaisDetailsByListCanaisIds(array $channelIds): array
     {
         $apiKey = env('YOUTUBE_API_KEY');
 
         $channelIds = array_values(array_unique(array_filter($channelIds)));
-        if (!$channelIds) return [];
+        if (! $channelIds) {
+            return [];
+        }
 
         $out = [];
 
         foreach (array_chunk($channelIds, 50) as $pack) {
             $params = [
-                'key'  => $apiKey,
-                'id'   => implode(',', $pack),
+                'key' => $apiKey,
+                'id' => implode(',', $pack),
                 'part' => 'snippet,statistics,brandingSettings,contentDetails',
             ];
 
-            $url  = 'https://www.googleapis.com/youtube/v3/channels?' . http_build_query($params);
-            Log::info('YT API:' . __CLASS__ . ' / ' . __FUNCTION__ . '()', ['url' => $url]);
+            $url = 'https://www.googleapis.com/youtube/v3/channels?'.http_build_query($params);
+            Log::info('YT API:'.__CLASS__.' / '.__FUNCTION__.'()', ['url' => $url]);
 
             $resp = file_get_contents($url);
             $json = json_decode($resp, true) ?: [];
 
             foreach ($json['items'] ?? [] as $ch) {
                 $id = $ch['id'] ?? null;
-                if (!$id) continue;
+                if (! $id) {
+                    continue;
+                }
 
-                $sn  = $ch['snippet'] ?? [];
-                $st  = $ch['statistics'] ?? [];
-                $br  = $ch['brandingSettings']['channel'] ?? [];
+                $sn = $ch['snippet'] ?? [];
+                $st = $ch['statistics'] ?? [];
+                $br = $ch['brandingSettings']['channel'] ?? [];
 
                 $keywords = $this->parseBrandingKeywords($br['keywords'] ?? []);
 
                 $out[$id] = [
-                    'channelId'               => $id,
-                    'channelTitle'            => $sn['title'] ?? null,
-                    'channelDesc'             => $sn['description'] ?? null,
-                    'channelDt'               => $sn['publishedAt'] ?? null,
-                    'channelCountry'          => $sn['country'] ?? null,
-                    'channelHandle'           => $sn['customUrl'] ?? null,
-                    'channelThumb'            => $sn['thumbnails']['default']['url'] ?? null,
-                    'channelDefaultLanguage'  => $sn['defaultLanguage'] ?? null,
+                    'channelId' => $id,
+                    'channelTitle' => $sn['title'] ?? null,
+                    'channelDesc' => $sn['description'] ?? null,
+                    'channelDt' => $sn['publishedAt'] ?? null,
+                    'channelCountry' => $sn['country'] ?? null,
+                    'channelHandle' => $sn['customUrl'] ?? null,
+                    'channelThumb' => $sn['thumbnails']['default']['url'] ?? null,
+                    'channelDefaultLanguage' => $sn['defaultLanguage'] ?? null,
 
-                    'channelSubs'             => isset($st['subscriberCount']) ? (int) $st['subscriberCount'] : null,
-                    'channelViews'            => isset($st['viewCount'])      ? (int) $st['viewCount']      : null,
-                    'channelVideos'           => isset($st['videoCount'])     ? (int) $st['videoCount']     : null,
+                    'channelSubs' => isset($st['subscriberCount']) ? (int) $st['subscriberCount'] : null,
+                    'channelViews' => isset($st['viewCount']) ? (int) $st['viewCount'] : null,
+                    'channelVideos' => isset($st['videoCount']) ? (int) $st['videoCount'] : null,
 
-                    'channelKeywords'         => $keywords,
+                    'channelKeywords' => $keywords,
 
-                    #'channelCategory'
+                    // 'channelCategory'
                 ];
             }
         }
@@ -952,8 +988,7 @@ public function removeSelecionado(string $registroId): void
         return $out; // keyBy channelId
     }
 
-
-    function setPolarization(string $texto): ?float
+    public function setPolarization(string $texto): ?float
     {
         $texto = trim($texto);
         if ($texto === '') {
@@ -966,20 +1001,20 @@ public function removeSelecionado(string $registroId): void
         }
 
         // Cache 30 dias por hash do texto
-        $cacheKey = 'pol:google:' . sha1($texto);
+        $cacheKey = 'pol:google:'.sha1($texto);
 
         return Cache::remember($cacheKey, now()->addDays(30), function () use ($texto) {
             $apiKey = env('GOOGLE_API_KEY');
-            if (!$apiKey) {
+            if (! $apiKey) {
                 // Sem chave, não tem como calcular
                 return null;
             }
 
-            $url = 'https://language.googleapis.com/v1/documents:analyzeSentiment?key=' . $apiKey;
+            $url = 'https://language.googleapis.com/v1/documents:analyzeSentiment?key='.$apiKey;
 
             $payload = [
                 'document' => [
-                    'type'    => 'PLAIN_TEXT',
+                    'type' => 'PLAIN_TEXT',
                     'content' => $texto,
                     // 'language' => 'pt', // se quiser forçar; senão ele detecta
                 ],
@@ -989,12 +1024,13 @@ public function removeSelecionado(string $registroId): void
             try {
                 $response = Http::timeout(10)->post($url, $payload);
 
-                if (!$response->successful()) {
+                if (! $response->successful()) {
                     // Opcional: logar erro
                     Log::warning('Google NLP sentiment error', [
                         'status' => $response->status(),
-                        'body'   => $response->body(),
+                        'body' => $response->body(),
                     ]);
+
                     return null;
                 }
 
@@ -1006,7 +1042,7 @@ public function removeSelecionado(string $registroId): void
                 $score = $data['documentSentiment']['score'] ?? null;
                 $magnitude = $data['documentSentiment']['magnitude'] ?? null;
 
-                if (!is_numeric($score)) {
+                if (! is_numeric($score)) {
                     return null;
                 }
 
@@ -1017,32 +1053,31 @@ public function removeSelecionado(string $registroId): void
                 return is_numeric($polarization) ? round($polarization, 2) : null;
 
             } catch (\Throwable $e) {
-                \Log::error('Google NLP sentiment exception', [
+                Log::error('Google NLP sentiment exception', [
                     'msg' => $e->getMessage(),
                 ]);
+
                 return null;
             }
         });
     }
 
-
-
-    function setTox($txt)
+    public function setTox($txt)
     {
-        #return mt_rand() / mt_getrandmax();
+        // return mt_rand() / mt_getrandmax();
 
-        $apiKey = env("PERSPECTIVE_API");
+        $apiKey = env('PERSPECTIVE_API');
 
-        #dump($apiKey);
+        // dump($apiKey);
 
-        $url = 'https://commentanalyzer.googleapis.com/v1alpha1/comments:analyze?key=' . $apiKey;
+        $url = 'https://commentanalyzer.googleapis.com/v1alpha1/comments:analyze?key='.$apiKey;
 
         $payload = [
             'comment' => ['text' => $txt],
             'languages' => ['pt', 'en'], // ou 'pt' se quiser
             'requestedAttributes' => [
-                'TOXICITY' => new \stdClass()
-            ]
+                'TOXICITY' => new \stdClass,
+            ],
         ];
 
         $json = json_encode($payload);
@@ -1059,18 +1094,19 @@ public function removeSelecionado(string $registroId): void
 
         $response = curl_exec($ch);
 
-        #dd($response);
+        // dd($response);
 
         if (curl_errno($ch)) {
-            dd('Erro cURL: ' . curl_error($ch));
+            dd('Erro cURL: '.curl_error($ch));
             curl_close($ch);
+
             return null;
         }
 
         curl_close($ch);
         $res = json_decode($response, true);
 
-        if (!is_array($res)) {
+        if (! is_array($res)) {
             return null;
         }
 
@@ -1079,11 +1115,11 @@ public function removeSelecionado(string $registroId): void
         } else {
             $tox = null; // ou 0, ou -1, ou qualquer valor que faça sentido no seu contexto
         }
+
         return $tox;
     }
 
-
-    function polarizacaoGoogle(float $score, float $magnitude): ?float
+    public function polarizacaoGoogle(float $score, float $magnitude): ?float
     {
         // 1) Descarta magnitudes muito baixas
         if ($magnitude < 0.1 || $score == 0) {
@@ -1108,11 +1144,6 @@ public function removeSelecionado(string $registroId): void
         return $polar;
     }
 
-
-
-
-    
-
     protected function sentimentSchema(): ObjectSchema
     {
         return new ObjectSchema(
@@ -1136,18 +1167,11 @@ public function removeSelecionado(string $registroId): void
         );
     }
 
-
-
-    
-
-
-
-
-    ########################################## UPSERTS 4
+    // ######################################### UPSERTS 4
 
     public function upsertBusca(
         string $q
-        #, Tarefa $tarefa
+        // , Tarefa $tarefa
     ): Busca {
 
         $tarefa = $this->getTarefa();
@@ -1161,49 +1185,49 @@ public function removeSelecionado(string $registroId): void
         return $busca;
     }
 
-    ############## atencao existe uma relacao implicita de aninhamento
-    # o canal e superior em relacao ao video
-    # entao pode-se add um canal sem video assoc, mas nao o contrario
+    // ############# atencao existe uma relacao implicita de aninhamento
+    // o canal e superior em relacao ao video
+    // entao pode-se add um canal sem video assoc, mas nao o contrario
 
     // --- CANAL ---
     public function upsertCanal(array $ch, ?Busca $busca = null): Canal
     {
-        #$tarefa = $this->resolveTarefa($tarefa);
+        // $tarefa = $this->resolveTarefa($tarefa);
         $tarefa = $this->getTarefa();
         $canal = Canal::firstOrNew(['youtube_id' => $ch['youtube_id'], 'tarefa_id' => $tarefa->id]);
 
         $canal->fill([
-            'nome'       => $ch['nome'] ?? null,
-            'slug'       => isset($ch['nome']) ? Str::slug($ch['nome']) : $canal->slug,
-            #'youtube_id' => $ch['youtube_id'] ?? null,
-            #'desc'       => $ch['desc'] ?? null,
+            'nome' => $ch['nome'] ?? null,
+            'slug' => isset($ch['nome']) ? Str::slug($ch['nome']) : $canal->slug,
+            // 'youtube_id' => $ch['youtube_id'] ?? null,
+            // 'desc'       => $ch['desc'] ?? null,
 
-            'desc'       => $ch['desc'] ? $this->squashSpaces($ch['desc']) : null,
+            'desc' => $ch['desc'] ? $this->squashSpaces($ch['desc']) : null,
 
-
-            #'links'      => $ch['links'] ?? null,
-            'keywords'   => $ch['keywords'] ?? [],
-            'inscritos'  => $ch['inscritos'] ?? null,
-            'views'      => $ch['views'] ?? null,
-            'videos'     => $ch['videos'] ?? null,
-            'dt'         => $this->toDate($ch['dt'] ?? null),
-            'local'      => $ch['local'] ?? null,
-            'categ'      => $ch['categ'] ?? null,
-            'score'      => $ch['score'] ?? null,
-            'min'        => $ch['min'] ?? null,
-            'max'        => $ch['max'] ?? null,
+            // 'links'      => $ch['links'] ?? null,
+            'keywords' => $ch['keywords'] ?? [],
+            'inscritos' => $ch['inscritos'] ?? null,
+            'views' => $ch['views'] ?? null,
+            'videos' => $ch['videos'] ?? null,
+            'dt' => $this->toDate($ch['dt'] ?? null),
+            'local' => $ch['local'] ?? null,
+            'categ' => $ch['categ'] ?? null,
+            'score' => $ch['score'] ?? null,
+            'min' => $ch['min'] ?? null,
+            'max' => $ch['max'] ?? null,
             'engagement' => $ch['engagement'] ?? null,
-            'frequency'  => $ch['frequency'] ?? null,
-            'length'     => $ch['length'] ?? null,
+            'frequency' => $ch['frequency'] ?? null,
+            'length' => $ch['length'] ?? null,
         ]);
 
-        if ($busca)
+        if ($busca) {
             $canal->busca()->associate($busca);
+        }
 
         $canal->tarefa()->associate($tarefa);
         $canal->save();
 
-        #dd($canal);
+        // dd($canal);
         return $canal;
     }
 
@@ -1215,272 +1239,74 @@ public function removeSelecionado(string $registroId): void
         $video = Video::firstOrNew(['cod' => $vd['cod'], 'canal_id' => $canal->id, 'tarefa_id' => $tarefa->id]);
 
         $video->fill([
-            'nome'       => $vd['nome'] ?? null,
-            'slug'       => isset($vd['nome']) ? Str::slug($vd['nome']) : $video->slug,
+            'nome' => $vd['nome'] ?? null,
+            'slug' => isset($vd['nome']) ? Str::slug($vd['nome']) : $video->slug,
 
-            'desc'       => $vd['desc'] ? $this->squashSpaces($vd['desc']) : null,
+            'desc' => $vd['desc'] ? $this->squashSpaces($vd['desc']) : null,
 
-            'caption'    => $vd['caption'] ?? null,
-            'hashtags'   => $vd['hashtags'] ?? [],
-            'comments'   => $vd['comments'] ?? null,
-            'likes'      => $vd['likes'] ?? null,
-            'dislikes'   => $vd['dislikes'] ?? null,
-            'views'      => $vd['views'] ?? null,
-            'favorites'  => $vd['favorites'] ?? null,
+            'caption' => $vd['caption'] ?? null,
+            'hashtags' => $vd['hashtags'] ?? [],
+            'comments' => $vd['comments'] ?? null,
+            'likes' => $vd['likes'] ?? null,
+            'dislikes' => $vd['dislikes'] ?? null,
+            'views' => $vd['views'] ?? null,
+            'favorites' => $vd['favorites'] ?? null,
             'duration' => $this->ISO8601ToSeconds($vd['duration'] ?? null),
 
-            'categ_id'   => $vd['categ_id'] ?? null,
-            'lang'       => $vd['lang'] ?? null,
-            'dt'         => $this->toDateTime($vd['dt'] ?? null),
+            'categ_id' => $vd['categ_id'] ?? null,
+            'lang' => $vd['lang'] ?? null,
+            'dt' => $this->toDateTime($vd['dt'] ?? null),
         ]);
 
         $video->canal()->associate($canal);
         $video->tarefa()->associate($tarefa);
 
-        if ($busca)
+        if ($busca) {
             $video->busca()->associate($busca);
+        }
 
         $video->save();
 
         return $video;
     }
 
-
     public function upsertComentario(array $c, Video $video): Comentario
     {
 
-
-        #dd($c);
+        // dd($c);
 
         $cod = $c['cod'];
         $tarefa = $this->getTarefa();
         $coment = Comentario::firstOrNew([
-            'cod'       => $cod,
-            'video_id'  => $video->id,
+            'cod' => $cod,
+            'video_id' => $video->id,
             'tarefa_id' => $tarefa->id,
         ]);
 
         // 3) Preenche campos mutáveis
         $coment->fill([
-            'username'  => $c['username'] ?? null,
-            'texto'     => $c['texto'] ? $this->squashSpaces($c['texto']) : '',
-            'likes'     => $c['likes'] ?? null,
-            'dislikes'  => $c['dislikes'] ?? null,
-            'dt'        => $this->toDateTime($c['dt'] ?? null),
-            'tox'       => $c['tox'] ?? null,
+            'username' => $c['username'] ?? null,
+            'texto' => $c['texto'] ? $this->squashSpaces($c['texto']) : '',
+            'likes' => $c['likes'] ?? null,
+            'dislikes' => $c['dislikes'] ?? null,
+            'dt' => $this->toDateTime($c['dt'] ?? null),
+            'tox' => $c['tox'] ?? null,
         ]);
 
         $coment->video()->associate($video);
         $coment->tarefa()->associate($tarefa);
         $coment->save();
+
         return $coment;
     }
 
+    /*
+    |--------------------------------------------------------------------------
+    | PMT - TRANSCRIÇÃO
+    |--------------------------------------------------------------------------
+    */
 
-    #############################################################
-    #################### funcoes added final ####################
-    #############################################################
-
-    // function pmt_polarizacao_video(array $video, array $channel = [], array $comments = [], ?string $transcript = null): array
-    // {
-    //     $payload = [
-    //         'video' => [
-    //             'titulo' => $video['videoTitle'] ?? $video['nome'] ?? null,
-    //             'descricao' => mb_substr($video['videoDesc'] ?? $video['desc'] ?? '', 0, 4000),
-    //             'data' => $video['published'] ?? $video['dt'] ?? null,
-    //         ],
-    //         'canal' => [
-    //             'nome' => $channel['channelTitle'] ?? $channel['nome'] ?? null,
-    //             'descricao' => mb_substr($channel['channelDesc'] ?? $channel['desc'] ?? '', 0, 3000),
-    //         ],
-    //         'transcricao' => mb_substr($transcript ?? '', 0, 8000),
-    //         'comentarios_amostra' => collect($comments)
-    //             ->take(20)
-    //             ->map(fn ($c) => $c['texto'] ?? $c['text'] ?? '')
-    //             ->filter()
-    //             ->values()
-    //             ->all(),
-    //     ];
-
-    //     $prompt = <<<PROMPT
-    //     Você é um classificador acadêmico para análise de vídeos do YouTube.
-
-    //     Classifique o conteúdo segundo:
-    //     1. categoria temática principal:
-    //     - politica
-    //     - religiao
-    //     - ciencia
-    //     - saude
-    //     - economia
-    //     - entretenimento
-    //     - educacao
-    //     - tecnologia
-    //     - outro
-
-    //     2. Se a categoria for politica, classifique o polo ideológico:
-    //     - esquerda
-    //     - direita
-    //     - centro
-    //     - indefinido
-
-    //     3. Atribua um score de polarização entre 0 e 1:
-    //     0 = não polarizado
-    //     1 = altamente polarizado
-
-    //     4. Atribua uma confiança entre 0 e 1.
-
-    //     5. Explique brevemente a decisão.
-
-    //     Retorne EXCLUSIVAMENTE JSON válido neste formato:
-
-    //     {
-    //     "categoria": "...",
-    //     "polo_ideologico": "...",
-    //     "polarizacao_score": 0.0,
-    //     "confianca": 0.0,
-    //     "justificativa": "..."
-    //     }
-    //     PROMPT;
-
-    //     try {
-    //         $res = Http::withToken(env('OPENAI_API_KEY'))
-    //             ->timeout(60)
-    //             ->post('https://api.openai.com/v1/chat/completions', [
-    //                 'model' => 'gpt-4o-mini',
-    //                 'temperature' => 0.1,
-    //                 'messages' => [
-    //                     [
-    //                         'role' => 'system',
-    //                         'content' => 'Responda apenas JSON válido, sem markdown.'
-    //                     ],
-    //                     [
-    //                         'role' => 'user',
-    //                         'content' => $prompt . "\n\nDADOS:\n" . json_encode($payload, JSON_UNESCAPED_UNICODE)
-    //                     ],
-    //                 ],
-    //             ]);
-
-    //         if (!$res->successful()) {
-    //             Log::warning('Erro OpenAI polarização PMT', [
-    //                 'status' => $res->status(),
-    //                 'body' => $res->body(),
-    //             ]);
-
-    //             return pmt_polarizacao_fallback('erro_openai');
-    //         }
-
-    //         $content = $res->json('choices.0.message.content');
-
-    //         $json = json_decode($content, true);
-
-    //         if (!is_array($json)) {
-    //             return pmt_polarizacao_fallback('json_invalido', $content);
-    //         }
-
-    //         return [
-    //             'categoria' => $json['categoria'] ?? 'outro',
-    //             'polo_ideologico' => $json['polo_ideologico'] ?? 'indefinido',
-    //             'polarizacao_score' => (float) ($json['polarizacao_score'] ?? 0),
-    //             'confianca' => (float) ($json['confianca'] ?? 0),
-    //             'justificativa' => $json['justificativa'] ?? null,
-    //         ];
-
-    //     } catch (\Throwable $e) {
-    //         Log::warning('Exception polarização PMT', [
-    //             'erro' => $e->getMessage(),
-    //         ]);
-
-    //         return pmt_polarizacao_fallback('exception');
-    //     }
-    // }
-
-    // function pmt_polarizacao_fallback(string $motivo = 'indefinido', ?string $raw = null): array
-    // {
-    //     return [
-    //         'categoria' => 'outro',
-    //         'polo_ideologico' => 'indefinido',
-    //         'polarizacao_score' => 0,
-    //         'confianca' => 0,
-    //         'justificativa' => 'Classificação não realizada: ' . $motivo,
-    //         'raw' => $raw,
-    //     ];
-    // }
-
-    // function pmt_get_transcript(string $videoId): ?string
-    // {
-    //     try {
-    //         $res = Http::connectTimeout(20)
-    //             ->timeout(240)
-    //             ->retry(2, 5000)
-    //             ->get('https://www.searchapi.io/api/v1/search', [
-    //                 'engine' => 'youtube_transcripts',
-    //                 'video_id' => $videoId,
-    //                 'api_key' => env('SEARCHAPI_TRANSCRIPTS_YOUTUBE_API'),
-    //                 'only_available' => 'true',
-    //                 'transcript_type' => 'auto',
-    //             ]);
-
-    //         if (!$res->successful()) {
-    //             return null;
-    //         }
-
-    //         $texts = [];
-
-    //         foreach ($res->json('transcripts') ?? [] as $item) {
-    //             $text = trim($item['text'] ?? '');
-    //             if ($text === '') continue;
-    //             if (preg_match('/^\[(music|applause|laughter)\]$/i', $text)) continue;
-    //             $texts[] = $text;
-    //         }
-
-    //         return mb_substr(preg_replace('/\s+/', ' ', implode(' ', $texts)), 0, 30000);
-
-    //     } catch (\Throwable $e) {
-    //         Log::warning('Erro transcript PMT', [
-    //             'videoId' => $videoId,
-    //             'erro' => $e->getMessage(),
-    //         ]);
-
-    //         return null;
-    //     }
-    // }
-
-    
-    // $transcript = pmt_get_transcript($video->cod);
-
-    // $polarizacao = pmt_polarizacao_video(
-    //     video: [
-    //         'videoTitle' => $video->nome,
-    //         'videoDesc' => $video->desc,
-    //         'published' => $video->dt,
-    //     ],
-    //     channel: [
-    //         'channelTitle' => $video->canal->nome ?? null,
-    //         'channelDesc' => $video->canal->desc ?? null,
-    //     ],
-    //     comments: $video->comentarios->take(20)->toArray(),
-    //     transcript: $transcript
-    // );
-
-    // Resultado esperado:
-
-    // [
-    //     'categoria' => 'politica',
-    //     'polo_ideologico' => 'esquerda',
-    //     'polarizacao_score' => 1,
-    //     'confianca' => 0.95,
-    //     'justificativa' => '...'
-    // ]    
-
-
-/*
-|--------------------------------------------------------------------------
-| PMT - TRANSCRIÇÃO
-|--------------------------------------------------------------------------
-*/
-
-
-function pmt_get_transcript(string $videoId): ?string
+    public function pmt_get_transcript(string $videoId): ?string
     {
         try {
             $res = Http::connectTimeout(20)
@@ -1494,12 +1320,13 @@ function pmt_get_transcript(string $videoId): ?string
                     'transcript_type' => 'auto',
                 ]);
 
-            if (!$res->successful()) {
+            if (! $res->successful()) {
                 Log::warning('Erro SearchAPI transcript', [
                     'videoId' => $videoId,
                     'status' => $res->status(),
                     'body' => $res->body(),
                 ]);
+
                 return null;
             }
 
@@ -1507,8 +1334,12 @@ function pmt_get_transcript(string $videoId): ?string
 
             foreach ($res->json('transcripts') ?? [] as $item) {
                 $text = trim($item['text'] ?? '');
-                if ($text === '') continue;
-                if (preg_match('/^\[(music|applause|laughter)\]$/i', $text)) continue;
+                if ($text === '') {
+                    continue;
+                }
+                if (preg_match('/^\[(music|applause|laughter)\]$/i', $text)) {
+                    continue;
+                }
 
                 $texts[] = $text;
             }
@@ -1529,9 +1360,7 @@ function pmt_get_transcript(string $videoId): ?string
         }
     }
 
-
-
-function pmt_transcript_stats(?string $transcript): array
+    public function pmt_transcript_stats(?string $transcript): array
     {
         $transcript = trim($transcript ?? '');
 
@@ -1542,16 +1371,13 @@ function pmt_transcript_stats(?string $transcript): array
         ];
     }
 
-    
+    /*
+    |--------------------------------------------------------------------------
+    | PMT - POLARIZAÇÃO
+    |--------------------------------------------------------------------------
+    */
 
-/*
-|--------------------------------------------------------------------------
-| PMT - POLARIZAÇÃO
-|--------------------------------------------------------------------------
-*/
-
-
-function pmt_polarizacao_video(
+    public function pmt_polarizacao_video(
         array $video,
         array $channel = [],
         array $comments = [],
@@ -1580,7 +1406,7 @@ function pmt_polarizacao_video(
                 ->all(),
         ];
 
-        $prompt = <<<PROMPT
+        $prompt = <<<'PROMPT'
         Você é um classificador acadêmico para análise de vídeos do YouTube.
 
         Classifique o conteúdo segundo estes campos:
@@ -1635,22 +1461,22 @@ function pmt_polarizacao_video(
                     'messages' => [
                         [
                             'role' => 'system',
-                            'content' => 'Responda apenas JSON válido, sem markdown.'
+                            'content' => 'Responda apenas JSON válido, sem markdown.',
                         ],
                         [
                             'role' => 'user',
-                            'content' => $prompt . "\n\nDADOS:\n" . json_encode($payload, JSON_UNESCAPED_UNICODE)
+                            'content' => $prompt."\n\nDADOS:\n".json_encode($payload, JSON_UNESCAPED_UNICODE),
                         ],
                     ],
                 ]);
 
-            if (!$res->successful()) {
+            if (! $res->successful()) {
                 Log::warning('Erro OpenAI polarização PMT', [
                     'status' => $res->status(),
                     'body' => $res->body(),
                 ]);
 
-                return pmt_polarizacao_fallback('erro_openai');
+                return $this->pmt_polarizacao_fallback('erro_openai');
             }
 
             $content = trim($res->json('choices.0.message.content') ?? '');
@@ -1660,8 +1486,8 @@ function pmt_polarizacao_video(
 
             $json = json_decode(trim($content), true);
 
-            if (!is_array($json)) {
-                return pmt_polarizacao_fallback('json_invalido', $content);
+            if (! is_array($json)) {
+                return $this->pmt_polarizacao_fallback('json_invalido', $content);
             }
 
             return [
@@ -1677,34 +1503,29 @@ function pmt_polarizacao_video(
                 'erro' => $e->getMessage(),
             ]);
 
-            return pmt_polarizacao_fallback('exception');
+            return $this->pmt_polarizacao_fallback('exception');
         }
     }
 
-
-
-function pmt_polarizacao_fallback(string $motivo = 'indefinido', ?string $raw = null): array
+    public function pmt_polarizacao_fallback(string $motivo = 'indefinido', ?string $raw = null): array
     {
         return [
             'categoria' => 'outro',
             'polo_ideologico' => 'indefinido',
             'polarizacao_score' => 0,
             'confianca' => 0,
-            'justificativa' => 'Classificação não realizada: ' . $motivo,
+            'justificativa' => 'Classificação não realizada: '.$motivo,
             'raw' => $raw,
         ];
     }
 
+    /*
+    |--------------------------------------------------------------------------
+    | PMT - TOXICIDADE
+    |--------------------------------------------------------------------------
+    */
 
-
-/*
-|--------------------------------------------------------------------------
-| PMT - TOXICIDADE
-|--------------------------------------------------------------------------
-*/
-
-
-function pmt_toxicidade_comentarios(array $comments, int $limit = 100): array
+    public function pmt_toxicidade_comentarios(array $comments, int $limit = 100): array
     {
         $scores = [];
         $commentsWithTox = [];
@@ -1712,7 +1533,7 @@ function pmt_toxicidade_comentarios(array $comments, int $limit = 100): array
         foreach (array_slice($comments, 0, $limit) as $comment) {
             $texto = $comment['texto'] ?? $comment['text'] ?? '';
 
-            $score = pmt_perspective_toxicity($texto);
+            $score = $this->pmt_perspective_toxicity($texto);
 
             $comment['tox'] = $score;
             $commentsWithTox[] = $comment;
@@ -1737,9 +1558,7 @@ function pmt_toxicidade_comentarios(array $comments, int $limit = 100): array
         ];
     }
 
-
-
-function pmt_perspective_toxicity(string $text): ?float
+    public function pmt_perspective_toxicity(string $text): ?float
     {
         try {
             if (trim($text) === '') {
@@ -1747,16 +1566,16 @@ function pmt_perspective_toxicity(string $text): ?float
             }
 
             $res = Http::timeout(30)->post(
-                'https://commentanalyzer.googleapis.com/v1alpha1/comments:analyze?key=' . env('PERSPECTIVE_API'),
+                'https://commentanalyzer.googleapis.com/v1alpha1/comments:analyze?key='.env('PERSPECTIVE_API'),
                 [
                     'comment' => ['text' => mb_substr($text, 0, 3000)],
                     'requestedAttributes' => [
-                        'TOXICITY' => new \stdClass(),
+                        'TOXICITY' => new \stdClass,
                     ],
                 ]
             );
 
-            if (!$res->successful()) {
+            if (! $res->successful()) {
                 Log::warning('Perspective API erro', [
                     'status' => $res->status(),
                     'body' => $res->body(),
@@ -1776,16 +1595,13 @@ function pmt_perspective_toxicity(string $text): ?float
         }
     }
 
+    /*
+    |--------------------------------------------------------------------------
+    | PMT - MONETIZAÇÃO
+    |--------------------------------------------------------------------------
+    */
 
-
-/*
-|--------------------------------------------------------------------------
-| PMT - MONETIZAÇÃO
-|--------------------------------------------------------------------------
-*/
-
-
-function pmt_monetizacao_video(array $video, array $channel = []): array
+    public function pmt_monetizacao_video(array $video, array $channel = []): array
     {
         $channelId = $channel['channelId']
             ?? $channel['youtube_id']
@@ -1811,9 +1627,7 @@ function pmt_monetizacao_video(array $video, array $channel = []): array
         ];
     }
 
-
-
-function pmt_extract_external_urls(?string $text): array
+    public function pmt_extract_external_urls(?string $text): array
     {
         $text = $text ?? '';
 
@@ -1829,46 +1643,55 @@ function pmt_extract_external_urls(?string $text): array
         return array_values(array_unique($urls));
     }
 
-
-    function pmt_get_vidiq_monthly_avg_usd(string $channelId): ?float
+    public function pmt_get_vidiq_monthly_avg_usd(string $channelId): ?float
     {
         $url = "https://vidiq.com/youtube-stats/channel/{$channelId}/";
 
         try {
             $res = Http::withHeaders([
                 'User-Agent' => 'Mozilla/5.0',
-                'Accept-Language' => 'pt-BR,pt;q=0.9,en-US,en;q=0.8',
+                'Accept-Language' => 'en-US,en;q=0.9',
             ])->timeout(30)->get($url);
 
-            if (!$res->ok()) {
+            if (! $res->ok()) {
                 return null;
             }
 
             $html = $res->body();
 
-            if (preg_match(
-                '~Ganhos\s+mensais\s+estimados.*?<p[^>]*>\s*([^<]+)\s*</p>~is',
-                $html,
-                $m
-            )) {
-                return pmt_parse_money_to_usd(trim($m[1]));
+            if (
+                str_contains($html, 'No results found') ||
+                str_contains($html, 'we don’t have any information about this channel') ||
+                str_contains($html, "we don't have any information about this channel")
+            ) {
+                Log::warning('VIDIQ SEM RESULTADO', [
+                    'channelId' => $channelId,
+                    'url' => $url,
+                ]);
+
+                return null;
             }
 
             if (preg_match(
-                '~Est\.\s*Monthly\s*Earnings.*?<p[^>]*>\s*([^<]+)\s*</p>~is',
+                '~Est\.\s*Monthly\s*Earnings.*?<p[^>]*>\s*(\$[0-9][0-9\.,]*\s*[KkMm]?)\s*</p>~is',
                 $html,
                 $m
             )) {
-                return pmt_parse_money_to_usd(trim($m[1]));
+                return $this->pmt_parse_money_to_usd(trim($m[1]));
             }
 
             if (preg_match(
-                '~(?:Ganhos\s+mensais\s+estimados|Monthly\s*Earnings).*?(\$[0-9][0-9\.,]*\s*[KkMm]?)~is',
+                '~Est\.\s*Monthly\s*Earnings.*?(\$[0-9][0-9\.,]*\s*[KkMm]?)~is',
                 $html,
                 $m
             )) {
-                return pmt_parse_money_to_usd(trim($m[1]));
+                return $this->pmt_parse_money_to_usd(trim($m[1]));
             }
+
+            Log::warning('VIDIQ SEM MATCH', [
+                'channelId' => $channelId,
+                'url' => $url,
+            ]);
 
             return null;
 
@@ -1882,32 +1705,32 @@ function pmt_extract_external_urls(?string $text): array
         }
     }
 
-
-
-function pmt_parse_money_to_usd(string $value): ?float
+    public function pmt_parse_money_to_usd(string $value): ?float
     {
         $value = html_entity_decode($value, ENT_QUOTES | ENT_HTML5, 'UTF-8');
-        $value = trim(strip_tags($value));
+        $value = strtoupper(trim(strip_tags($value)));
+        $value = str_replace(['$', 'USD', 'US'], '', $value);
+        $value = trim($value);
 
-        if (preg_match('~\$?\s*([0-9][0-9\.,]*)\s*([KkMm])?\s*-\s*\$?\s*([0-9][0-9\.,]*)\s*([KkMm])?~', $value, $m)) {
-            $min = pmt_to_number($m[1], $m[2] ?? null);
-            $max = pmt_to_number($m[3], $m[4] ?? null);
-
-            return ($min + $max) / 2;
+        // Ex.: 14K, 2.3M, 850
+        if (preg_match('~^([0-9][0-9\.,]*)\s*([KM]?)$~', $value, $m)) {
+            return $this->pmt_to_number($m[1], $m[2] ?? null);
         }
 
-        if (preg_match('~\$?\s*([0-9][0-9\.,]*)\s*([KkMm])?~', $value, $m)) {
-            return pmt_to_number($m[1], $m[2] ?? null);
+        // Ex.: 10K - 20K
+        if (preg_match('~^([0-9][0-9\.,]*)\s*([KM]?)\s*-\s*([0-9][0-9\.,]*)\s*([KM]?)$~', $value, $m)) {
+            $min = $this->pmt_to_number($m[1], $m[2] ?? null);
+            $max = $this->pmt_to_number($m[3], $m[4] ?? null);
+
+            return ($min + $max) / 2;
         }
 
         return null;
     }
 
-    
-
-function pmt_to_number(string $num, ?string $suffix = null): float
+    public function pmt_to_number(string $num, ?string $suffix = null): float
     {
-        $num = str_replace(',', '', $num);
+        $num = str_replace(',', '', trim($num));
         $val = (float) $num;
 
         return match (strtolower($suffix ?? '')) {
@@ -1917,16 +1740,13 @@ function pmt_to_number(string $num, ?string $suffix = null): float
         };
     }
 
+    /*
+    |--------------------------------------------------------------------------
+    | PMT - FUNÇÃO AGREGADORA PARA WIDGETS
+    |--------------------------------------------------------------------------
+    */
 
-
-/*
-|--------------------------------------------------------------------------
-| PMT - FUNÇÃO AGREGADORA PARA WIDGETS
-|--------------------------------------------------------------------------
-*/
-
-
-    function pmt_analisar_video_para_widgets(
+    public function pmt_analisar_video_para_widgets(
         array $video,
         array $channel = [],
         array $comments = [],
@@ -1942,6 +1762,7 @@ function pmt_to_number(string $num, ?string $suffix = null): float
             $ini = microtime(true);
             $result = $fn();
             $bench[$label] = round(microtime(true) - $ini, 3);
+
             return $result;
         };
 
@@ -1951,15 +1772,15 @@ function pmt_to_number(string $num, ?string $suffix = null): float
         $transcriptStats = null;
 
         if ($usarTranscript && $videoId) {
-            $transcript = $mark('transcript', fn () => pmt_get_transcript($videoId));
-            $transcriptStats = pmt_transcript_stats($transcript);
+            $transcript = $mark('transcript', fn () => $this->pmt_get_transcript($videoId));
+            $transcriptStats = $this->pmt_transcript_stats($transcript);
         }
 
         $toxicity = null;
         $commentsWithTox = $comments;
 
         if ($usarToxicidade) {
-            $toxResult = $mark('toxicidade', fn () => pmt_toxicidade_comentarios($comments));
+            $toxResult = $mark('toxicidade', fn () => $this->pmt_toxicidade_comentarios($comments));
             $toxicity = $toxResult['summary'];
             $commentsWithTox = $toxResult['comments'];
         }
@@ -1967,13 +1788,13 @@ function pmt_to_number(string $num, ?string $suffix = null): float
         $monetization = null;
 
         if ($usarMonetizacao) {
-            $monetization = $mark('monetizacao', fn () => pmt_monetizacao_video($video, $channel));
+            $monetization = $mark('monetizacao', fn () => $this->pmt_monetizacao_video($video, $channel));
         }
 
         $polarization = null;
 
         if ($usarPolarizacao) {
-            $polarization = $mark('polarizacao', fn () => pmt_polarizacao_video(
+            $polarization = $mark('polarizacao', fn () => $this->pmt_polarizacao_video(
                 $video,
                 $channel,
                 $commentsWithTox,
@@ -1997,39 +1818,9 @@ function pmt_to_number(string $num, ?string $suffix = null): float
         ];
     }
 
-
-
-    // $result = pmt_analisar_video_para_widgets(
-    //     video: [
-    //         'cod' => $video->cod,
-    //         'nome' => $video->nome,
-    //         'desc' => $video->desc,
-    //         'dt' => $video->dt,
-    //         'views' => $video->views,
-    //         'likes' => $video->likes,
-    //         'comments' => $video->comments,
-    //     ],
-    //     channel: [
-    //         'youtube_id' => $video->canal->youtube_id ?? null,
-    //         'nome' => $video->canal->nome ?? null,
-    //         'desc' => $video->canal->desc ?? null,
-    //         'inscritos' => $video->canal->inscritos ?? null,
-    //     ],
-    //     comments: $video->comentarios->take(100)->toArray()
-    // );
-
-    // Agora os widgets conseguem chamar:
-
-    // $result['polarization']
-    // $result['toxicity']
-    // $result['monetization']
-    // $result['transcript_stats']
-    // $result['bench']
-
-
-    function pmt_bucket_periods(?string $channelCreatedAt, int $n = 5): array
+    public function pmt_bucket_periods(?string $channelCreatedAt, int $n = 5): array
     {
-        if (!$channelCreatedAt) {
+        if (! $channelCreatedAt) {
             return [];
         }
 
@@ -2051,14 +1842,14 @@ function pmt_to_number(string $num, ?string $suffix = null): float
                 'idx' => $i + 1,
                 'after' => $after->toIso8601String(),
                 'before' => $before->toIso8601String(),
-                'label' => $after->format('Y') . '–' . $before->format('Y'),
+                'label' => $after->format('Y').'–'.$before->format('Y'),
             ];
         }
 
         return $buckets;
     }
 
-    function pmt_word_freq(string $text, int $limit = 25): array
+    public function pmt_word_freq(string $text, int $limit = 25): array
     {
         $text = mb_strtolower(strip_tags($text));
 
@@ -2066,16 +1857,20 @@ function pmt_to_number(string $num, ?string $suffix = null): float
         $words = preg_split('/\s+/u', $text, -1, PREG_SPLIT_NO_EMPTY);
 
         $stop = [
-            'a','o','os','as','um','uma','de','da','do','das','dos','em','no','na','nos','nas',
-            'para','por','com','sem','sobre','que','e','ou','se','ao','aos','à','às',
-            'the','and','or','to','of','in','on','for','with','is','are'
+            'a', 'o', 'os', 'as', 'um', 'uma', 'de', 'da', 'do', 'das', 'dos', 'em', 'no', 'na', 'nos', 'nas',
+            'para', 'por', 'com', 'sem', 'sobre', 'que', 'e', 'ou', 'se', 'ao', 'aos', 'à', 'às',
+            'the', 'and', 'or', 'to', 'of', 'in', 'on', 'for', 'with', 'is', 'are',
         ];
 
         $freq = [];
 
         foreach ($words as $w) {
-            if (mb_strlen($w) < 3) continue;
-            if (in_array($w, $stop, true)) continue;
+            if (mb_strlen($w) < 3) {
+                continue;
+            }
+            if (in_array($w, $stop, true)) {
+                continue;
+            }
 
             $freq[$w] = ($freq[$w] ?? 0) + 1;
         }
@@ -2085,8 +1880,7 @@ function pmt_to_number(string $num, ?string $suffix = null): float
         return array_slice($freq, 0, $limit, true);
     }
 
-    
-    function pmt_analisar_bucket_pm(array $channel, array $videos): array
+    public function pmt_analisar_bucket_pm3333333333333(array $channel, array $videos): array
     {
         $titles = '';
         $descs = '';
@@ -2097,23 +1891,37 @@ function pmt_to_number(string $num, ?string $suffix = null): float
         $urlsCounts = [];
 
         foreach ($videos as $v) {
-            $titles .= ' ' . ($v['videoTitle'] ?? $v['title'] ?? $v['nome'] ?? '');
-            $descs .= ' ' . ($v['videoDesc'] ?? $v['desc'] ?? '');
+            $titles .= ' '.($v['videoTitle'] ?? $v['title'] ?? $v['nome'] ?? '');
+
+            $desc = $v['videoDesc']
+                ?? $v['description']
+                ?? $v['desc']
+                ?? '';
+
+            $descs .= ' '.$desc;
 
             $videoTags = $v['videoTags'] ?? $v['tags'] ?? [];
             if (is_array($videoTags)) {
-                $tags .= ' ' . implode(' ', $videoTags);
+                $tags .= ' '.implode(' ', $videoTags);
             }
 
-            $urls = $this->pmt_extract_external_urls(($v['videoDesc'] ?? $v['desc'] ?? ''));
+            $urls = $this->pmt_extract_external_urls($desc);
             $urlsCounts[] = count($urls);
+
+            Log::info('T3 PM URLS VIDEO', [
+                'videoId' => $v['videoId'] ?? null,
+                'title' => $v['videoTitle'] ?? $v['title'] ?? null,
+                'desc_len' => strlen($desc),
+                'urls_count' => count($urls),
+                'urls' => $urls,
+            ]);
 
             $videoId = $v['videoId'] ?? $v['cod'] ?? null;
 
             $transcript = null;
             if ($videoId) {
                 $transcript = $this->pmt_get_transcript($videoId);
-                $transcripts .= ' ' . mb_substr($transcript ?? '', 0, 4000);
+                $transcripts .= ' '.mb_substr($transcript ?? '', 0, 4000);
             }
 
             $polarizacoes[] = $this->pmt_polarizacao_video(
@@ -2173,158 +1981,299 @@ function pmt_to_number(string $num, ?string $suffix = null): float
         ];
     }
 
+    public function pmt_analisar_bucket_pm(array $channel, array $videos): array
+    {
+        $textosTitulos = [];
+        $textosDescricoes = [];
+        $textosTags = [];
+        $textosTranscricoes = [];
 
-############################## tarefa2
+        $polarizacoes = [];
+        $urlsCounts = [];
+        $urlsTotal = [];
 
+        foreach ($videos as $v) {
+            $videoId = $v['videoId'] ?? $v['cod'] ?? null;
 
+            $titulo = $v['videoTitle']
+                ?? $v['title']
+                ?? $v['nome']
+                ?? '';
 
-public function pmt_analisar_bucket_mt(
-    array $channel,
-    array $videos,
-    int $maxVideosParaComentarios = 7,
-    int $maxComentariosPorVideo = 30,
-    int $maxComentariosBucket = 50
-): array {
-    $urlsCounts = [];
-    $urlsTotal = [];
-    $comentariosAmostra = [];
-    $toxScores = [];
+            $desc = $v['videoDesc']
+                ?? $v['description']
+                ?? $v['desc']
+                ?? '';
 
-    foreach ($videos as $v) {
-        $desc = $v['videoDesc'] ?? $v['desc'] ?? '';
+            $videoTags = $v['videoTags']
+                ?? $v['tags']
+                ?? [];
 
-        $urls = $this->pmt_extract_external_urls($desc);
+            $textosTitulos[] = $titulo;
+            $textosDescricoes[] = $desc;
 
-        $urlsCounts[] = count($urls);
-        $urlsTotal = array_merge($urlsTotal, $urls);
-    }
-
-    // escolhe vídeos espaçados no bucket, não só os primeiros
-    $videosParaComentarios = collect($videos)
-        ->filter(fn ($v) => !empty($v['videoId'] ?? $v['cod'] ?? null))
-        ->values();
-
-    if ($videosParaComentarios->count() > $maxVideosParaComentarios) {
-        $step = max(1, floor($videosParaComentarios->count() / $maxVideosParaComentarios));
-
-        $videosParaComentarios = $videosParaComentarios
-            ->filter(fn ($v, $i) => $i % $step === 0)
-            ->take($maxVideosParaComentarios)
-            ->values();
-    }
-
-    foreach ($videosParaComentarios as $v) {
-        $videoId = $v['videoId'] ?? $v['cod'] ?? null;
-
-        if (!$videoId) {
-            continue;
-        }
-
-        $comments = $this->getTopComments($videoId, $maxComentariosPorVideo);
-
-        foreach ($comments as $c) {
-            $c['videoId'] = $videoId;
-            $c['videoTitle'] = $v['videoTitle'] ?? $v['nome'] ?? null;
-
-            $comentariosAmostra[] = $c;
-
-            if (count($comentariosAmostra) >= $maxComentariosBucket) {
-                break 2;
+            if (is_array($videoTags)) {
+                $textosTags[] = implode(' ', $videoTags);
+            } else {
+                $textosTags[] = (string) $videoTags;
             }
+
+            // URLs externas da descrição do vídeo
+            $urls = $this->pmt_extract_external_urls($desc);
+            $urlsCounts[] = count($urls);
+            $urlsTotal = array_merge($urlsTotal, $urls);
+
+            Log::info('T3 PM URLS VIDEO', [
+                'videoId' => $videoId,
+                'title' => $titulo,
+                'desc_len' => strlen($desc),
+                'urls_count' => count($urls),
+                'urls' => $urls,
+            ]);
+
+            // Transcrição
+            $transcript = null;
+
+            if ($videoId) {
+                $transcript = $this->pmt_get_transcript($videoId);
+                $textosTranscricoes[] = mb_substr($transcript ?? '', 0, 4000);
+            }
+
+            // Polarização por vídeo
+            $polarizacoes[] = $this->pmt_polarizacao_video(
+                video: $v,
+                channel: $channel,
+                comments: [],
+                transcript: $transcript
+            );
         }
+
+        $scores = collect($polarizacoes)
+            ->pluck('polarizacao_score')
+            ->filter(fn ($x) => is_numeric($x))
+            ->map(fn ($x) => (float) $x);
+
+        $confs = collect($polarizacoes)
+            ->pluck('confianca')
+            ->filter(fn ($x) => is_numeric($x))
+            ->map(fn ($x) => (float) $x);
+
+        $categorias = collect($polarizacoes)
+            ->pluck('categoria')
+            ->filter()
+            ->countBy()
+            ->sortDesc();
+
+        $polos = collect($polarizacoes)
+            ->pluck('polo_ideologico')
+            ->filter()
+            ->countBy()
+            ->sortDesc();
+
+        $urlsTotal = array_values(array_unique($urlsTotal));
+
+        return [
+            'videos_count' => count($videos),
+
+            'polarizacao' => [
+                'score_medio' => $scores->count() ? round($scores->avg(), 3) : null,
+                'confianca_media' => $confs->count() ? round($confs->avg(), 3) : null,
+                'categoria_dominante' => $categorias->keys()->first() ?? 'indefinido',
+                'polo_dominante' => $polos->keys()->first() ?? 'indefinido',
+                'raw' => $polarizacoes,
+            ],
+
+            'monetizacao_off_platform' => [
+                'urls_media_por_video' => count($urlsCounts)
+                    ? round(array_sum($urlsCounts) / count($urlsCounts), 2)
+                    : 0,
+                'urls_total' => count($urlsTotal),
+                'urls' => $urlsTotal,
+            ],
+
+            'wordclouds' => [
+                'titulos' => $this->pmt_word_freq(implode(' ', $textosTitulos)),
+                'descricoes' => $this->pmt_word_freq(implode(' ', $textosDescricoes)),
+                'transcricoes' => $this->pmt_word_freq(implode(' ', $textosTranscricoes)),
+                'tags' => $this->pmt_word_freq(implode(' ', $textosTags)),
+            ],
+        ];
     }
 
-    // embaralha levemente para não ficar só o primeiro vídeo do bucket
-    $comentariosAmostra = collect($comentariosAmostra)
-        ->shuffle()
-        ->take($maxComentariosBucket)
-        ->values()
-        ->toArray();
+    // ############################# tarefa2
 
-    foreach ($comentariosAmostra as &$c) {
-        $texto = $c['texto'] ?? $c['text'] ?? '';
+    public function pmt_analisar_bucket_mt(
+        array $channel,
+        array $videos,
+        int $maxVideosParaComentarios = 7,
+        int $maxComentariosPorVideo = 30,
+        int $maxComentariosBucket = 80
+    ): array {
 
-        $tox = $this->pmt_perspective_toxicity($texto);
+        $urlsCounts = [];
+        $urlsTotal = [];
+        $comentariosAmostra = [];
+        $toxScores = [];
 
-        $c['tox'] = $tox;
+        foreach ($videos as $v) {
+            $desc = $v['videoDesc'] ?? $v['description'] ?? $v['desc'] ?? '';
 
-        if (is_numeric($tox)) {
-            $toxScores[] = (float) $tox;
+            $urls = $this->pmt_extract_external_urls($desc);
+
+            $urlsCounts[] = count($urls);
+            $urlsTotal = array_merge($urlsTotal, $urls);
+
+            Log::info('T2 MT URLS VIDEO', [
+                'videoId' => $v['videoId'] ?? null,
+                'title' => $v['videoTitle'] ?? null,
+                'desc_len' => strlen($desc),
+                'urls_count' => count($urls),
+                'urls' => $urls,
+            ]);
         }
 
-        usleep(150000);
-    }
+        $urlsTotal = array_values(array_unique($urlsTotal));
 
-    $urlsTotal = array_values(array_unique($urlsTotal));
+        // escolhe vídeos espaçados no bucket, não só os primeiros
+        $videosParaComentarios = collect($videos)
+            ->filter(fn ($v) => ! empty($v['videoId'] ?? $v['cod'] ?? null))
+            ->values();
 
-    return [
-        'videos_count' => count($videos),
+        if ($videosParaComentarios->count() > $maxVideosParaComentarios) {
+            $step = max(1, floor($videosParaComentarios->count() / $maxVideosParaComentarios));
 
-        'toxicity' => [
-            'n' => count($toxScores),
-            'media' => count($toxScores) ? round(array_sum($toxScores) / count($toxScores), 4) : null,
-            'max' => count($toxScores) ? round(max($toxScores), 4) : null,
-            'alta_taxa' => count($toxScores)
-                ? round(count(array_filter($toxScores, fn ($x) => $x >= 0.7)) / count($toxScores), 4)
-                : null,
-            'scores' => $toxScores,
-        ],
+            $videosParaComentarios = $videosParaComentarios
+                ->filter(fn ($v, $i) => $i % $step === 0)
+                ->take($maxVideosParaComentarios)
+                ->values();
+        }
 
-        'monetizacao_off_platform' => [
-            'urls_media_por_video' => count($urlsCounts)
-                ? round(array_sum($urlsCounts) / count($urlsCounts), 2)
-                : 0,
-            'urls_total' => count($urlsTotal),
-            'urls' => $urlsTotal,
-        ],
-
-        'comentarios_sample' => array_slice($comentariosAmostra, 0, 5),
-    ];
-}
-
-
-public function getTopComments(string $videoId, int $max = 100): array
-{
-    $res = Http::timeout(30)->get('https://www.googleapis.com/youtube/v3/commentThreads', [
-        'key' => env('YOUTUBE_API_KEY'),
-        'videoId' => $videoId,
-        'part' => 'snippet',
-        'maxResults' => min($max, 100),
-        'order' => 'relevance',
-        'textFormat' => 'plainText',
-    ]);
-
-    if (!$res->successful()) {
-        Log::warning('Erro YouTube comments', [
-            'videoId' => $videoId,
-            'status' => $res->status(),
-            'body' => $res->body(),
+        Log::info('T2 MT BUCKET INPUT', [
+            'channelId' => $channel['channelId'] ?? null,
+            'channelTitle' => $channel['channelTitle'] ?? null,
+            'videos_bucket_total' => count($videos),
+            'videos_para_comentarios' => $videosParaComentarios->count(),
         ]);
 
-        return [];
+        foreach ($videosParaComentarios as $v) {
+            $videoId = $v['videoId'] ?? $v['cod'] ?? null;
+
+            if (! $videoId) {
+                continue;
+            }
+
+            $comments = $this->getTopComments($videoId, $maxComentariosPorVideo);
+
+            Log::info('T2 MT VIDEO COMENTARIOS', [
+                'videoId' => $videoId,
+                'titulo' => $v['videoTitle'] ?? null,
+                'comments_returned' => count($comments),
+            ]);
+
+            foreach ($comments as $c) {
+                $c['videoId'] = $videoId;
+                $c['videoTitle'] = $v['videoTitle'] ?? $v['nome'] ?? null;
+
+                $comentariosAmostra[] = $c;
+
+                if (count($comentariosAmostra) >= $maxComentariosBucket) {
+                    break 2;
+                }
+            }
+        }
+
+        // embaralha levemente para não ficar só o primeiro vídeo do bucket
+        $comentariosAmostra = collect($comentariosAmostra)
+            ->shuffle()
+            ->take($maxComentariosBucket)
+            ->values()
+            ->toArray();
+
+        foreach ($comentariosAmostra as &$c) {
+            $texto = $c['texto'] ?? $c['text'] ?? '';
+
+            $tox = $this->pmt_perspective_toxicity($texto);
+
+            $c['tox'] = $tox;
+
+            if (is_numeric($tox)) {
+                $toxScores[] = (float) $tox;
+            }
+
+            usleep(150000);
+        }
+
+        $urlsTotal = array_values(array_unique($urlsTotal));
+
+        return [
+            'videos_count' => count($videos),
+
+            'toxicity' => [
+                'n' => count($toxScores),
+                'media' => count($toxScores) ? round(array_sum($toxScores) / count($toxScores), 4) : null,
+                'max' => count($toxScores) ? round(max($toxScores), 4) : null,
+                'alta_taxa' => count($toxScores)
+                    ? round(count(array_filter($toxScores, fn ($x) => $x >= 0.7)) / count($toxScores), 4)
+                    : null,
+                'scores' => $toxScores,
+            ],
+
+            // 'monetizacao_off_platform' => [
+            //     'urls_media_por_video' => count($urlsCounts)
+            //         ? round(array_sum($urlsCounts) / count($urlsCounts), 2)
+            //         : 0,
+            //     'urls_total' => count($urlsTotal),
+            //     'urls' => $urlsTotal,
+            // ],
+
+            'monetizacao_off_platform' => [
+                'urls_media_por_video' => count($urlsCounts)
+                    ? round(array_sum($urlsCounts) / count($urlsCounts), 2)
+                    : 0,
+                'urls_total' => count($urlsTotal),
+                'urls' => $urlsTotal,
+            ],
+
+            'comentarios_sample' => array_slice($comentariosAmostra, 0, 5),
+        ];
     }
 
-    return collect($res->json('items') ?? [])
-        ->map(function ($item) {
-            $top = $item['snippet']['topLevelComment'] ?? [];
-            $sn = $top['snippet'] ?? [];
+    public function getTopComments(string $videoId, int $max = 100): array
+    {
+        $res = Http::timeout(30)->get('https://www.googleapis.com/youtube/v3/commentThreads', [
+            'key' => env('YOUTUBE_API_KEY'),
+            'videoId' => $videoId,
+            'part' => 'snippet',
+            'maxResults' => min($max, 100),
+            'order' => 'relevance',
+            'textFormat' => 'plainText',
+        ]);
 
-            return [
-                'cod' => $top['id'] ?? $item['id'] ?? null,
-                'username' => $sn['authorDisplayName'] ?? null,
-                'texto' => $sn['textDisplay'] ?? '',
-                'likes' => (int) ($sn['likeCount'] ?? 0),
-                'dt' => $sn['publishedAt'] ?? null,
-            ];
-        })
-        ->filter(fn ($c) => !empty($c['cod']) && trim($c['texto']) !== '')
-        ->values()
-        ->all();
-}
+        if (! $res->successful()) {
+            Log::warning('Erro YouTube comments', [
+                'videoId' => $videoId,
+                'status' => $res->status(),
+                'body' => $res->body(),
+            ]);
 
+            return [];
+        }
 
+        return collect($res->json('items') ?? [])
+            ->map(function ($item) {
+                $top = $item['snippet']['topLevelComment'] ?? [];
+                $sn = $top['snippet'] ?? [];
 
-
-
-
+                return [
+                    'cod' => $top['id'] ?? $item['id'] ?? null,
+                    'username' => $sn['authorDisplayName'] ?? null,
+                    'texto' => $sn['textDisplay'] ?? '',
+                    'likes' => (int) ($sn['likeCount'] ?? 0),
+                    'dt' => $sn['publishedAt'] ?? null,
+                ];
+            })
+            ->filter(fn ($c) => ! empty($c['cod']) && trim($c['texto']) !== '')
+            ->values()
+            ->all();
+    }
 }

@@ -2,67 +2,180 @@
 
 namespace App\Livewire;
 
-use Log;
-use App\Traits\Comum;
 use App\Models\Tarefa;
-use Livewire\Component;
-use Illuminate\Support\Str;
-use Livewire\Attributes\Layout;
+use App\Traits\Comum;
+use Carbon\Carbon;
 use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Session;
-
+use Livewire\Attributes\Layout;
+use Livewire\Component;
+use Log;
 
 class Tarefa4 extends Component
 {
-
     use Comum;
 
-    # params comuns ###########################################
     public array $canais = [];
+
     public $buscas = [];
+
     public array $videos_dos_canais = [];
+
     public array $selecionados = [];
+
     public array $deselected = [];
+
     public string $addInput = '';
 
     public array $checked = [];       // << id => true (checado = incluir)
 
     public string $feedback = '';       // textarea
+
     public bool $mostrarAvaliacao = true;
+
     public bool $mostrarFeedback = false;
+
     protected array $sessionPrefixes = ['t4_query', 't4_canais', 't4_checked', 't4_buscas', 't4_unchecked', 't4_videos_dos_canais']; // ajuste como preferir
 
     public array $unchecked = []; // ids que o usuário desmarcou
 
-    function getTipoTarefa(): string
+    public array $pmtTemaResult = [];
+
+    // ################################
+    public array $comentarios = [];
+
+    public array $toxMediaArray = [];   // [videoId => float]
+
+    public array $chart = [];
+
+    public function getTipoTarefa(): string
     {
         return 't4';
     }
 
     public function mount()
     {
-        $this->selecionados = Session::get('t4_canais', []);
-        $this->buscas       = Session::get('t4_buscas', []);
-        $this->checked      = Session::get('t4_checked', []);     // <<< Faltava
-        $this->unchecked    = Session::get('t4_unchecked', []);   // <<< Para lembrar quem foi desmarcado
-        $this->query        = Session::get('t4_query', '');
+        $this->pmtTemaResult = Session::get('t4_result', []);
+        $this->selecionados = Session::get('t4_videos_sel', []);
+        $this->buscas = Session::get('t4_videos_buscas', []);
 
-        // Primeira carga da página, se ainda não há decisão alguma:
-        if (empty($this->checked) && !empty($this->buscas)) {
-            $this->checked = $this->idsFromBuscas($this->buscas);
+    }
+
+    public function clearSelecionados(): void
+    {
+        $this->reset();             // volta ao estado declarado na classe
+
+        Session::forget([
+            't4_canais',
+            't4_buscas',
+            't4_checked',
+            't4_unchecked',
+            't4_videos_sel',
+            't4_videos_buscas',
+        ]);
+
+        // =====================================================
+        // SESSION
+        // =====================================================
+
+        Session::forget('t4_result');
+        Session::forget('t4_videos_sel');
+        Session::forget('t4_videos_buscas');
+
+        // se tiver outras:
+        Session::forget('t4_chart');
+        Session::forget('t4_polarizacao');
+
+        // =====================================================
+        // PROPRIEDADES LIVEWIRE
+        // =====================================================
+
+        $this->buscas = [];
+        $this->selecionados = [];
+        $this->videos = [];
+        $this->chart = [];
+        $this->pmtTemaResult = [];
+        $this->resultados = [];
+        $this->polarizacao = [];
+        $this->monetizacao = [];
+        $this->comentarios = [];
+
+        // =====================================================
+        // FLAGS
+        // =====================================================
+
+        $this->loading = false;
+        $this->erro = null;
+
+        // =====================================================
+        // FRONTEND
+        // =====================================================
+
+        $this->dispatch('t4-chart-clear');
+
+        // opcional:
+
+    }
+
+    public function addTodos(): void
+    {
+        $marcados = collect($this->buscas)
+            ->filter(fn ($row) => ! empty($row['videoId']) &&
+                ($this->checked[$row['videoId']] ?? false)
+            )
+            ->keyBy('videoId')
+            ->toArray();
+
+        $this->selecionados = $marcados;
+
+        Session::put('t4_videos_sel', $this->selecionados);
+    }
+
+    public function add(string $videoId): void
+    {
+        if (! isset($this->selecionados[$videoId])) {
+            $tem = false;
+            foreach ($this->buscas as $reg_video_canal) {
+                // dd($reg_video_canal);
+                if ($reg_video_canal['videoId'] == $videoId) {
+                    $data = $reg_video_canal;
+                    $tem = true;
+                    break;
+                }
+            }
+            if (! $tem) {
+                $data = $this->hydrateSingleVideo($videoId);
+            }
+            if (is_array($data) && ! empty($data)) {
+                $this->selecionados[$videoId] = $data;
+                $this->persistSelecionados();
+                $this->msg('Registro '.$videoId.' adicionado corretamente', 'success');
+            }
+        } else {
+            $this->msg('Nao adicionado pois já consta', 'error');
+        }
+    }
+
+    public function addVideoByInput(): void
+    {
+        $input = trim($this->addInput);
+        if ($input === '') {
+            return;
         }
 
-        Session::put('t4_canais',   $this->selecionados);
-        Session::put('t4_buscas',   $this->buscas);
-        Session::put('t4_checked',  $this->checked);
-        Session::put('t4_unchecked', $this->unchecked);
+        $id = $this->parseVideoId($input);
 
-        if(!empty(Session::get('t4_canais'))){
-            $this->mostrarFeedback = true;
-
+        if (preg_match('~(?:v=|youtu\.be/)([A-Za-z0-9_-]{11})~', $input, $m)) {
+            $id = $m[1];
+        } elseif (preg_match('~^[A-Za-z0-9_-]{11}$~', $input)) {
+            $id = $input;
         }
 
+        if ($id && ! in_array($id, $this->selecionados, true)) {
+            $this->add($id);
+        }
+
+        $this->addInput = '';
     }
 
     public function salvarFeedback(): void
@@ -70,533 +183,896 @@ class Tarefa4 extends Component
 
         $tarefa_id = $this->getTarefaId();
         $dados = [
-            'feedback'          => $this->feedback,
+            'feedback' => $this->feedback,
 
         ];
-        $status             = 1;
-        $finished_at        = now();
+        $status = 1;
+        $finished_at = now();
 
         $t = Tarefa::find($tarefa_id)->update(compact('dados', 'status', 'finished_at'));
 
-        $msg = $t ? 'Obrigado! Sua tarefa #' . $tarefa_id . ' foi concluída COM SUCESSO.' : 'Erro ao completar tarefa #' . $tarefa_id;
+        $msg = $t ? 'Obrigado! Sua tarefa #'.$tarefa_id.' foi concluída COM SUCESSO.' : 'Erro ao completar tarefa #'.$tarefa_id;
 
         $this->clearSelecionados();
         $this->msg($msg, 'info');
 
-        #dd($t);
+        // dd($t);
     }
 
-
-    public function validarTarefa4()
+    public function avaliarVideos(): void
     {
-        // carrega seleção do array central
-        $this->selecionados    = Session::get('t4_canais', $this->selecionados);
 
+        $videos = $this->obterVideosMarcados();
 
-        #dd($this->selecionados);
-        // se tiver mais que 4, pega 4 aleatórios
-       
-        // se tiver mais que 4 canais
-        if (count($this->selecionados) > 4) {
-
-            $this->selecionados = collect($this->selecionados)
-
-                // ordena pelos canais com menos vídeos
-                ->sortBy(function ($row) {
-                    return $row['channelVideos'] ?? PHP_INT_MAX;
-                })
-
-                // pega apenas 4
-                ->take(4)
-
-                // reindexa
-                ->values()
-
-                ->all();
-        }
-
-        Session::forget('t4_videos');
-        $sessVideos = [];
-
-        #dd($this->selecionados);
-
-
-
-        foreach ($this->selecionados as $canalId => $raw) {
-
-            $q       = $raw['busca'] ?? '[erro]';
-            $buscaBD = $this->upsertBusca($q);
-
-            $ch = [
-                'youtube_id' => $raw['channelId'],
-                'nome'       => $raw['channelTitle'] ?? null,
-                'keywords'   => $raw['channelKeywords'] ?? [],
-                'handle'     => $raw['channelHandle'] ?? null,
-                'inscritos'  => $raw['channelSubs'] ?? null,
-                'views'      => $raw['channelViews'] ?? null,
-                'videos'     => $raw['channelVideos'] ?? null,
-                'dt'         => $raw['channelDt'] ?? null,
-                'local'      => $raw['channelCountry'] ?? null,
-                'categ'      => $raw['channelCategory'] ?? null,
-                'desc'       => $raw['channelDesc'] ?? null,
-            ];
-
-            $canalBD = $this->upsertCanal($ch, $buscaBD);
-
-            $videos = $this->getAllVideos(
-                $raw['channelId'],
-                $raw['channelDt'],
-                100,
-                2,
-                1,
-                $raw['channelVideos']
-            );
-
-            if (empty($videos) || !is_array($videos)) {
-                #dd('erro');
-            }
-
-            $polarizations = [];
-            foreach ($videos as $v) {
-                $titulo = $v['videoTitle'] ?? '';
-                $desc   = $v['videoDesc']  ?? '';
-                $texto  = trim($titulo);
-                #$texto  = trim($titulo . "\n" . $desc);
-
-                if ($texto === '' || strlen($texto) <= 10) {
-                    continue;
-                }
-
-                #if ($tox100 !== null) $scores[] = $tox100;
-
-                $tox = $this->setTox($texto);
-                #$polarization = $this->setPolarization($texto);
-                if(is_null($tox)){
-                    continue;
-                }
-                $polarization = 100 * $tox;
-                
-
-                #$rawTox = $this->setTox($texto);     // 0..1 (provável)
-                $rawTox = $tox;                 // reaproveita
-
-                $tox100 = is_numeric($rawTox) ? round($rawTox * 100, 2) : null;
-
-                // Log::info('T4 tox debug', [
-                //   'canal' => $canalId,
-                //   'video' => $v['videoId'] ?? null,
-                //   'len'   => strlen($texto),
-                //   'sha1'  => sha1($texto),
-                //   'raw'   => $rawTox,
-                //   'tox100'=> $tox100,
-                //   'title' => mb_substr($titulo, 0, 60),
-                // ]);
-
-                if ($polarization === null) {
-                    continue;
-                }
-
-                $polarizations[] = $polarization;
-            }
-
-            if (count($polarizations) === 0) {
-                #dd('erro2');
-            }
-
-            Log::info('media', [ $canalId, $polarizations ]);
-
-            // Média simples (-1 a +1) -> percent
-            $media = array_sum($polarizations) / max(count($polarizations), 1);  // fica -100..100
-            $media = round($media, 2); // 0 a 100
-
-            // ⚠️ grava direto no ARRAY CENTRAL
-            $this->selecionados[$canalId]['polariz'] = $media;
-
-            Log::info('media', [ $canalId, $media ]);
-
-
-            // salva vídeos no BD
-            foreach ($videos as $vd) {
-                $vd = [
-                    'cod'      => $vd['videoId'],
-                    'nome'     => $vd['videoTitle'] ?? null,
-                    'desc'     => $vd['videoDesc'] ?? null,
-                    'hashtags' => $vd['videoTags'] ?? [],
-                    'comments' => $vd['videoCommentCount'] ?? null,
-                    'likes'    => $vd['videoLikeCount'] ?? null,
-                    'views'    => $vd['videoViewCount'] ?? null,
-                    'duration' => $vd['videoDuration'] ?? null,
-                    'lang'     => $vd['videoLang'] ?? null,
-                    'dt'       => $vd['videoDt'] ?? null,
-                    'categ_id' => $vd['videoCategId'] ?? null,
-                ];
-
-                $videoBD = $this->upsertVideo($vd, $canalBD, $buscaBD);
-            }
-
-            // ordena vídeos por data
-            $ordenados = collect($videos)
-                ->filter(fn($c) => !empty($c['videoId']))
-                ->sortBy(fn($c) => $c['videoDt'])
-                ->values()
-                ->toArray();
-
-            $this->videos_dos_canais[$canalId] = $ordenados;
-            $sessVideos[$canalId]              = $ordenados;
-        }
-
-        Session::put('t4_videos', $sessVideos);
-
-        // ATUALIZA o array central na sessão (já com monet + polar)
-        Session::put('t4_canais', $this->selecionados);
-
-        Session::put('t4_result', [
-            'selecionados'  => $this->selecionados,
-            'videos'        => $this->videos_dos_canais,
-            'buscas'        => $this->buscas,
-            // se quiser ainda ter uma chave "grafico", manda o próprio selecionados
-            'grafico'       => $this->selecionados,
+        Log::info('T4 VIDEOS MARCADOS PARA ANALISE', [
+            'query' => $this->query ?? null,
+            'total' => count($videos),
+            'videos' => collect($videos)->map(fn ($v) => [
+                'videoId' => $v['videoId'] ?? null,
+                'title' => $v['videoTitle'] ?? $v['title'] ?? null,
+                'channelId' => $v['channelId'] ?? null,
+                'channelTitle' => $v['channelTitle'] ?? null,
+                'viewCount' => $v['viewCount'] ?? null,
+                'videoViewCount' => $v['videoViewCount'] ?? null,
+                'likeCount' => $v['likeCount'] ?? null,
+                'videoLikeCount' => $v['videoLikeCount'] ?? null,
+                'commentCount' => $v['commentCount'] ?? null,
+                'videoCommentCount' => $v['videoCommentCount'] ?? null,
+                'published' => $v['published'] ?? $v['publishedAt'] ?? null,
+            ])->values()->toArray(),
         ]);
 
-        return redirect()->route('tarefa4'); // ou o nome que você tiver
+        if (empty($videos)) {
+            $this->msg('Nenhum vídeo marcado para análise.', 'warn');
 
-    }
-
-
-
-
-
-    private function seedCheckedFromBuscas(): void
-    {
-        if (empty($this->buscas)) 
             return;
-
-        foreach ($this->buscas as $r) {
-            $id = $r['channelId'] ?? null;
-            if (!$id) 
-                continue;
-
-            // NUNCA re-adiciona quem o usuário desmarcou
-            if (isset($this->unchecked[$id])) 
-                continue;
-
-            // só marca por padrão se ainda não existe decisão do usuário
-            if (!array_key_exists($id, $this->checked)) {
-                $this->checked[$id] = true;
-            }
         }
 
-        Session::put('t4_checked', $this->checked);
+        $query = $this->query ?? '[sem query]';
+        $buscaBD = $this->upsertBusca($query);
+
+        $chart = $this->processarToxicidadeTemporal($videos);
+
+        $persistidos = $this->persistirVideosECanais($videos, $buscaBD);
+
+        $monetizacao = $this->processarMonetizacaoPorCanal($persistidos);
+
+        // $polarizacao = $this->pmt_polarizacao_tema($query, $persistidos);
+
+        Log::info('T4 ANTES POLARIZACAO', [
+            'query' => $query,
+            'videos_count' => count($persistidos),
+            'titulos' => collect($persistidos)->pluck('videoTitle')->take(10)->values()->toArray(),
+        ]);
+
+        $polarizacao = $this->pmt_polarizacao_tema($query, $persistidos);
+
+        Log::info('T4 DEPOIS POLARIZACAO', [
+            'polarizacao' => $polarizacao,
+        ]);
+
+        $resultado = $this->montarResultadoFinal(
+            query: $query,
+            videos: $persistidos,
+            monetizacao: $monetizacao,
+            polarizacao: $polarizacao,
+            chart: $chart
+        );
+
+        $this->pmtTemaResult = $resultado;
+        Session::put('t4_result', $resultado);
+        $this->dispatch('t4-chart-updated', chart: $this->chart);
     }
 
-
-
-
-
-
-    private function idsFromBuscas(array $buscas): array
+    protected function obterVideosMarcados(int $limit = 10): array
     {
-        $ids = [];
-        foreach ($buscas as $r) {
-            if (!empty($r['channelId'])) {
-                $ids[$r['channelId']] = true;
-            }
-        }
-        return $ids;
+        return collect($this->buscas)
+            ->shuffle()
+            ->filter(fn ($v) => ! empty($v['videoId']) && ($this->checked[$v['videoId']] ?? false))
+            ->take($limit)
+            ->values()
+            ->toArray();
     }
 
-    public function updatedChecked($value, $key): void
+    protected function processarToxicidadeTemporal(array $videos): array
     {
-        // $key é "UCxxxx..." (channelId)
-        if (empty($value)) {
-            // 3️⃣ Desmarcou -> some de checked
-            unset($this->checked[$key]);
-        } else {
-            $this->checked[$key] = true;
-        }
-        Session::put('t4_checked', $this->checked);
+        $this->montarGraficoComentarios($videos);
+
+        return [
+            'chart' => $this->chart,
+            'comentarios' => $this->comentarios,
+            'tox_media_por_video' => $this->toxMediaArray,
+        ];
     }
 
-    public function toggleCheck(string $id, bool $on): void
+    protected function persistirVideosECanais(array $videos, $buscaBD): array
     {
-        if ($on)
-            $this->checked[$id] = true;
-        else
-            unset($this->checked[$id]);
-        Session::put('t4_checked', $this->checked);
-    }
 
-    public function updated(string $name, $value): void
-    {
-        if (Str::startsWith($name, 'checked.')) {
-            $id = Str::after($name, 'checked.');
-            if ($value) {
-                // marcou
-                $this->checked[$id] = true;
-                unset($this->unchecked[$id]);
-            } else {
-                // desmarcou
-                unset($this->checked[$id]);
-                $this->unchecked[$id] = true;
-            }
-            Session::put('t4_checked',   $this->checked);
-            Session::put('t4_unchecked', $this->unchecked);
-        }
-    }
+        $persistidos = [];
 
+        foreach ($videos as $raw) {
+            $channelId = $raw['channelId'] ?? null;
+            $videoId = $raw['videoId'] ?? null;
 
-
-
-
-    public function addTodos(): void
-    {
-        // 1) Pega todos os channelId que estão na grid
-        $idsGrid     = collect($this->buscas)->pluck('channelId')->filter()->values()->all();
-
-        // 2) Interseção entre IDs da grid e checkboxes marcados
-        $idsChecados = array_values(array_intersect($idsGrid, array_keys($this->checked)));
-
-        // 3) Quem está na grid mas NÃO está checado
-        $idsNaoChec  = array_values(array_diff($idsGrid, $idsChecados));
-
-        // 4) Mapa channelId => linha completa da busca
-        $map = [];
-        foreach ($this->buscas as $r) {
-            if (!empty($r['channelId'])) {
-                // garante que sempre exista o campo "busca"
-                $r['busca'] = $r['busca'] ?? ($this->query ?? null);
-                $map[$r['channelId']] = $r;
-            }
-        }
-
-        // Garante que selecionados é um array
-        if (!is_array($this->selecionados)) {
-            $this->selecionados = [];
-        }
-
-        // 5) Inclui/atualiza os checados no array de selecionados
-        foreach ($idsChecados as $id) {
-            $this->selecionados[$id] = $map[$id] ?? [];
-        }
-
-        // 6) Remove quem foi desmarcado
-        foreach ($idsNaoChec as $id) {
-            unset($this->selecionados[$id]);
-        }
-
-        // 7) Agora filtra por monetização VidIQ:
-        //    - chama a função do VidIQ para cada canal selecionado
-        //    - se não tiver valor, REMOVE o canal
-        //    - se tiver, cria o campo 'monete' com o valor
-        $removidosSemMonet = 0;
-
-        foreach ($idsChecados as $channelId) {
-
-            // pode ter sido removido na etapa anterior
-            if (!isset($this->selecionados[$channelId])) {
+            if (! $channelId || ! $videoId) {
                 continue;
             }
 
-            // Aqui você consulta o VidIQ
-            $monet = $this->getVidIqMonthlyAvgUsd($channelId);
+            $urls = $this->pmt_extract_external_urls(
+                $raw['videoDesc'] ?? $raw['description'] ?? $raw['desc'] ?? ''
+            );
 
-            // Se não veio nada / null / zero, remove o canal
-            if (empty($monet)) {
-                unset($this->selecionados[$channelId]);
-                $removidosSemMonet++;
+            Log::info('T4 VIDEO PERSISTIDO', [
+                'videoId' => $videoId,
+                'titulo' => $raw['videoTitle'] ?? $raw['title'] ?? null,
+                'channelId' => $channelId,
+                'channelTitle' => $raw['channelTitle'] ?? null,
+
+                'raw_viewCount' => $raw['viewCount'] ?? null,
+                'raw_videoViewCount' => $raw['videoViewCount'] ?? null,
+                'raw_likeCount' => $raw['likeCount'] ?? null,
+                'raw_videoLikeCount' => $raw['videoLikeCount'] ?? null,
+                'raw_commentCount' => $raw['commentCount'] ?? null,
+                'raw_videoCommentCount' => $raw['videoCommentCount'] ?? null,
+
+                'helper_views' => $this->getVideoViews($raw),
+                'helper_likes' => $this->getVideoLikes($raw),
+                'helper_comments_meta' => $this->getVideoCommentsCount($raw),
+
+                'urls_count' => count($urls),
+                'urls' => $urls,
+            ]);
+
+            $canalBD = $this->upsertCanal([
+                'youtube_id' => $channelId,
+                'nome' => $raw['channelTitle'] ?? null,
+                'desc' => $raw['channelDesc'] ?? null,
+                'inscritos' => $raw['channelSubs'] ?? null,
+                'views' => $raw['channelViews'] ?? null,
+                'videos' => $raw['channelVideos'] ?? null,
+                'dt' => $raw['channelDt'] ?? null,
+                'local' => $raw['channelCountry'] ?? null,
+            ], $buscaBD);
+
+            $videoBD = $this->upsertVideo([
+                'cod' => $videoId,
+                'nome' => $raw['videoTitle'] ?? null,
+                'desc' => $raw['videoDesc'] ?? null,
+                'hashtags' => $raw['videoTags'] ?? [],
+                'comments' => $raw['commentCount'] ?? null,
+                'likes' => $raw['likeCount'] ?? null,
+                'views' => $raw['viewCount'] ?? null,
+                'duration' => $raw['duration'] ?? null,
+                'lang' => $raw['lang'] ?? null,
+                'dt' => $raw['published'] ?? null,
+                'categ_id' => $raw['videoCategId'] ?? null,
+            ], $canalBD, $buscaBD);
+
+            $urls = $this->pmt_extract_external_urls($raw['videoDesc'] ?? '');
+
+            $persistidos[] = [
+                ...$raw,
+                'canal_db_id' => $canalBD->id,
+                'video_db_id' => $videoBD->id,
+                'external_urls_count' => count($urls),
+                'external_urls' => $urls,
+            ];
+        }
+
+        return $persistidos;
+    }
+
+    protected function processarMonetizacaoPorCanal(array $videos): array
+    {
+        $porCanal = [];
+
+        foreach ($videos as $v) {
+            $channelId = $v['channelId'] ?? null;
+
+            if (! $channelId) {
                 continue;
             }
 
-            // Se tiver monetização, guarda no registro
-            // (troca 'monete' pelo nome que preferir)
-            $this->selecionados[$channelId]['monetiz'] = $monet;
+            if (! isset($porCanal[$channelId])) {
+                $porCanal[$channelId] = [
+                    'channelId' => $channelId,
+                    'channelTitle' => $v['channelTitle'] ?? null,
+
+                    // Uma única chamada por canal
+                    'vidiq_monthly_avg_usd' => $this->pmt_get_vidiq_monthly_avg_usd($channelId),
+
+                    'videos' => [],
+                    'views' => 0,
+                    'likes' => 0,
+                    'comments' => 0,
+                    'external_urls_count' => 0,
+                    'external_urls' => [],
+                ];
+            }
+
+            $videoId = $v['videoId'] ?? null;
+
+            if ($videoId) {
+                $porCanal[$channelId]['videos'][] = $videoId;
+            }
+
+            // Metadados do vídeo atual
+            $viewsVideo = $this->getVideoViews($v);
+            $likesVideo = $this->getVideoLikes($v);
+            $commentsMetaVideo = $this->getVideoCommentsCount($v);
+
+            $desc = $this->getVideoDescription($v);
+            $urls = $this->pmt_extract_external_urls($desc);
+
+            Log::info('T4 SOMA VIDEO EM CANAL', [
+                'channelId' => $channelId,
+                'channelTitle' => $v['channelTitle'] ?? null,
+                'videoId' => $videoId,
+                'videoTitle' => $v['videoTitle'] ?? $v['title'] ?? null,
+                'views_video' => $viewsVideo,
+                'likes_video' => $likesVideo,
+                'comments_meta_video' => $commentsMetaVideo,
+                'urls_video' => count($urls),
+                'acumulado_views_antes' => $porCanal[$channelId]['views'],
+                'acumulado_likes_antes' => $porCanal[$channelId]['likes'],
+                'acumulado_comments_antes' => $porCanal[$channelId]['comments'],
+            ]);
+
+            $porCanal[$channelId]['views'] += $viewsVideo;
+            $porCanal[$channelId]['likes'] += $likesVideo;
+            $porCanal[$channelId]['comments'] += $commentsMetaVideo;
+
+            // URLs externas: precisa verificar vídeo por vídeo
+            $desc = $this->getVideoDescription($v);
+            $urls = $this->pmt_extract_external_urls($desc);
+
+            $porCanal[$channelId]['external_urls_count'] += count($urls);
+
+            foreach ($urls as $url) {
+                $porCanal[$channelId]['external_urls'][] = [
+                    'videoId' => $videoId,
+                    'url' => $url,
+                ];
+
+            }
         }
 
-        // 8) Atualiza sessão só DEPOIS de filtrar por monetização
-        Session::put('t4_canais', $this->selecionados);
+        return $porCanal;
+    }
 
-        // 9) Esconde avaliação
-        $this->mostrarAvaliacao = false;
+    protected function montarResultadoFinal(
+        string $query,
+        array $videos,
+        array $monetizacao,
+        array $polarizacao,
+        array $chart
+    ): array {
+        $videosCount = count($videos);
 
-        // 10) Feedback pro usuário
-        $this->msg(
-            "OK: " . count($this->selecionados) . " incluído(s), " .
-                count($idsNaoChec) . " excluído(s) manualmente, " .
-                $removidosSemMonet . " sem monetização (filtrado(s) pelo VidIQ).",
-            'info'
+        $channelIds = collect($videos)
+            ->pluck('channelId')
+            ->filter()
+            ->unique()
+            ->values()
+            ->toArray();
+
+        $toxMedias = array_values(array_filter(
+            $chart['tox_media_por_video'] ?? [],
+            'is_numeric'
+        ));
+
+        $toxMedia = count($toxMedias)
+            ? array_sum($toxMedias) / count($toxMedias)
+            : null;
+
+        $toxMax = count($toxMedias)
+            ? max($toxMedias)
+            : null;
+
+        // $viewsTotal = collect($videos)->sum(fn ($v) => (int) ($v['viewCount'] ?? 0));
+        // $likesTotal = collect($videos)->sum(fn ($v) => (int) ($v['likeCount'] ?? 0));
+        // $commentsTotal = collect($videos)->sum(fn ($v) => (int) ($v['commentCount'] ?? 0));
+
+        $viewsTotal = collect($monetizacao)->sum(fn ($c) => (int) ($c['views'] ?? 0));
+        $likesTotal = collect($monetizacao)->sum(fn ($c) => (int) ($c['likes'] ?? 0));
+        $commentsTotal = collect($monetizacao)->sum(fn ($c) => (int) ($c['comments'] ?? 0));
+
+        $urlsTotal = collect($monetizacao)
+            ->sum(fn ($c) => (int) ($c['external_urls_count'] ?? 0));
+
+        $vidiqValores = collect($monetizacao)
+            ->pluck('vidiq_monthly_avg_usd')
+            ->filter(fn ($v) => is_numeric($v))
+            ->values();
+
+        $vidiqMedia = $vidiqValores->count()
+            ? $vidiqValores->avg()
+            : null;
+
+        $vidiqMax = $vidiqValores->count()
+            ? $vidiqValores->max()
+            : null;
+
+        $comentariosAnalisados = collect($chart['comentarios'] ?? [])
+            ->sum(fn ($items) => is_array($items) ? count($items) : 0);
+
+        return [
+            'query' => $query,
+
+            'overview' => [
+                'videos' => $videosCount,
+                'canais' => count($channelIds),
+
+                'views_total' => $viewsTotal,
+                'likes_total' => $likesTotal,
+
+                'comentarios' => $comentariosAnalisados,
+                'comentarios_analisados' => $comentariosAnalisados,
+
+                'tox_media' => $toxMedia,
+                'tox_max' => $toxMax,
+
+                'urls_total' => $urlsTotal,
+                'monet_media' => $vidiqMedia,
+                'monet_max' => $vidiqMax,
+
+                'polarizacao' => $polarizacao,
+            ],
+
+            'videos' => $videos,
+
+            'canais' => array_values($monetizacao),
+
+            'toxicidade' => [
+                'chart' => $chart['chart'] ?? [],
+                'comentarios' => $chart['comentarios'] ?? [],
+                'tox_media_por_video' => $chart['tox_media_por_video'] ?? [],
+            ],
+
+            // 'monetizacao' => $monetizacao,
+
+            // 'polarizacao' => $polarizacao,
+
+            'polarizacao' => [
+                'categoria' => $polarizacao['categoria'] ?? '-',
+
+                'polo_dominante' => $polarizacao['polo_dominante']
+                    ?? $polarizacao['polo_ideologico']
+                    ?? $polarizacao['polo']
+                    ?? '-',
+
+                'polarizacao_score' => $polarizacao['polarizacao_score']
+                    ?? $polarizacao['score']
+                    ?? '-',
+
+                'confianca' => $polarizacao['confianca'] ?? '-',
+
+                'justificativa' => $polarizacao['justificativa'] ?? '',
+            ],
+
+            'meta' => [
+                'gerado_em' => now()->toDateTimeString(),
+                'limite_videos' => $videosCount,
+                'fonte_monetizacao' => 'VidIQ por canal + URLs externas por vídeo',
+                'observacao' => 'Monetização estimada por proxies; toxicidade e polarização inferidas por processamento externo.',
+            ],
+        ];
+    }
+
+    // #########################################################################
+
+    protected function getVideoViews(array $v): int
+    {
+        return (int) (
+            $v['viewCount']
+            ?? $v['videoViewCount']
+            ?? $v['views']
+            ?? 0
         );
     }
 
-
-
-    public function repopularMonetizSelecionados()
+    protected function getVideoLikes(array $v): int
     {
-        // garante que é array
-        if (!is_array($this->selecionados) || empty($this->selecionados)) {
-            return;
-        }
+        return (int) (
+            $v['likeCount']
+            ?? $v['videoLikeCount']
+            ?? $v['likes']
+            ?? 0
+        );
+    }
 
-        foreach ($this->selecionados as $channelId => $raw) {
+    protected function getVideoCommentsCount(array $v): int
+    {
+        return (int) (
+            $v['commentCount']
+            ?? $v['videoCommentCount']
+            ?? $v['comments']
+            ?? 0
+        );
+    }
 
-            if (empty($raw['channelId'])) {
+    protected function getVideoDescription(array $v): string
+    {
+        return (string) (
+            $v['videoDesc']
+            ?? $v['description']
+            ?? $v['desc']
+            ?? ''
+        );
+    }
+
+    // ###############################
+    public function montarGraficoComentarios(array $videos)
+    {
+
+        // dd($videos);
+
+        $globalStart = collect($videos)->min(fn ($v) => $v['published']);
+        $globalMin = PHP_INT_MAX;
+        $globalMax = PHP_INT_MIN;
+
+        $series = [];
+        foreach ($videos as $vid => $v) {
+            // $count = (int) $v['commentCount'];
+            // $upIso = $v['published'];
+            // $vid = $v['videoId'];
+
+            $count = (int) (
+                $v['commentCount']
+                ?? $v['videoCommentCount']
+                ?? $v['comments']
+                ?? 0
+            );
+
+            $upIso = $v['published']
+                ?? $v['videoDt']
+                ?? $v['publishedAt']
+                ?? now()->toIso8601String();
+
+            $vid = $v['videoId']
+                ?? $v['cod']
+                ?? null;
+
+            if (! $vid) {
                 continue;
             }
 
-            // Consulta VidIQ (ou o que for)
-            $monet = $this->getVidIqMonthlyAvgUsd($channelId); // pode ser null
+            $buck = $this->getCommentsByBucketsRelevance($vid, $count, $upIso, 20);
 
-            // guarda no array central
-            $this->selecionados[$channelId]['monetiz'] = $monet;
+            // dd($buck);
+
+            $all = $this->flattenCommentsFromBuckets($buck);
+
+            Log::info('T4 tox comments', [
+                'videoId' => $vid,
+                'commentCountInput' => $count,
+                'commentsReturned' => count($all),
+            ]);
+
+            $this->comentarios[$vid] = $all;
+
+            // $this->samples[$vid] = $this->sampleComments($all, 20);
+            $avg = $this->toxMedia($all);
+            $this->toxMediaArray[$vid] = $avg;
+
+            $built = $this->buildPointsForVideoAbs($all, $upIso, $globalStart);
+
+            $series[$vid] = [
+                'points' => $built['points'],
+                'avg' => $avg !== null ? round($avg * 100, 2) : null,
+                'min' => $built['minDay'],
+                'max' => $built['maxDay'],
+                'startDay' => $built['videoStartDay'],
+                'endDay' => $built['videoEndDay'],
+                'title' => $v['videoTitle'] ?? $v['title'] ?? $vid,
+
+            ];
+
+            $globalMin = min($globalMin, $built['minDay']);
+            $globalMax = max($globalMax, $built['maxDay']);
+        }
+        if ($globalMin === PHP_INT_MAX) {
+            $globalMin = 0;
+            $globalMax = 0;
         }
 
-        // atualiza sessão com o ARRAY CENTRAL
-        Session::put('t4_canais', $this->selecionados);
+        // dd($series);
+
+        $this->chart = [
+            'globalStart' => $globalStart,
+            'min' => $globalMin,
+            'max' => $globalMax,
+            'series' => $series,
+        ];
     }
 
-
-
-
-
-
-
-    private function getVidIqMonthlyAvgUsd(string $channelId): ?float
+    protected function getCommentsByBucketsRelevance(
+        string $videoId, int $commentCount, string $uploadAtIso, int $perBucket = 100,
+        bool $withTox = true, bool $forceRefresh = false): array
     {
-        $url = "https://vidiq.com/youtube-stats/channel/{$channelId}/";
-
-        try {
-            $res = Http::withHeaders([
-                'User-Agent'      => 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119 Safari/537.36',
-                'Accept-Language' => 'en-US,en;q=0.9',
-            ])->timeout(20)->get($url);
-
-            if (!$res->ok()) return null;
-
-            $html = $res->body();
-
-            // 1) DOM + XPath (mais seguro contra variações)
-            if ($val = $this->parseVidiqWithDom($html)) {
-                return $val;
-            }
-
-            // 2) Regex mais “estruturada” (fecha </p> e pega o <span> da mesma seção)
-            if (preg_match('~Est\.\s*Monthly\s*Earnings\s*</p>\s*<div[^>]*>\s*<span[^>]*>([^<]+)</span>~i', $html, $m)) {
-                if ($avg = $this->parseRangeToAvgUsd(trim($m[1]))) return $avg;
-            }
-
-            // 3) Regex ampla (qualquer <span> após o texto-chave)
-            if (preg_match('~Est\.\s*Monthly\s*Earnings.*?<span[^>]*>([^<]+)</span>~is', $html, $m2)) {
-                if ($avg = $this->parseRangeToAvgUsd(trim($m2[1]))) return $avg;
-            }
-
-            return null;
-        } catch (\Throwable $e) {
-            return null;
+        $videoId = trim($videoId);
+        if ($videoId === '' || $commentCount < 0) {
+            return [];
         }
-    }
 
-    private function parseVidiqWithDom(string $html): ?float
-    {
-        $dom = new \DOMDocument();
-        libxml_use_internal_errors(true);
-        $dom->loadHTML($html);
-        libxml_clear_errors();
+        $apiKey = env('YOUTUBE_API_KEY');
+        $baseCT = 'https://www.googleapis.com/youtube/v3/commentThreads';
 
-        $xpath = new \DOMXPath($dom);
+        $uploadAt = Carbon::parse($uploadAtIso);
+        $now = now();
 
-        // acha o <p> cujo texto contém "Est. Monthly Earnings"
-        $nodes = $xpath->query("//p[contains(normalize-space(.), 'Est. Monthly Earnings')]");
-        if (!$nodes || $nodes->length === 0) return null;
+        // 1) Quantos buckets/páginas (régua por contagem)
+        $pages = 1;
+        // if ($commentCount > 500 && $commentCount <= 2000)       $pages = 2;
+        // elseif ($commentCount <= 5000)                          $pages = 3;
+        // elseif ($commentCount <= 10000)                         $pages = 4;
+        // elseif ($commentCount > 10000)                          $pages = 5;
 
-        // pega o primeiro <span> visível logo após (irmão/descendente na mesma seção)
-        $p = $nodes->item(0);
-        // sobe ao container
-        $container = $p->parentNode;
-        if (!$container) return null;
+        // vou so pegar 1 pag e ta bom demais - latencia
 
-        // tenta um span dentro do container
-        $spanNodes = (new \DOMXPath($dom))->query(".//span", $container);
-        foreach ($spanNodes as $sp) {
-            $text = trim($sp->textContent ?? '');
-            if ($text !== '') {
-                if ($avg = $this->parseRangeToAvgUsd($text)) {
-                    return $avg;
+        // 3) Janelas temporais iguais (uploadAt..now), tamanho = $pages
+        $windows = [];
+        $totalSec = max(1, $uploadAt->diffInSeconds($now));
+        for ($i = 0; $i < $pages; $i++) {
+            $start = $uploadAt->copy()->addSeconds((int) floor($totalSec * ($i / $pages)));
+            $end = $uploadAt->copy()->addSeconds((int) floor($totalSec * (($i + 1) / $pages)));
+            $windows[] = ['after' => $start, 'before' => $end];
+        }
+
+        // 4) Coletar N páginas por relevância (≈100 por página)
+        $order = 'relevance';
+        $pageSize = 100;
+        $nextToken = null;
+        $seen = [];
+        $col = [];
+
+        for ($p = 0; $p < $pages; $p++) {
+
+            $params = [
+                'key' => $apiKey,
+                'part' => 'snippet',          // ou 'snippet,replies'
+                'maxResults' => $pageSize,
+                'videoId' => $videoId,           // <- i maiúsculo
+                'textFormat' => 'plainText',
+                'order' => $order,
+            ];
+            if ($nextToken) {
+                $params['pageToken'] = $nextToken;
+            }
+
+            $url = $baseCT.'?'.http_build_query($params, '', '&', PHP_QUERY_RFC3986);
+
+            Log::info('YT API (relevance)', ['page' => $p + 1, 'url' => $url, 'videoId' => $videoId]);
+
+            $resp = Http::timeout(20)->get($url);
+
+            // dd($resp);
+
+            if ($resp->failed()) {
+                $body = $resp->json();
+                Log::warning('YT API failed', ['status' => $resp->status(), 'body' => $body]);
+
+                return []; // ou break; se quiser manter parciais
+            }
+
+            $data = $resp->json();
+            if (isset($data['error'])) {
+                Log::warning('YT API error', $data['error']);
+
+                return [];
+            }
+
+            $items = $data['items'] ?? [];
+            if (! $items) {
+                break;
+            }
+
+            // dd($items);
+            foreach ($items as $it) {
+                $top = $it['snippet']['topLevelComment'] ?? [];
+                $sn = $top['snippet'] ?? [];
+                $cid = $top['id'] ?? ($it['id'] ?? null);
+                if (! $cid || isset($seen[$cid])) {
+                    continue;
                 }
-            }
-        }
 
-        // fallback: próximo span no DOM depois do <p>
-        $allSpans = (new \DOMXPath($dom))->query("//span");
-        $foundP = false;
-        foreach ($dom->getElementsByTagName('p') as $pnode) {
-            if (strpos($pnode->textContent ?? '', 'Est. Monthly Earnings') !== false) {
-                $foundP = true;
+                $seen[$cid] = true;
+
+                $dtIso = $sn['publishedAt'] ?? null;
+                if (! $dtIso) {
+                    continue;
+                }
+
+                $txt = (string) ($sn['textDisplay'] ?? '');
+                $plain = strip_tags($txt);
+
+                $col[] = [
+                    'cod' => $cid,
+                    'username' => $sn['authorDisplayName'] ?? null,
+                    'texto' => $plain,
+                    'likes' => (int) ($sn['likeCount'] ?? 0),
+                    'dt' => $dtIso,
+                    'tox' => $withTox ? $this->setTox($plain) : null,
+                ];
+            }
+
+            $nextToken = $data['nextPageToken'] ?? null;
+            if (! $nextToken) {
                 break;
             }
         }
-        if ($foundP && $allSpans && $allSpans->length > 0) {
-            foreach ($allSpans as $sp) {
-                $text = trim($sp->textContent ?? '');
-                if ($text !== '' && $this->parseRangeToAvgUsd($text)) {
-                    return $this->parseRangeToAvgUsd($text);
+
+        // 5) Particionar por janela e ordenar cronologicamente dentro do bucket
+        $bucketRows = array_fill(0, $pages, []);
+
+        // dd($col);
+
+        foreach ($col as $row) {
+            $dt = Carbon::parse($row['dt']);
+            $idx = null;
+            foreach ($windows as $i => $w) {
+                if ($dt->gte($w['after']) && $dt->lt($w['before'])) {
+                    $idx = $i;
+                    break;
                 }
             }
+            if ($idx === null) {
+                $idx = $pages - 1;
+            } // bordas vão pro último
+            $bucketRows[$idx][] = $row;
         }
 
-        return null;
+        $out = [];
+        for ($i = 0; $i < $pages; $i++) {
+            // ordena por tempo asc
+            usort($bucketRows[$i], fn ($a, $b) => strcmp($a['dt'] ?? '', $b['dt'] ?? ''));
+            // garante até $perBucket por janela (se vier menos que 100, tudo bem)
+            $items = array_slice($bucketRows[$i], 0, $perBucket);
+
+            $out[] = [
+                'bucket' => $i + 1,
+                'publishedAfter' => $windows[$i]['after']->toIso8601String(),
+                'publishedBefore' => $windows[$i]['before']->toIso8601String(),
+                'items' => array_values($items),
+            ];
+        }
+
+        return $out;
     }
 
-    /** Converte "$13K - $40K" / "$44 - $132" / "1.2M" em média USD (float) */
-    private function parseRangeToAvgUsd(string $rangeText): ?float
+    /**
+     * Pontos para o gráfico com X absoluto:
+     * - x = dias desde $globalStart (inteiro)
+     * - y = tox (%) 0..100
+     * - label = 15 primeiros chars
+     * Também retorna:
+     * - videoStartDay: dia do upload do vídeo (desde o globalStart)
+     * - videoEndDay:   último dia com comentário (ou today), desde o globalStart
+     */
+    protected function buildPointsForVideoAbs(array $comments, string $uploadAtIso, string $globalStartIso): array
     {
-        // normaliza entidades e espaços
-        $rangeText = html_entity_decode($rangeText, ENT_QUOTES | ENT_HTML5, 'UTF-8');
-        $rangeText = preg_replace('/[^\S\r\n]+/u', ' ', $rangeText); // colapsa espaços
+        $globalStart = Carbon::parse($globalStartIso)->startOfDay();
+        $upload = Carbon::parse($uploadAtIso)->startOfDay();
 
-        // formato "min - max"
-        if (preg_match('~\$?\s*([0-9][0-9\.,]*)\s*([KkMm])?\s*-\s*\$?\s*([0-9][0-9\.,]*)\s*([KkMm])?~', $rangeText, $mm)) {
-            $min = $this->toNumber($mm[1], $mm[2] ?? null);
-            $max = $this->toNumber($mm[3], $mm[4] ?? null);
-            if ($min !== null && $max !== null) {
-                return ($min + $max) / 2.0;
+        $pts = [];
+        $minDay = PHP_INT_MAX;
+        $maxDay = PHP_INT_MIN;
+
+        $videoStartDay = max(0, $globalStart->diffInDays($upload));
+        $lastDate = $upload;
+
+        foreach ($comments as $c) {
+            $tox = $c['tox'] ?? null;
+            $dt = $c['dt'] ?? null;
+            if (! is_numeric($tox) || ! $dt) {
+                continue;
+            }
+
+            $d = Carbon::parse($dt)->startOfDay();
+            $day = max(0, $globalStart->diffInDays($d));
+
+            $minDay = min($minDay, $day);
+            $maxDay = max($maxDay, $day);
+            if ($d->gt($lastDate)) {
+                $lastDate = $d;
+            }
+
+            $plain = trim((string) ($c['texto'] ?? ''));
+
+            $pts[] = [
+                'x' => $day,
+                'y' => round(((float) $tox) * 100, 2),
+                'label' => mb_strimwidth($plain, 0, 120, '…'), // para tooltip (com corte elegante)
+                'full' => $plain,                               // opcional: texto inteiro
+            ];
+
+        }
+
+        if ($minDay === PHP_INT_MAX) {
+            $minDay = $videoStartDay;
+            $maxDay = $videoStartDay;
+        }
+        $videoEndDay = max($videoStartDay, $globalStart->diffInDays($lastDate));
+
+        return [
+            'points' => $pts,
+            'minDay' => $minDay,
+            'maxDay' => $maxDay,
+            'videoStartDay' => $videoStartDay,
+            'videoEndDay' => $videoEndDay,
+        ];
+    }
+
+    /** Junta todos os itens dos buckets de um vídeo. */
+    protected function flattenCommentsFromBuckets(array $bucketed): array
+    {
+        $all = [];
+        foreach ($bucketed as $b) {
+            foreach (($b['items'] ?? []) as $it) {
+                $all[] = $it;
             }
         }
 
-        // formato único "$1.2K"
-        if (preg_match('~\$?\s*([0-9][0-9\.,]*)\s*([KkMm])?~', $rangeText, $ms)) {
-            return $this->toNumber($ms[1], $ms[2] ?? null);
+        return $all;
+    }
+
+    /** Média de toxicidade (0..1) de um conjunto de comentários. */
+    protected function toxMedia(array $comments): ?float
+    {
+        $vals = array_values(array_filter(
+            array_map(fn ($c) => $c['tox'] ?? null, $comments),
+            'is_numeric'
+        ));
+        if (! $vals) {
+            return null;
         }
 
-        return null;
+        return array_sum($vals) / count($vals);
     }
 
-
-
-
-
-
-
-    ######## essa vai ser a funcao q finaliza tudo
-    public function avaliarCanais333333333333333333333333(): void
+    public function hydrateVideosFromSearchResults(array $searchItems): array
     {
+        // $searchItems são os items do search? (id.videoId + snippet.*)
+        // Extraia ids de vídeo E de canal:
+        $videoIds = collect($searchItems)->pluck('id.videoId')->filter()->values()->all();
+        $channelIds = collect($searchItems)->pluck('snippet.channelId')->filter()->unique()->values()->all();
 
-        if (count($this->selecionados) < 10)
-            return;
+        // 1) detalhes dos vídeos
+        $videos = $this->getVideoDetailsByListVideoIds($videoIds);
+        $byVid = collect($videos)->keyBy('videoId');
 
-        $this->mostrarAvaliacao = true;
-        $this->videos_dos_canais  = [];
+        // 2) detalhes dos canais
+        $canais = $this->getCanaisDetailsByListCanaisIds($channelIds);
+
+        // 3) monta retorno “hidratado”, preservando a ordem da busca:
+        $out = [];
+        foreach ($searchItems as $it) {
+            $vid = $it['id']['videoId'] ?? null;
+            if (! $vid) {
+                continue;
+            }
+
+            $v = $byVid[$vid] ?? null;
+            if (! $v) {
+                continue;
+            }
+
+            $chId = $v['channelId'] ?? null;
+            $ch = $chId ? ($canais[$chId] ?? null) : null;
+
+            // merge “plano” (mantém suas chaves padrão)
+            $out[] = array_merge($v, $ch ?? []);
+        }
+
+        return $out; // cada item já com video* + channel*
     }
 
+    // ##############################################################
 
-    #[Layout("layouts/app")]
+    public function pmt_polarizacao_tema(string $query, array $videos): array
+    {
+        $payload = collect($videos)
+            ->take(30)
+            ->map(fn ($v) => [
+                'titulo' => $v['videoTitle'] ?? '',
+                'descricao' => mb_substr($v['videoDesc'] ?? '', 0, 700),
+                'tags' => $v['videoTags'] ?? [],
+                // 'views' => $v['viewCount'] ?? null,
+                // 'likes' => $v['likeCount'] ?? null,
+                // 'comentarios' => $v['commentCount'] ?? null,
+            ])
+            ->values()
+            ->all();
+
+        $prompt = <<<PROMPT
+        Você é um classificador acadêmico de polarização no YouTube.
+
+        Analise o conjunto de vídeos retornado para a query: "{$query}".
+
+        Considere como polarização:
+        - presença de conflito político, ideológico, religioso, moral ou cultural;
+        - linguagem de oposição entre grupos;
+        - enquadramento nós versus eles;
+        - associação explícita a campos políticos, identitários ou morais;
+        - potencial de disputa discursiva.
+
+        Atribua polarizacao_score:
+        0.0 = sem polarização aparente;
+        0.25 = baixa polarização;
+        0.50 = polarização moderada;
+        0.75 = alta polarização;
+        1.0 = polarização extrema ou explicitamente conflitiva.
+
+        Classifique:
+        - categoria: politica, religiao, ciencia, saude, economia, tecnologia, entretenimento, educacao, outro
+        - polo_dominante: esquerda, direita, centro, misto, indefinido
+        - polarizacao_score: número de 0 a 1
+        - confianca: número de 0 a 1
+        - justificativa: breve explicação
+
+        Retorne apenas JSON válido:
+        {
+        "categoria": "...",
+        "polo_dominante": "...",
+        "polarizacao_score": 0.0,
+        "confianca": 0.0,
+        "justificativa": "..."
+        }
+        
+        PROMPT;
+
+        try {
+            $res = Http::withToken(env('OPENAI_API_KEY'))
+                ->timeout(90)
+                ->post('https://api.openai.com/v1/chat/completions', [
+                    'model' => 'gpt-4o-mini',
+                    'temperature' => 0.1,
+                    'messages' => [
+                        ['role' => 'system', 'content' => 'Responda somente JSON válido.'],
+                        [
+                            'role' => 'user',
+                            'content' => $prompt."\n\nDADOS:\n".json_encode($payload, JSON_UNESCAPED_UNICODE),
+                        ],
+                    ],
+                ]);
+
+            $content = trim($res->json('choices.0.message.content') ?? '');
+            $content = preg_replace('/^```json\s*/i', '', $content);
+            $content = preg_replace('/```$/', '', $content);
+
+            $json = json_decode($content, true);
+
+Log::info('T4 POLARIZACAO OPENAI RAW', [
+    'status' => $res->status(),
+    'body' => $res->body(),
+    'content' => $content ?? null,
+]);
+
+
+
+            return is_array($json) ? $json : [
+                'categoria' => 'outro',
+                'polo_dominante' => 'indefinido',
+                'polarizacao_score' => 0,
+                'confianca' => 0,
+                'justificativa' => 'Falha ao interpretar resposta da LLM.',
+            ];
+
+        } catch (\Throwable $e) {
+            return [
+                'categoria' => 'outro',
+                'polo_dominante' => 'indefinido',
+                'polarizacao_score' => 0,
+                'confianca' => 0,
+                'justificativa' => 'Erro na classificação: '.$e->getMessage(),
+            ];
+        }
+    }
+
+    #[Layout('layouts/app')]
     public function render()
     {
-
-        $this->seedCheckedFromBuscas();  // garante checados na 1ª exibição e não re-checa quem foi desmarcado
-
-        #$this->seedCheckedFromBuscas();   // ✅ garante marcados no 1º paint
 
         return view('livewire.tarefa4');
     }
 }
-
-

@@ -1,78 +1,83 @@
 <div>
 
-    {{-- WIDGET 2 | Cabeçalho informativo --}}
     <div class="bg-white border rounded-2xl p-6 md:p-7 shadow-sm mb-6">
-
-        {{-- título --}}
         <div class="flex items-start gap-4">
-            <div class="w-12 h-12 rounded-xl bg-purple-50 flex items-center justify-center shrink-0">
+            <div class="w-12 rounded-xl bg-purple-50 flex items-center justify-center shrink-0">
                 <svg class="w-7 h-7 text-purple-600" viewBox="0 0 24 24" fill="none" aria-hidden="true">
                     <path d="M4 12h16" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
                     <circle cx="6" cy="12" r="2" fill="currentColor" />
                     <circle cx="18" cy="12" r="2" fill="currentColor" />
                 </svg>
             </div>
-
             <div>
                 <h2 class="text-xl md:text-2xl font-semibold">
-                    WIDGET 2 — Toxicidade do conteúdo <span class="text-purple-700">(UGC)</span>
+                    WIDGET 2 — Toxicidade e <span class="text-purple-700">Monetização</span>
                 </h2>
-                <p class="mt-1 text-slate-600 text-sm md:text-base max-w-7xl">
-                    Compare a <strong>toxicidade do conteúdo</strong> produzido por <strong>2 a 3 canais</strong> ao
-                    longo do tempo,
-                    com base principalmente nos <strong>títulos (e descrições, quando disponível)</strong> dos vídeos.
-                </p>
             </div>
         </div>
 
-        {{-- boxes --}}
-        <div class="mt-5 grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+{{-- bloco resumido --}}
+<div class="mt-5 grid grid-cols-1 lg:grid-cols-3 gap-4">
 
-            {{-- O que você faz --}}
-            <div class="p-4 rounded-xl bg-slate-50 border">
-                <h3 class="font-semibold mb-1">O que você faz</h3>
-                <p class="text-slate-700">
-                    Selecione canais por <strong>pesquisa</strong> ou adicione um canal via <strong>ID/URL</strong>.
-                    Depois, clique em <strong>Avaliar canais</strong>.
-                </p>
+    {{-- explicação --}}
+    <div class="lg:col-span-2 rounded-2xl border border-purple-100 bg-gradient-to-br from-purple-50 to-white p-5 shadow-sm">
+        <h3 class="text-sm font-semibold text-purple-800 mb-3 uppercase tracking-wide">
+            Como utilizar o Widget 2
+        </h3>
+
+        <div class="space-y-2 text-sm text-slate-700 leading-6">
+            <p>
+                Pesquise canais relacionados a um mesmo tema,
+                selecione de <strong>2 a 3 canais</strong>
+                e clique em <strong>avaliar canais</strong>.
+            </p>
+
+            <p>
+                O sistema divide os vídeos em <strong>buckets temporais</strong>,
+                analisando a evolução da <strong>toxicidade dos comentários</strong>
+                e dos indicadores de <strong>monetização</strong> ao longo do tempo.
+            </p>
+
+            <p>
+                Também são exibidos indícios de monetização
+                <strong>off-platform</strong>, como URLs externas,
+                além de estimativas públicas do VidIQ.
+            </p>
+        </div>
+    </div>
+
+    {{-- legenda --}}
+    <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <h3 class="text-sm font-semibold text-slate-800 mb-3 uppercase tracking-wide">
+            Legenda
+        </h3>
+
+        <div class="space-y-2 text-sm">
+
+            <div class="flex items-center justify-between rounded-lg border border-purple-100 bg-purple-50 px-3 py-2">
+                <span class="text-slate-600">Bucket</span>
+                <span class="font-semibold text-purple-700">Período temporal</span>
             </div>
 
-            {{-- O que analisamos --}}
-            <div class="p-4 rounded-xl bg-slate-50 border">
-                <h3 class="font-semibold mb-1">O que analisamos</h3>
-                <p class="text-slate-700">
-                    Calculamos um <strong>score de toxicidade (0%–100%)</strong> por vídeo e a <strong>média do
-                        canal</strong>,
-                    permitindo observar a evolução temporal e comparar canais.
-                </p>
+            <div class="flex items-center justify-between rounded-lg border border-rose-100 bg-rose-50 px-3 py-2">
+                <span class="text-slate-600">Tox. média</span>
+                <span class="font-semibold text-rose-700">Comentários</span>
             </div>
 
-            {{-- Resultado --}}
-            <div class="p-4 rounded-xl bg-slate-50 border">
-                <h3 class="font-semibold mb-1">Resultado</h3>
-                <p class="text-slate-700">
-                    Visualize <strong>dados + gráfico</strong> de toxicidade no tempo e identifique
-                    qual canal apresenta a <strong>maior média</strong> (e maior intensidade geral).
-                </p>
+            <div class="flex items-center justify-between rounded-lg border border-amber-100 bg-amber-50 px-3 py-2">
+                <span class="text-slate-600">URLs/vídeo</span>
+                <span class="font-semibold text-amber-700">Monetização externa (proxy)</span>
+            </div>
+
+            <div class="flex items-center justify-between rounded-lg border border-emerald-100 bg-emerald-50 px-3 py-2">
+                <span class="text-slate-600">VidIQ/mês</span>
+                <span class="font-semibold text-emerald-700">Estimativa pública</span>
             </div>
 
         </div>
+    </div>
 
-        {{-- nota metodológica --}}
-        <div class="mt-5 p-4 rounded-xl bg-sky-50 border border-sky-100 text-sky-900 text-sm">
-            <span class="font-semibold">Nota metodológica:</span>
-            para reduzir custo de API, usamos <strong>amostragem</strong> (não coletamos todos os vídeos).
-            Quando um canal tem muitos uploads, dividimos a linha do tempo em <strong>janelas</strong> e coletamos um
-            número limitado por janela,
-            gerando uma visão representativa para <strong>fins acadêmicos</strong>.
-        </div>
-
-        {{-- feedback --}}
-        <div class="mt-4 p-4 rounded-xl bg-emerald-50 border border-emerald-100 text-emerald-900 text-sm">
-            <span class="font-semibold">Ao final:</span>
-            pedimos um <strong>feedback curto</strong> sobre como o WIDGET facilitou a obtenção e a sumarização das
-            informações.
-        </div>
+</div>
 
     </div>
 
@@ -147,100 +152,98 @@
         </div>
     </div>
 
-@php
-    #$pm = session('pm_result', []);
-    $mtResult = $this->mtResult;
-@endphp
-@if (!empty($mtResult))
-    <div class="mx-auto max-w-[1500px] p-6">
-        <h2 class="text-xl font-semibold mb-4">
-            Widget M–T — Monetização e Toxicidade por buckets temporais
-        </h2>
+    @php
+        #$pm = session('pm_result', []);
+        $mtResult = $this->mtResult;
+    @endphp
+    @if (!empty($mtResult))
+        <div class="mx-auto max-w-[1500px] p-6">
+            <h2 class="text-xl font-semibold mb-4">
+                Widget M–T — Monetização e Toxicidade por buckets temporais
+            </h2>
 
-        @foreach ($mtResult as $channelId => $row)
-            @php
-                $isGreen = ($row['cor'] ?? '') === 'green';
+            @foreach ($mtResult as $channelId => $row)
+                @php
+                    $isGreen = ($row['cor'] ?? '') === 'green';
 
-                $border = $isGreen ? 'border-green-500' : 'border-red-500';
-                $bg = $isGreen ? 'bg-green-50' : 'bg-red-50';
-                $text = $isGreen ? 'text-green-800' : 'text-red-800';
+                    $border = $isGreen ? 'border-green-500' : 'border-red-500';
+                    $bg = $isGreen ? 'bg-green-50' : 'bg-red-50';
+                    $text = $isGreen ? 'text-green-800' : 'text-red-800';
 
-                $vidiqUrl = 'https://vidiq.com/youtube-stats/channel/' . $channelId . '/';
-            @endphp
+                    $vidiqUrl = 'https://vidiq.com/youtube-stats/channel/' . $channelId . '/';
+                @endphp
 
-            <div class="mb-8 rounded-2xl border-2 {{ $border }} {{ $bg }} p-5 shadow-sm">
-                <div class="flex justify-between items-start mb-4">
-                    <div>
-                        <div class="text-xs text-slate-500">ID: {{ $channelId }}</div>
-                        <h3 class="text-lg font-bold {{ $text }}">
-                            {{ $row['channel']['channelTitle'] ?? $channelId }}
-                        </h3>
+                <div class="mb-8 rounded-2xl border-2 {{ $border }} {{ $bg }} p-5 shadow-sm">
+                    <div class="flex justify-between items-start mb-4">
+                        <div>
+
+                            <x-linkcanal :canalId="$channelId" :titulo="$row['channel']['channelTitle'] ?? $channelId" />
+
+                        </div>
+
+                        <div class="text-right text-sm">
+                            <div><strong>Tox. canal:</strong>
+                                {{ isset($row['tox_canal']['media']) ? number_format($row['tox_canal']['media'] * 100, 2, ',', '.') . '%' : '-' }}
+                            </div>
+                            <div><strong>Comentários analisados:</strong>
+                                {{ $row['tox_canal']['n'] ?? 0 }}
+                            </div>
+                            <div><strong>URLs externas:</strong>
+                                {{ $row['monetizacao_canal']['external_urls_count'] ?? 0 }}
+                            </div>
+                        </div>
                     </div>
 
-                    <div class="text-right text-sm">
-                        <div><strong>Tox. canal:</strong>
-                            {{ isset($row['tox_canal']['media']) ? number_format($row['tox_canal']['media'] * 100, 2, ',', '.') . '%' : '-' }}
-                        </div>
-                        <div><strong>Comentários analisados:</strong>
-                            {{ $row['tox_canal']['n'] ?? 0 }}
-                        </div>
-                        <div><strong>URLs externas:</strong>
-                            {{ $row['monetizacao_canal']['external_urls_count'] ?? 0 }}
-                        </div>
-                    </div>
-                </div>
+                    <div class="grid grid-cols-1 md:grid-cols-6 gap-3">
+                        @foreach ($row['buckets'] as $bucket)
+                            @php
+                                $a = $bucket['analysis'];
+                                $t = $a['toxicity'];
+                                $m = $a['monetizacao_off_platform'];
+                            @endphp
 
-                <div class="grid grid-cols-1 md:grid-cols-6 gap-3">
-                    @foreach ($row['buckets'] as $bucket)
-                        @php
-                            $a = $bucket['analysis'];
-                            $t = $a['toxicity'];
-                            $m = $a['monetizacao_off_platform'];
-                        @endphp
+                            <div class="rounded-xl bg-white border p-3 text-xs shadow-sm">
+                                <div class="font-bold {{ $text }}">
+                                    Bucket {{ $bucket['idx'] }}
+                                </div>
 
-                        <div class="rounded-xl bg-white border p-3 text-xs shadow-sm">
-                            <div class="font-bold {{ $text }}">
-                                Bucket {{ $bucket['idx'] }}
-                            </div>
+                                <div class="text-slate-500 mb-2">
+                                    {{ $bucket['label'] }}
+                                </div>
 
-                            <div class="text-slate-500 mb-2">
-                                {{ $bucket['label'] }}
-                            </div>
+                                <div><strong>Vídeos:</strong> {{ $a['videos_count'] }}</div>
+                                <div><strong>Comentários:</strong> {{ $t['n'] ?? 0 }}</div>
+                                <div><strong>Tox. média:</strong>
+                                    {{ isset($t['media']) ? number_format($t['media'] * 100, 2, ',', '.') . '%' : '-' }}
+                                </div>
+                                <div><strong>Tox. máx:</strong>
+                                    {{ isset($t['max']) ? number_format($t['max'] * 100, 2, ',', '.') . '%' : '-' }}
+                                </div>
+                                <div><strong>Alta tox.:</strong>
+                                    {{ isset($t['alta_taxa']) ? number_format($t['alta_taxa'] * 100, 1, ',', '.') . '%' : '-' }}
+                                </div>
+                                <div><strong>URLs/vídeo:</strong> {{ $m['urls_media_por_video'] ?? 0 }}</div>
 
-                            <div><strong>Vídeos:</strong> {{ $a['videos_count'] }}</div>
-                            <div><strong>Comentários:</strong> {{ $t['n'] ?? 0 }}</div>
-                            <div><strong>Tox. média:</strong>
-                                {{ isset($t['media']) ? number_format($t['media'] * 100, 2, ',', '.') . '%' : '-' }}
-                            </div>
-                            <div><strong>Tox. máx:</strong>
-                                {{ isset($t['max']) ? number_format($t['max'] * 100, 2, ',', '.') . '%' : '-' }}
-                            </div>
-                            <div><strong>Alta tox.:</strong>
-                                {{ isset($t['alta_taxa']) ? number_format($t['alta_taxa'] * 100, 1, ',', '.') . '%' : '-' }}
-                            </div>
-                            <div><strong>URLs/vídeo:</strong> {{ $m['urls_media_por_video'] ?? 0 }}</div>
+                                <div class="mt-3 border-t pt-2">
+                                    <strong>Comentários amostra</strong>
 
-                            <div class="mt-3 border-t pt-2">
-                                <strong>Comentários amostra</strong>
-
-                                @foreach (($a['comentarios_sample'] ?? []) as $c)
-                                    <div class="mt-2 p-2 rounded bg-slate-50 border">
-                                        <div class="text-slate-500">
-                                            tox:
-                                            {{ isset($c['tox']) ? number_format($c['tox'] * 100, 1, ',', '.') . '%' : '-' }}
+                                    @foreach ($a['comentarios_sample'] ?? [] as $c)
+                                        <div class="mt-2 p-2 rounded bg-slate-50 border">
+                                            <div class="text-slate-500">
+                                                tox:
+                                                {{ isset($c['tox']) ? number_format($c['tox'] * 100, 1, ',', '.') . '%' : '-' }}
+                                            </div>
+                                            <div>
+                                                {{ \Illuminate\Support\Str::limit($c['texto'] ?? ($c['text'] ?? ''), 80) }}
+                                            </div>
                                         </div>
-                                        <div>
-                                            {{ \Illuminate\Support\Str::limit($c['texto'] ?? $c['text'] ?? '', 80) }}
-                                        </div>
-                                    </div>
-                                @endforeach
+                                    @endforeach
+                                </div>
                             </div>
-                        </div>
-                    @endforeach
+                        @endforeach
 
-                    <div
-                        class="rounded-xl border-2 {{ $border }} p-3 text-xs shadow-sm relative overflow-hidden"
-                        style="
+                        <div class="rounded-xl border-2 {{ $border }} p-3 text-xs shadow-sm relative overflow-hidden"
+                            style="
                             background-image: repeating-linear-gradient(
                                 135deg,
                                 rgba(255,255,255,0.95) 0px,
@@ -248,40 +251,38 @@
                                 rgba(0,0,0,0.035) 8px,
                                 rgba(0,0,0,0.035) 16px
                             );
-                        "
-                    >
-                        <div class="absolute top-0 left-0 right-0 h-1 {{ $isGreen ? 'bg-green-500' : 'bg-red-500' }}"></div>
+                        ">
+                            <div
+                                class="absolute top-0 left-0 right-0 h-1 {{ $isGreen ? 'bg-green-500' : 'bg-red-500' }}">
+                            </div>
 
-                        <div class="font-bold {{ $text }} mb-3">
-                            Monetização
-                        </div>
+                            <div class="font-bold {{ $text }} mb-3">
+                                Monetização
+                            </div>
 
-                        <div class="mt-2">
-                            <strong>VidIQ/mês:</strong><br>
-                            US$ {{ number_format($row['monetizacao_canal']['vidiq_monthly_avg_usd'] ?? 0, 0, ',', '.') }}
-                        </div>
+                            <div class="mt-2">
+                                <strong>VidIQ/mês:</strong><br>
+                                US$
+                                {{ number_format($row['monetizacao_canal']['vidiq_monthly_avg_usd'] ?? 0, 0, ',', '.') }}
+                            </div>
 
-                        <div class="mt-2">
-                            <strong>Off-platform:</strong><br>
-                            {{ $row['monetizacao_canal']['external_urls_count'] ?? 0 }} URLs
-                        </div>
+                            <div class="mt-2">
+                                <strong>Off-platform:</strong><br>
+                                {{ $row['monetizacao_canal']['external_urls_count'] ?? 0 }} URLs
+                            </div>
 
-                        <div class="mt-3 pt-3 border-t border-slate-200">
-                            <a
-                                href="{{ $vidiqUrl }}"
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                class="inline-flex items-center gap-1 px-2 py-1 rounded-md {{ $isGreen ? 'bg-green-100 text-green-800 hover:bg-green-200' : 'bg-red-100 text-red-800 hover:bg-red-200' }} font-semibold"
-                            >
-                                Conferir no VidIQ ↗
-                            </a>
+                            <div class="mt-3 pt-3 border-t border-slate-200">
+                                <a href="{{ $vidiqUrl }}" target="_blank" rel="noopener noreferrer"
+                                    class="inline-flex items-center gap-1 px-2 py-1 rounded-md {{ $isGreen ? 'bg-green-100 text-green-800 hover:bg-green-200' : 'bg-red-100 text-red-800 hover:bg-red-200' }} font-semibold">
+                                    Conferir no VidIQ ↗
+                                </a>
+                            </div>
                         </div>
                     </div>
                 </div>
-            </div>
-        @endforeach
-    </div>
-@endif    
+            @endforeach
+        </div>
+    @endif
 
 
     {{-- <div class="mx-auto p-6 w-full max-w-[1400px]">

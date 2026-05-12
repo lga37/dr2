@@ -4,8 +4,8 @@
 ])
 
 @php
-    // monta a URL do canal
-    $href = $videoId ? "https://youtube.com/{$videoId}" : '#';
+    // monta a URL do canal https://www.youtube.com/watch?v=wHV40sIILuo
+    $href = $videoId ? "https://www.youtube.com/watch?v={$videoId}" : '#';
 @endphp
 
 <a href="{{ $href }}" target="_blank"

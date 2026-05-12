@@ -6,69 +6,103 @@
 
         {{-- título --}}
         <div class="flex items-start gap-4">
-            <div class="w-12 h-12 rounded-xl bg-indigo-50 flex items-center justify-center shrink-0">
+            <div class="w-12 rounded-xl bg-indigo-50 flex items-center justify-center shrink-0">
                 <svg class="w-7 h-7 text-indigo-600" viewBox="0 0 24 24" fill="none" aria-hidden="true">
                     <path d="M4 7h16M4 12h10M4 17h13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
                 </svg>
             </div>
-
             <div>
                 <h2 class="text-xl md:text-2xl font-semibold">
-                    WIDGET 3 — Nuvem de palavras <span class="text-indigo-700">(Wordcloud)</span>
+                    WIDGET 3 — Polarização e <span class="text-indigo-700">Monetizacao</span>
                 </h2>
-                <p class="mt-1 text-slate-600 text-sm md:text-base max-w-7xl">
-                    Visualize e compare os <strong>temas mais recorrentes</strong> de um ou dois canais do YouTube
-                    a partir da frequência de palavras nos <strong>títulos dos vídeos</strong>.
-                </p>
             </div>
         </div>
 
-        {{-- boxes --}}
-        <div class="mt-5 grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+        {{-- bloco resumido --}}
+        <div class="mt-5 grid grid-cols-1 lg:grid-cols-3 gap-4">
 
-            {{-- O que você faz --}}
-            <div class="p-4 rounded-xl bg-slate-50 border">
-                <h3 class="font-semibold mb-1">O que você faz</h3>
-                <p class="text-slate-700">
-                    Selecione canais por <strong>pesquisa</strong> ou via <strong>ID/URL</strong>
-                    e clique em <strong>Avaliar canais</strong> para gerar a nuvem de palavras.
-                </p>
+            {{-- resumo --}}
+            <div
+                class="lg:col-span-2 rounded-2xl border border-indigo-100 bg-gradient-to-br from-indigo-50 to-white p-5 shadow-sm">
+
+                <h3 class="text-base font-semibold text-indigo-900 mb-2">
+                    Como utilizar
+                </h3>
+
+                <div class="text-sm text-slate-700 leading-6 space-y-2">
+
+                    <p>
+                        Pesquise canais relacionados ao tema desejado, adicione pelo menos
+                        <strong>2 canais</strong> na sessão e clique em
+                        <strong>“AVALIAR CANAIS”</strong>.
+                    </p>
+
+                    <p>
+                        O sistema divide os vídeos em períodos temporais (“buckets”)
+                        e analisa títulos, descrições, tags, transcrições,
+                        polarização ideológica e possíveis indicadores de monetização.
+                    </p>
+
+                    <p>
+                        As nuvens de palavras destacam os termos mais frequentes:
+                        quanto maior a palavra, maior sua relevância estatística.
+                    </p>
+
+                </div>
+
             </div>
 
-            {{-- O que analisamos --}}
-            <div class="p-4 rounded-xl bg-slate-50 border">
-                <h3 class="font-semibold mb-1">O que analisamos</h3>
-                <p class="text-slate-700">
-                    Extraímos e contabilizamos as palavras mais frequentes dos <strong>títulos dos vídeos</strong>,
-                    removendo <em>stop words</em> e termos pouco informativos.
-                </p>
-            </div>
+            {{-- legenda --}}
+            <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
 
-            {{-- Resultado --}}
-            <div class="p-4 rounded-xl bg-slate-50 border">
-                <h3 class="font-semibold mb-1">Resultado</h3>
-                <p class="text-slate-700">
-                    Uma <strong>nuvem de palavras</strong> em que o tamanho reflete a frequência,
-                    facilitando a identificação rápida dos <strong>temas dominantes</strong>.
-                </p>
+                <h3 class="text-base font-semibold text-slate-900 mb-3">
+                    Legenda
+                </h3>
+
+                <div class="space-y-2 text-sm">
+
+                    <div class="flex items-center justify-between border-b pb-1">
+                        <span class="text-slate-600">Score P</span>
+                        <span class="font-medium text-indigo-700">
+                            Intensidade da polarização
+                        </span>
+                    </div>
+
+                    <div class="flex items-center justify-between border-b pb-1">
+                        <span class="text-slate-600">Conf.</span>
+                        <span class="font-medium text-emerald-700">
+                            Confiança da IA
+                        </span>
+                    </div>
+
+                    <div class="flex items-center justify-between border-b pb-1">
+                        <span class="text-slate-600">URLs/vídeo</span>
+                        <span class="font-medium text-amber-700">
+                            Links externos (proxy monetização off)
+                        </span>
+                    </div>
+
+                    <div class="flex items-center justify-between border-b pb-1">
+                        <span class="text-slate-600">VidIQ/mês</span>
+                        <span class="font-medium text-rose-700">
+                            Estimativa monetização on
+                        </span>
+                    </div>
+
+                    <div class="flex items-center justify-between">
+                        <span class="text-slate-600">Buckets</span>
+                        <span class="font-medium text-sky-700">
+                            Períodos temporais
+                        </span>
+                    </div>
+
+                </div>
+
             </div>
 
         </div>
 
-        {{-- nota metodológica --}}
-        <div class="mt-5 p-4 rounded-xl bg-sky-50 border border-sky-100 text-sky-900 text-sm">
-            <span class="font-semibold">Nota metodológica:</span>
-            a nuvem de palavras é uma forma visual de <strong>histograma textual</strong>,
-            projetada para facilitar a interpretação humana de grandes volumes de títulos.
-            A análise inicial considera apenas títulos, podendo ser estendida para descrições e palavras-chave.
-        </div>
 
-        {{-- feedback --}}
-        <div class="mt-4 p-4 rounded-xl bg-emerald-50 border border-emerald-100 text-emerald-900 text-sm">
-            <span class="font-semibold">Ao final:</span>
-            solicitamos um <strong>feedback qualitativo</strong> sobre como o WIDGET auxilia
-            a análise, exploração e sumarização de conteúdo — para pesquisadores e usuários em geral.
-        </div>
 
     </div>
 
@@ -111,85 +145,7 @@
 
 
                     <div class="overflow-x-auto mt-8">
-                        {{-- <table
-                            class="divide-y divide-gray-200 divide-solid table-auto min-w-full text-sm tracking-tight leading-tight">
-                            <thead>
-                                <tr class="bg-gray-100 text-xs text-gray-700 text-center">
-                                    @php
-                                        $videosSessao = $videos_dos_canais;
-                                        $numVids = max(count($videosSessao), 1); // evita /0
-                                        $colWidth = number_format(100 / ($numVids * 7), 2);
-                                    @endphp
-                                    @foreach ($videosSessao as $canal_id => $dados)
-                                        <th colspan="7" style="width: {{ $colWidth * 7 }}%;"
-                                            class="border border-gray-300 px-2 py-4">
-                                            <x-linkcanal :canalId="$canal_id" :titulo="$selecionados[$canal_id]['channelTitle'] ?? ''" />
-                                        </th>
-                                    @endforeach
-                                </tr>
-                            </thead>
 
-                            <tbody>
-                                @php
-                                    $max = collect($videosSessao)->map(fn($d) => count($d))->max() ?? 0;
-                                @endphp
-
-                                @for ($i = 0; $i < $max; $i++)
-                                    @if ($i == 0)
-                                        <tr
-                                            class="border border-gray-300 w-[10px] font-bold text-center text-indigo-800 text-[10px] ">
-                                            <td>#</td>
-                                            <td>Titulo</td>
-                                            <td>Likes</td>
-                                            <td>Views</td>
-                                            <td>Comments</td>
-                                            <td>Data</td>
-                                            <td>NLP</td>
-                                        </tr>
-                                    @endif
-
-                                    <tr class="">
-                                        @foreach ($videosSessao as $loopIndex => $dados)
-                                            @php
-                                                $c = $dados[$i] ?? null;
-                                            @endphp
-                                            @if ($c)
-                                                <td
-                                                    class="border border-gray-300 w-[10px] text-left text-gray-800 text-[10px] ">
-                                                    {{ $i + 1 }}</td>
-                                                <td
-                                                    class="border text-xs border-gray-300 w-[420px] max-w-[420px] truncate break-all">
-                                                    <a href="{{ $c['videoId'] }}" target="_blank">
-                                                        {{ \Illuminate\Support\Str::limit(strip_tags($c['videoTitle'] ?? '[---]'), 120) }}
-                                                    </a>
-                                                </td>
-
-                                                <td class="border border-gray-300 w-[10px] text-gray-800 text-[10px]">
-                                                    {{ $c['videoLikeCount'] ?? '-' }}</td>
-                                                <td class="border border-gray-300 w-[10px] text-gray-800 text-[10px]">
-                                                    {{ $c['videoViewCount'] ?? '-' }}</td>
-                                                <td class="border border-gray-300 w-[10px] text-gray-800 text-[10px]">
-                                                    {{ $c['videoCommentCount'] ?? '-' }}</td>
-                                                <td class="border border-gray-300 w-[20px] text-gray-800 text-[10px]">
-                                                    {{ isset($c['videoDt']) ? \Carbon\Carbon::parse($c['videoDt'])->format('d/m/Y') : '--' }}
-                                                </td>
-                                                <td class="border border-gray-300 w-[10px] text-gray-800 text-[10px]">
-                                                    {{ isset($c['nlp1']) ? number_format($c['nlp1'], 2) . '%' : 'X' }}
-                                                </td>
-                                            @else
-                                                <td colspan="7"
-                                                    class="border border-gray-300 w-full text-gray-900 text-center italic text-[11px]">
-                                                    --</td>
-                                            @endif
-                                        @endforeach
-                                    </tr>
-                                @endfor
-                            </tbody>
-
-
-                        </table> --}}
-
-                        <!-- feedback -->
                         <div class="rounded-lg p-4 ring-4 w-full max-w-6xl mx-auto my-4 bg-green-50  ring-green-300">
                             <div class="mt-4 grid gap-2">
                                 <label class="text-sm font-medium text-gray-700">
@@ -219,123 +175,134 @@
 
 
 
-@php
-    #$pm = session('pm_result', []);
-    $pm = $this->pmResult;
-@endphp
+                @php
+                    #$pm = session('pm_result', []);
+                    $pm = $this->pmResult;
+                @endphp
 
-@if (!empty($pm))
-    <div class="mx-auto max-w-12xl p-6">
-        <h2 class="text-xl font-semibold mb-4">
-            Widget P–M — Polarização e Monetização por buckets temporais
-        </h2>
+                @if (!empty($pm))
+                    <div class="mx-auto max-w-12xl p-6">
+                        <h2 class="text-xl font-semibold mb-4">
+                            Widget P–M — Polarização e Monetização por buckets temporais
+                        </h2>
 
-        @foreach ($pm as $channelId => $row)
-            @php
-                $isGreen = ($row['cor'] ?? '') === 'green';
+                        @foreach ($pm as $channelId => $row)
+                            @php
+                                $isGreen = ($row['cor'] ?? '') === 'green';
 
-                $border = $isGreen ? 'border-green-500' : 'border-red-500';
-                $bg = $isGreen ? 'bg-green-50' : 'bg-red-50';
-                $text = $isGreen ? 'text-green-800' : 'text-red-800';
-            @endphp
+                                $border = $isGreen ? 'border-green-500' : 'border-red-500';
+                                $bg = $isGreen ? 'bg-green-50' : 'bg-red-50';
+                                $text = $isGreen ? 'text-green-800' : 'text-red-800';
+                            @endphp
 
-            <div class="mb-8 rounded-2xl border-4 {{ $border }} {{ $bg }} p-5 shadow-sm">
-                <div class="flex justify-between items-start mb-4">
-                    <div>
-                        <div class="text-xs text-slate-500">ID: {{ $channelId }}</div>
-                        <h3 class="text-lg font-bold {{ $text }}">
-                            {{ $row['channel']['channelTitle'] ?? $channelId }}
-                        </h3>
-                    </div>
+                            <div
+                                class="mb-8 rounded-2xl border-4 {{ $border }} {{ $bg }} p-5 shadow-sm">
+                                <div class="flex justify-between items-start mb-4">
+                                    <div>
 
-                    <div class="text-right text-sm">
-                        <div><strong>VidIQ:</strong>
-                            US$ {{ number_format($row['monetizacao_canal']['vidiq_monthly_avg_usd'] ?? 0, 0, ',', '.') }}/mês
-                        </div>
-                        <div><strong>URLs externas:</strong>
-                            {{ $row['monetizacao_canal']['external_urls_count'] ?? 0 }}
-                        </div>
-                    </div>
-                </div>
+                                        <x-linkcanal :canalId="$channelId" :titulo="$row['channel']['channelTitle'] ?? '—'" />
 
-                <div class="grid grid-cols-1 md:grid-cols-6 gap-3">
-                    @foreach ($row['buckets'] as $bucket)
-                        @php
-                            $a = $bucket['analysis'];
-                            $p = $a['polarizacao'];
-                            $m = $a['monetizacao_off_platform'];
-                            $wc = $a['wordclouds'];
-                        @endphp
+                                    </div>
 
-                        <div class="rounded-xl bg-white border p-3 text-xs shadow-sm">
-                            <div class="font-bold {{ $text }}">
-                                Bucket {{ $bucket['idx'] }}
-                            </div>
+                                    <div class="text-right text-sm">
 
-                            <div class="text-slate-500 mb-2">
-                                {{ $bucket['label'] }}
-                            </div>
 
-                            <div><strong>Vídeos:</strong> {{ $a['videos_count'] }}</div>
-                            <div><strong>Categoria:</strong> {{ $p['categoria_dominante'] }}</div>
-                            <div><strong>Polo:</strong> {{ $p['polo_dominante'] }}</div>
-                            <div><strong>Score P:</strong> {{ $p['score_medio'] ?? '-' }}</div>
-                            <div><strong>Conf.:</strong> {{ $p['confianca_media'] ?? '-' }}</div>
-                            <div><strong>URLs/vídeo:</strong> {{ $m['urls_media_por_video'] }}</div>
+                                        <a href="https://vidiq.com/youtube-stats/channel/{{ $channelId }}/"
+                                            target="_blank" class="text-sm text-blue-600 underline">
+                                            VidIQ:
 
-                            <div class="mt-3 border-t pt-2">
-                                <strong>Títulos</strong>
-                                <div class="flex flex-wrap gap-1 mt-1">
-                                    @foreach (array_slice($wc['titulos'], 0, 8, true) as $word => $freq)
-                                        <span class="px-1.5 py-0.5 rounded bg-slate-100">
-                                            {{ $word }} {{ $freq }}
-                                        </span>
-                                    @endforeach
+                                            @if (!empty($row['monetizacao_canal']['vidiq_monthly_avg_usd']))
+                                                US$
+                                                {{ number_format($row['monetizacao_canal']['vidiq_monthly_avg_usd'], 0, ',', '.') }}/mês
+                                            @else
+                                                sem dados
+                                            @endif
+                                        </a>
+
+                                        <div><strong>URLs externas:</strong>
+
+                                            {{ $row['urls_total'] ?? 0 }}
+                                        </div>
+                                    </div>
                                 </div>
-                            </div>
 
-                            <div class="mt-2">
-                                <strong>Descrições</strong>
-                                <div class="flex flex-wrap gap-1 mt-1">
-                                    @foreach (array_slice($wc['descricoes'] ?? [], 0, 8, true) as $word => $freq)
-                                        <span class="px-1.5 py-0.5 rounded bg-slate-100">
-                                            {{ $word }} {{ $freq }}
-                                        </span>
+                                <div class="grid grid-cols-1 md:grid-cols-6 gap-3">
+                                    @foreach ($row['buckets'] as $bucket)
+                                        @php
+                                            $a = $bucket['analysis'];
+                                            $p = $a['polarizacao'];
+                                            $m = $a['monetizacao_off_platform'];
+                                            $wc = $a['wordclouds'];
+                                        @endphp
+
+                                        <div class="rounded-xl bg-white border p-3 text-xs shadow-sm">
+                                            <div class="font-bold {{ $text }}">
+                                                Bucket {{ $bucket['idx'] }}
+                                            </div>
+
+                                            <div class="text-slate-500 mb-2">
+                                                {{ $bucket['label'] }}
+                                            </div>
+
+                                            <div><strong>Vídeos:</strong> {{ $a['videos_count'] }}</div>
+                                            <div><strong>Categoria:</strong> {{ $p['categoria_dominante'] }}</div>
+                                            <div><strong>Polo:</strong> {{ $p['polo_dominante'] }}</div>
+                                            <div><strong>Score P:</strong> {{ $p['score_medio'] ?? '-' }}</div>
+                                            <div><strong>Conf.:</strong> {{ $p['confianca_media'] ?? '-' }}</div>
+                                            <div><strong>URLs/vídeo:</strong> {{ $m['urls_media_por_video'] }}</div>
+
+                                            <div class="mt-3 border-t pt-2">
+                                                <strong>Títulos</strong>
+                                                <div class="flex flex-wrap gap-1 mt-1">
+                                                    @foreach (array_slice($wc['titulos'], 0, 8, true) as $word => $freq)
+                                                        <span class="px-1.5 py-0.5 rounded bg-slate-100">
+                                                            {{ $word }} {{ $freq }}
+                                                        </span>
+                                                    @endforeach
+                                                </div>
+                                            </div>
+
+                                            <div class="mt-2">
+                                                <strong>Descrições</strong>
+                                                <div class="flex flex-wrap gap-1 mt-1">
+                                                    @foreach (array_slice($wc['descricoes'] ?? [], 0, 8, true) as $word => $freq)
+                                                        <span class="px-1.5 py-0.5 rounded bg-slate-100">
+                                                            {{ $word }} {{ $freq }}
+                                                        </span>
+                                                    @endforeach
+                                                </div>
+                                            </div>
+
+                                            <div class="mt-2">
+                                                <strong>Transcrições</strong>
+                                                <div class="flex flex-wrap gap-1 mt-1">
+                                                    @foreach (array_slice($wc['transcricoes'] ?? [], 0, 8, true) as $word => $freq)
+                                                        <span class="px-1.5 py-0.5 rounded bg-slate-100">
+                                                            {{ $word }} {{ $freq }}
+                                                        </span>
+                                                    @endforeach
+                                                </div>
+                                            </div>
+
+                                            <div class="mt-2">
+                                                <strong>Tags</strong>
+                                                <div class="flex flex-wrap gap-1 mt-1">
+                                                    @foreach (array_slice($wc['tags'], 0, 8, true) as $word => $freq)
+                                                        <span class="px-1.5 py-0.5 rounded bg-slate-100">
+                                                            {{ $word }} {{ $freq }}
+                                                        </span>
+                                                    @endforeach
+                                                </div>
+                                            </div>
+                                        </div>
                                     @endforeach
-                                </div>
-                            </div>      
-                            
-                            <div class="mt-2">
-                                <strong>Transcrições</strong>
-                                <div class="flex flex-wrap gap-1 mt-1">
-                                    @foreach (array_slice($wc['transcricoes'] ?? [], 0, 8, true) as $word => $freq)
-                                        <span class="px-1.5 py-0.5 rounded bg-slate-100">
-                                            {{ $word }} {{ $freq }}
-                                        </span>
-                                    @endforeach
-                                </div>
-                            </div>
 
-                            <div class="mt-2">
-                                <strong>Tags</strong>
-                                <div class="flex flex-wrap gap-1 mt-1">
-                                    @foreach (array_slice($wc['tags'], 0, 8, true) as $word => $freq)
-                                        <span class="px-1.5 py-0.5 rounded bg-slate-100">
-                                            {{ $word }} {{ $freq }}
-                                        </span>
-                                    @endforeach
-                                </div>
-                            </div>
-                        </div>
-                    @endforeach
+                                    @php
+                                        $vidiqUrl = 'https://vidiq.com/youtube-stats/channel/' . $channelId . '/';
+                                    @endphp
 
-                    @php
-                        $vidiqUrl = 'https://vidiq.com/youtube-stats/channel/' . $channelId . '/';
-                    @endphp
-
-                    <div
-                        class="rounded-xl border-2 {{ $border }} p-3 text-xs shadow-sm relative overflow-hidden"
-                        style="
+                                    <div class="rounded-xl border-2 {{ $border }} p-3 text-xs shadow-sm relative overflow-hidden"
+                                        style="
                             background-image: repeating-linear-gradient(
                                 135deg,
                                 rgba(255,255,255,0.95) 0px,
@@ -343,139 +310,124 @@
                                 rgba(0,0,0,0.035) 8px,
                                 rgba(0,0,0,0.035) 16px
                             );
-                        "
-                    >
-                        <div class="absolute top-0 left-0 right-0 h-1 {{ $isGreen ? 'bg-green-500' : 'bg-red-500' }}"></div>
+                        ">
+                                        <div
+                                            class="absolute top-0 left-0 right-0 h-1 {{ $isGreen ? 'bg-green-500' : 'bg-red-500' }}">
+                                        </div>
 
-                        <div class="font-bold {{ $text }} mb-3">
-                            Monetização
-                        </div>
+                                        <div class="font-bold {{ $text }} mb-3">
+                                            Monetização
+                                        </div>
 
-                        <div class="mt-2">
-                            <strong>VidIQ/mês:</strong><br>
-                            US$ {{ number_format($row['monetizacao_canal']['vidiq_monthly_avg_usd'] ?? 0, 0, ',', '.') }}
-                        </div>
+                                        <div class="mt-2">
+                                            <strong>VidIQ/mês:</strong><br>
+                                            US$
+                                            {{ number_format($row['monetizacao_canal']['vidiq_monthly_avg_usd'] ?? 0, 0, ',', '.') }}
+                                        </div>
 
-                        <div class="mt-2">
-                            <strong>Off-platform:</strong><br>
-                            {{ $row['monetizacao_canal']['external_urls_count'] ?? 0 }} URLs
-                        </div>
+                                        <div class="mt-2">
+                                            <strong>Off-platform:</strong><br>
 
-                        <div class="mt-3 pt-3 border-t border-slate-200">
-                            <a
-                                href="{{ $vidiqUrl }}"
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                class="inline-flex items-center gap-1 px-2 py-1 rounded-md {{ $isGreen ? 'bg-green-100 text-green-800 hover:bg-green-200' : 'bg-red-100 text-red-800 hover:bg-red-200' }} font-semibold"
-                            >
-                                Conferir no VidIQ ↗
-                            </a>
-                        </div>
+                                            {{ $row['urls_total'] ?? 0 }}
+                                            URLs
+
+                                            @if (!empty($row['urls']))
+                                                <div class="text-xs mt-2">
+                                                    @foreach (array_slice($row['urls'], 0, 3) as $url)
+                                                        <div class="truncate">{{ $url }}</div>
+                                                    @endforeach
+                                                </div>
+                                            @endif
+                                        </div>
+
+                                        <div class="mt-3 pt-3 border-t border-slate-200">
+                                            <a href="{{ $vidiqUrl }}" target="_blank" rel="noopener noreferrer"
+                                                class="inline-flex items-center gap-1 px-2 py-1 rounded-md {{ $isGreen ? 'bg-green-100 text-green-800 hover:bg-green-200' : 'bg-red-100 text-red-800 hover:bg-red-200' }} font-semibold">
+                                                Conferir no VidIQ ↗
+                                            </a>
+                                        </div>
+                                    </div>
+
+
+
+
+                                </div>
+                            </div>
+                        @endforeach
                     </div>
-
-
-
-
-                </div>
-            </div>
-        @endforeach
-    </div>
-@endif
+                @endif
 
 
 
 
                 <h2 class="text-xl font-semibold mt-8 mb-3">Nuvem de palavras</h2>
-                <div class="w-full">
-                    <div class="grid w-full grid-cols-1 md:grid-cols-2 gap-4 items-stretch">
-                        @foreach ($selecionados as $canalId => $raw)
-                            @php
-                                $items = $word_ranking[$canalId] ?? [];
-                            @endphp
 
-                            <div class="w-full min-w-0 rounded border bg-white/60 p-3 flex flex-col">
-                                <div class="text-sm font-semibold leading-tight">
-                                    {{ $raw['channelTitle'] ?? $canalId }}
-                                </div>
-                                <div class="text-[11px] text-gray-500 mb-2">
-                                    Top termos (títulos)
-                                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    @foreach ($pm as $channelId => $row)
+                        @php
+                            $grupos = [
+                                'Títulos' => 'titulos',
+                                'Descrições' => 'descricoes',
+                                'Tags' => 'tags',
+                            ];
 
+                            $clouds = [];
 
-                                <div class="wcTextCloud">
-                                    @foreach ($cloudTokens[$canalId] ?? [] as $t)
-                                        <span class="wcWord"
-                                            style="font-size: {{ $t['size'] }}px; color: {{ $t['color'] }}; opacity: {{ $t['alpha'] }};"
-                                            title="{{ $t['word'] }} • {{ $t['count'] }}">{{ $t['word'] }}</span>
-                                    @endforeach
-                                </div>
+                            foreach ($grupos as $label => $key) {
+                                $freq = [];
 
+                                foreach ($row['buckets'] ?? [] as $bucket) {
+                                    $wc = $bucket['analysis']['wordclouds'][$key] ?? [];
 
+                                    foreach ($wc as $word => $count) {
+                                        $freq[$word] = ($freq[$word] ?? 0) + (int) $count;
+                                    }
+                                }
 
-                                {{-- ranking --}}
-                                <div class="mt-2 pt-2 border-t w-full">
-                                    <div class="text-[11px] text-gray-500 mb-1">
-                                        Ranking (Top {{ min(30, count($items)) }}) — decrescente
+                                arsort($freq);
+                                $clouds[$label] = $freq;
+                            }
+                        @endphp
+
+                        <div class="rounded border bg-white p-4">
+                            <div class="font-bold mb-1">
+                                {{ $row['channel']['channelTitle'] ?? $channelId }}
+                            </div>
+
+                            @foreach ($clouds as $label => $freq)
+                                <div class="mt-4">
+                                    <div class="text-xs font-semibold text-gray-500 mb-2">
+                                        {{ $label }}
                                     </div>
 
-                                    <div class="flex flex-wrap gap-1.5 w-full">
-                                        @foreach (array_slice($items, 0, 30) as $row)
+                                    <div class="flex flex-wrap gap-2 items-center">
+                                        @forelse(array_slice($freq, 0, 30, true) as $word => $count)
                                             @php
-                                                $pal = [
-                                                    [
-                                                        'bg' => 'bg-red-50',
-                                                        'bd' => 'border-red-200',
-                                                        'tx' => 'text-red-700',
-                                                    ],
-                                                    [
-                                                        'bg' => 'bg-amber-50',
-                                                        'bd' => 'border-amber-200',
-                                                        'tx' => 'text-amber-700',
-                                                    ],
-                                                    [
-                                                        'bg' => 'bg-lime-50',
-                                                        'bd' => 'border-lime-200',
-                                                        'tx' => 'text-lime-700',
-                                                    ],
-                                                    [
-                                                        'bg' => 'bg-emerald-50',
-                                                        'bd' => 'border-emerald-200',
-                                                        'tx' => 'text-emerald-700',
-                                                    ],
-                                                    [
-                                                        'bg' => 'bg-sky-50',
-                                                        'bd' => 'border-sky-200',
-                                                        'tx' => 'text-sky-700',
-                                                    ],
-                                                    [
-                                                        'bg' => 'bg-indigo-50',
-                                                        'bd' => 'border-indigo-200',
-                                                        'tx' => 'text-indigo-700',
-                                                    ],
-                                                    [
-                                                        'bg' => 'bg-fuchsia-50',
-                                                        'bd' => 'border-fuchsia-200',
-                                                        'tx' => 'text-fuchsia-700',
-                                                    ],
-                                                ];
-                                                $idx = crc32($row['word']) % count($pal);
-                                                $c = $pal[$idx];
+                                                $i = $loop->index;
+                                                $size = match (true) {
+                                                    $i === 0 => 30,
+                                                    $i === 1 => 25,
+                                                    $i === 2 => 21,
+                                                    $i === 3 => 18,
+                                                    $i === 4 => 16,
+                                                    default => 13,
+                                                };
                                             @endphp
 
-                                            <span
-                                                class="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] leading-none {{ $c['bg'] }} {{ $c['bd'] }} {{ $c['tx'] }}">
-                                                <span class="font-medium">{{ $row['word'] }}</span>
-                                                <span class="opacity-50">•</span>
-                                                <span class="font-semibold tabular-nums">{{ $row['count'] }}</span>
+                                            <span class="font-semibold text-slate-700"
+                                                style="font-size: {{ $size }}px"
+                                                title="{{ $word }}: {{ $count }}">
+                                                {{ $word }}
                                             </span>
-                                        @endforeach
+                                        @empty
+                                            <span class="text-xs text-gray-400">Sem termos.</span>
+                                        @endforelse
                                     </div>
                                 </div>
-                            </div>
-                        @endforeach
-                    </div>
+                            @endforeach
+                        </div>
+                    @endforeach
                 </div>
-
 
             @endif
 

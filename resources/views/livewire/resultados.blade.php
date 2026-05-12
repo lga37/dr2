@@ -125,7 +125,7 @@
                                                     {{ $c['nome'] ?? '—' }}</div>
 
                                                 <div class="text-xs text-slate-500 mt-1">
-                                                   
+
 
                                                     <div class="text-xs text-slate-500 mt-1">
                                                         @if (isset($c['inscritos']))

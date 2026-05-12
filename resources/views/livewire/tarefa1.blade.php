@@ -1,70 +1,77 @@
 <div>
-
-
-    {{-- Idget 1 | Cabeçalho informativo --}}
     <div class="bg-white border rounded-2xl p-6 md:p-7 shadow-sm mb-6">
-
-        {{-- título --}}
         <div class="flex items-start gap-4">
-            <div class="w-12 h-12 rounded-xl bg-rose-50 flex items-center justify-center shrink-0">
+            <div class="w-12 rounded-xl bg-rose-50 flex items-center justify-center shrink-0">
                 <svg class="w-7 h-7 text-rose-600" viewBox="0 0 24 24" fill="none">
                     <path d="M4 5h16a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-7l-4.5 3v-3H4a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2z"
                         stroke="currentColor" stroke-width="1.5" />
                 </svg>
             </div>
-
             <div>
                 <h2 class="text-xl md:text-2xl font-semibold">
-                    Widget 1 — Qual vídeo gera <span class="text-rose-600">reações mais tóxicas</span>?
+                    Widget 1 — Polarizacao e <span class="text-rose-600">Toxicidade</span>
                 </h2>
-                <p class="mt-1 text-slate-600 text-sm md:text-base max-w-7xl">
-                    Compare a toxicidade da audiência de vídeos do YouTube a partir dos comentários,
-                    utilizando métricas acadêmicas baseadas na <strong>Perspective API (Google Jigsaw)</strong>.
-                </p>
             </div>
         </div>
 
-        {{-- boxes --}}
-        <div class="mt-5 grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
 
-            {{-- Como funciona --}}
-            <div class="p-4 rounded-xl bg-slate-50 border">
-                <h3 class="font-semibold mb-1">Como funciona</h3>
-                <p class="text-slate-700">
-                    Escolha vídeos por busca temática ou adicione URLs específicas.
-                    Em seguida, clique em <strong>Avaliar vídeos</strong> para iniciar a análise.
-                </p>
-            </div>
+{{-- bloco resumido --}}
+<div class="mt-5 grid grid-cols-1 lg:grid-cols-3 gap-4">
 
-            {{-- O que analisamos --}}
-            <div class="p-4 rounded-xl bg-slate-50 border">
-                <h3 class="font-semibold mb-1">O que analisamos</h3>
-                <p class="text-slate-700">
-                    Comentários raiz são coletados por relevância e avaliados quanto à
-                    <strong>toxicidade</strong>, com cálculo de médias e distribuição.
-                </p>
-            </div>
+    {{-- explicação --}}
+    <div class="lg:col-span-2 rounded-2xl border border-rose-100 bg-gradient-to-br from-rose-50 to-white p-5 shadow-sm">
+        <h3 class="text-sm font-semibold text-rose-800 mb-3 uppercase tracking-wide">
+            Como utilizar o Widget 1
+        </h3>
 
-            {{-- Resultado --}}
-            <div class="p-4 rounded-xl bg-slate-50 border">
-                <h3 class="font-semibold mb-1">Resultado</h3>
-                <p class="text-slate-700">
-                    Visualize dados comparativos e gráficos de toxicidade.
-                    Ao final, registre sua percepção sobre a utilidade da ferramenta.
-                </p>
-            </div>
+        <div class="space-y-2 text-sm text-slate-700 leading-6">
+            <p>
+                Pesquise vídeos sobre um mesmo tema, selecione de <strong>2 a 3 vídeos</strong>
+                e clique em <strong>avaliar</strong>.
+            </p>
 
-        </div>
-
-           {{-- feedback --}}
-        <div class="mt-4 p-4 rounded-xl bg-emerald-50 border border-emerald-100 text-emerald-900 text-sm">
-            <span class="font-semibold">Ao final:</span>
-            pedimos um <strong>feedback curto</strong> sobre como o WIDGET facilitou a obtenção e a sumarização das
-            informações.
+            <p>
+                O sistema compara a <strong>polarização discursiva</strong> dos vídeos
+                com a <strong>toxicidade dos comentários</strong>, permitindo observar
+                se conteúdos mais polarizados também concentram reações mais hostis.
+            </p>
         </div>
     </div>
 
+    {{-- legenda --}}
+    <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <h3 class="text-sm font-semibold text-slate-800 mb-3 uppercase tracking-wide">
+            Legenda
+        </h3>
 
+        <div class="space-y-2 text-sm">
+            <div class="flex items-center justify-between rounded-lg border border-indigo-100 bg-indigo-50 px-3 py-2">
+                <span class="text-slate-600">Score P</span>
+                <span class="font-semibold text-indigo-700">Polarização</span>
+            </div>
+
+            <div class="flex items-center justify-between rounded-lg border border-sky-100 bg-sky-50 px-3 py-2">
+                <span class="text-slate-600">Confiança</span>
+                <span class="font-semibold text-sky-700">Classificação IA</span>
+            </div>
+
+            <div class="flex items-center justify-between rounded-lg border border-rose-100 bg-rose-50 px-3 py-2">
+                <span class="text-slate-600">Tox. média</span>
+                <span class="font-semibold text-rose-700">Comentários</span>
+            </div>
+
+            <div class="flex items-center justify-between rounded-lg border border-emerald-100 bg-emerald-50 px-3 py-2">
+                <span class="text-slate-600">Gráfico</span>
+                <span class="font-semibold text-emerald-700">Toxicidade no tempo</span>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+
+        
+    </div>
 
     <x-msg />
 
@@ -320,103 +327,105 @@
         </div>
     </div>
 
-@php
-    $t1 = session('t1_result', []);
-    $selecionados = $t1['selecionados'] ?? [];
-    $polarizacoes = $this->polarizacoes ?? [];
-    $toxMedias = $t1['tox_media'] ?? [];
-@endphp
-
-
-@if (!empty($polarizacoes) && count($selecionados) > 0)
-    <div class="mx-auto p-6 w-full max-w-[1400px]">
-        <h2 class="text-xl font-semibold mb-4">Classificação de polarização dos vídeos selecionados</h2>
-
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-@foreach ($polarizacoes as $videoId => $pol)
     @php
-        $raw = $selecionados[$videoId] ?? [];
-        $tox = $toxMedias[$videoId] ?? null;
-
-        // DEFINE COR PELO ÍNDICE (igual chart)
-        $idx = array_search($videoId, array_keys($polarizacoes));
-
-        if ($idx === 0) {
-            $border = 'border-green-500';
-            $bg = 'bg-green-50';
-            $accent = 'text-green-700';
-            $tag = 'bg-green-100 text-green-700';
-        } else {
-            $border = 'border-red-500';
-            $bg = 'bg-red-50';
-            $accent = 'text-red-700';
-            $tag = 'bg-red-100 text-red-700';
-        }
+        $t1 = session('t1_result', []);
+        $selecionados = $t1['selecionados'] ?? [];
+        $polarizacoes = $this->polarizacoes ?? [];
+        $toxMedias = $t1['tox_media'] ?? [];
     @endphp
 
-    <div class="rounded-xl border-2 {{ $border }} {{ $bg }} p-4 shadow-md hover:shadow-lg transition">
 
-        <div class="flex justify-between items-center mb-2">
-            <div class="text-xs text-slate-500">
-                ID: {{ $videoId }}
+    @if (!empty($polarizacoes) && count($selecionados) > 0)
+        <div class="mx-auto p-6 w-full max-w-[1400px]">
+            <h2 class="text-xl font-semibold mb-4">Classificação de polarização dos vídeos selecionados</h2>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                @foreach ($polarizacoes as $videoId => $pol)
+                    @php
+                        $raw = $selecionados[$videoId] ?? [];
+                        $tox = $toxMedias[$videoId] ?? null;
+
+                        // DEFINE COR PELO ÍNDICE (igual chart)
+                        $idx = array_search($videoId, array_keys($polarizacoes));
+
+                        if ($idx === 0) {
+                            $border = 'border-green-500';
+                            $bg = 'bg-green-50';
+                            $accent = 'text-green-700';
+                            $tag = 'bg-green-100 text-green-700';
+                        } else {
+                            $border = 'border-red-500';
+                            $bg = 'bg-red-50';
+                            $accent = 'text-red-700';
+                            $tag = 'bg-red-100 text-red-700';
+                        }
+                    @endphp
+
+                    <div
+                        class="rounded-xl border-2 {{ $border }} {{ $bg }} p-4 shadow-md hover:shadow-lg transition">
+
+                        <div class="flex justify-between items-center mb-2">
+                            <div class="text-xs text-slate-500">
+                                ID: {{ $videoId }}
+                            </div>
+
+                            <span class="px-2 py-1 text-xs rounded {{ $tag }}">
+                                Vídeo {{ $idx + 1 }}
+                            </span>
+                        </div>
+
+                        <h3 class="font-semibold {{ $accent }} leading-snug mb-3">
+                            {{ $raw['videoTitle'] ?? $videoId }}
+                        </h3>
+
+                        <div class="grid grid-cols-2 gap-2 text-sm">
+                            <div>
+                                <span class="text-slate-500">Categoria</span><br>
+                                <strong>{{ $pol['categoria'] ?? 'n/d' }}</strong>
+                            </div>
+
+                            <div>
+                                <span class="text-slate-500">Polo</span><br>
+                                <strong>{{ $pol['polo_ideologico'] ?? 'indefinido' }}</strong>
+                            </div>
+
+                            <div>
+                                <span class="text-slate-500">Score P</span><br>
+                                <strong>
+                                    {{ isset($pol['polarizacao_score']) ? number_format($pol['polarizacao_score'], 2, ',', '.') : '-' }}
+                                </strong>
+                            </div>
+
+                            <div>
+                                <span class="text-slate-500">Confiança</span><br>
+                                <strong>
+                                    {{ isset($pol['confianca']) ? number_format($pol['confianca'], 2, ',', '.') : '-' }}
+                                </strong>
+                            </div>
+
+                            <div>
+                                <span class="text-slate-500">Tox. média</span><br>
+                                <strong class="{{ $accent }}">
+                                    {{ $tox !== null ? number_format($tox * 100, 2, ',', '.') . '%' : '-' }}
+                                </strong>
+                            </div>
+
+                            <div>
+                                <span class="text-slate-500">Transcript</span><br>
+                                <strong>{{ $pol['transcript_words'] ?? 0 }} palavras</strong>
+                            </div>
+                        </div>
+
+                        @if (!empty($pol['justificativa']))
+                            <p class="mt-3 text-xs text-slate-600 border-t pt-2">
+                                {{ $pol['justificativa'] }}
+                            </p>
+                        @endif
+                    </div>
+                @endforeach
             </div>
-
-            <span class="px-2 py-1 text-xs rounded {{ $tag }}">
-                Vídeo {{ $idx + 1 }}
-            </span>
         </div>
-
-        <h3 class="font-semibold {{ $accent }} leading-snug mb-3">
-            {{ $raw['videoTitle'] ?? $videoId }}
-        </h3>
-
-        <div class="grid grid-cols-2 gap-2 text-sm">
-            <div>
-                <span class="text-slate-500">Categoria</span><br>
-                <strong>{{ $pol['categoria'] ?? 'n/d' }}</strong>
-            </div>
-
-            <div>
-                <span class="text-slate-500">Polo</span><br>
-                <strong>{{ $pol['polo_ideologico'] ?? 'indefinido' }}</strong>
-            </div>
-
-            <div>
-                <span class="text-slate-500">Score P</span><br>
-                <strong>
-                    {{ isset($pol['polarizacao_score']) ? number_format($pol['polarizacao_score'], 2, ',', '.') : '-' }}
-                </strong>
-            </div>
-
-            <div>
-                <span class="text-slate-500">Confiança</span><br>
-                <strong>
-                    {{ isset($pol['confianca']) ? number_format($pol['confianca'], 2, ',', '.') : '-' }}
-                </strong>
-            </div>
-
-            <div>
-                <span class="text-slate-500">Tox. média</span><br>
-                <strong class="{{ $accent }}">
-                    {{ $tox !== null ? number_format($tox * 100, 2, ',', '.') . '%' : '-' }}
-                </strong>
-            </div>
-
-            <div>
-                <span class="text-slate-500">Transcript</span><br>
-                <strong>{{ $pol['transcript_words'] ?? 0 }} palavras</strong>
-            </div>
-        </div>
-
-        @if (!empty($pol['justificativa']))
-            <p class="mt-3 text-xs text-slate-600 border-t pt-2">
-                {{ $pol['justificativa'] }}
-            </p>
-        @endif
-    </div>
-@endforeach        </div>
-    </div>
-@endif
+    @endif
 
 
     <div class="mx-auto p-6 w-full max-w-[1400px]">
