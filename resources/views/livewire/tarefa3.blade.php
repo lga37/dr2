@@ -32,7 +32,7 @@
                 <div class="text-sm text-slate-700 leading-6 space-y-2">
 
                     <p>
-                        Pesquise canais relacionados ao tema desejado, adicione pelo menos
+                        Pesquise canais relacionados ao tema desejado, adicione 
                         <strong>2 canais</strong> na sessão e clique em
                         <strong>“AVALIAR CANAIS”</strong>.
                     </p>

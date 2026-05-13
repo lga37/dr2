@@ -67,8 +67,6 @@ class Tarefa2 extends Component
             return;
         }
 
-       
-
         // Session::forget('t2_videos');
         $sessVideos = [];
 
@@ -122,9 +120,7 @@ class Tarefa2 extends Component
                 // dump($videoBD);
             }
 
-          
         }
-
 
     }
 
@@ -146,7 +142,6 @@ class Tarefa2 extends Component
         // dd($selecionados);
 
         foreach (array_values($selecionados) as $idx => $canalRaw) {
-
             $channelId = $canalRaw['channelId'] ?? $canalRaw['youtube_id'] ?? null;
 
             if (! $channelId) {
@@ -161,25 +156,24 @@ class Tarefa2 extends Component
                 'subscriberCount' => $canalRaw['channelSubs'] ?? $canalRaw['inscritos'] ?? null,
             ];
 
+            $monet = $this->pmt_monetizacao_video([], [
+                'youtube_id' => $channelId,
+                'nome' => $channel['channelTitle'],
+                'desc' => $channel['channelDesc'],
+            ]);
+
+            #dd($monet);
+
             $buckets = $this->pmt_bucket_periods($channel['channelDt'], 5);
 
             // 1) pega até 50 vídeos uma única vez
             $videosBase = $this->getAllVideos($channelId, max: 50);
 
-            $ids = collect($videosBase)
-                ->pluck('videoId')
-                ->filter()
-                ->values()
-                ->all();
+            $ids = collect($videosBase)->pluck('videoId')->filter()->values()->all();
 
             // 2) hidrata para obter desc, tags, published etc.
             $videosOrdenados = $this->getVideoDetailsByListVideoIds($ids);
-
-            $videosOrdenados = collect($videosOrdenados)
-                ->filter(fn ($v) => ! empty($v['published']))
-                ->sortBy('published')
-                ->values()
-                ->toArray();
+            $videosOrdenados = collect($videosOrdenados)->filter(fn ($v) => ! empty($v['published']))->sortBy('published')->values()->toArray();
 
             $bucketResults = [];
             $toxTodas = [];
@@ -223,19 +217,8 @@ class Tarefa2 extends Component
                 ];
             }
 
-            $toxCanalMedia = count($toxTodas)
-                ? round(array_sum($toxTodas) / count($toxTodas), 4)
-                : null;
-
-            $toxCanalMax = count($toxTodas)
-                ? round(max($toxTodas), 4)
-                : null;
-
-            $monet = $this->pmt_monetizacao_video([], [
-                'youtube_id' => $channelId,
-                'nome' => $channel['channelTitle'],
-                'desc' => $channel['channelDesc'],
-            ]);
+            $toxCanalMedia = count($toxTodas) ? round(array_sum($toxTodas) / count($toxTodas), 4) : null;
+            $toxCanalMax = count($toxTodas) ? round(max($toxTodas), 4) : null;
 
             $resultado[$channelId] = [
                 'cor' => $cores[$idx] ?? 'slate',

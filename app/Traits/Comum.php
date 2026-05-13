@@ -1615,7 +1615,9 @@ trait Comum
         $channelUrls = $this->pmt_extract_external_urls($channelDesc);
         $externalUrls = array_values(array_unique(array_merge($videoUrls, $channelUrls)));
 
-        $vidiq = $channelId ? $this->pmt_get_vidiq_monthly_avg_usd($channelId) : null;
+        // $vidiq = $channelId ? $this->pmt_get_vidiq_monthly_avg_usd($channelId) : null;
+
+        $vidiq = $this->pmt_get_vidiq_monthly_avg_usd($channelId);
 
         return [
             'vidiq_monthly_avg_usd' => $vidiq,
@@ -1645,59 +1647,74 @@ trait Comum
 
     public function pmt_get_vidiq_monthly_avg_usd(string $channelId): ?float
     {
+        $channelId = trim($channelId);
         $url = "https://vidiq.com/youtube-stats/channel/{$channelId}/";
+
+        $valorFinal = null; // garante que não fica lixo de chamada anterior
 
         try {
             $res = Http::withHeaders([
                 'User-Agent' => 'Mozilla/5.0',
                 'Accept-Language' => 'en-US,en;q=0.9',
+                'Cache-Control' => 'no-cache',
+                'Pragma' => 'no-cache',
             ])->timeout(30)->get($url);
 
             if (! $res->ok()) {
-                return null;
-            }
-
-            $html = $res->body();
-
-            if (
-                str_contains($html, 'No results found') ||
-                str_contains($html, 'we don’t have any information about this channel') ||
-                str_contains($html, "we don't have any information about this channel")
-            ) {
-                Log::warning('VIDIQ SEM RESULTADO', [
+                Log::warning('VIDIQ HTTP FAIL', [
                     'channelId' => $channelId,
+                    'status' => $res->status(),
                     'url' => $url,
                 ]);
 
                 return null;
             }
 
+            $html = $res->body();
+
+            // 1) primeiro detecta página sem resultado
+            if (preg_match('~No\s+results\s+found<\/p>~i', $html)) {
+                Log::warning('VIDIQ SEM RESULTADO REGEX', [
+                    'channelId' => $channelId,
+                    'url' => $url,
+                    'len' => strlen($html),
+                ]);
+
+                return null;
+            }
+
+            // 2) procura o bloco de earnings
+            $raw = null;
+
             if (preg_match(
                 '~Est\.\s*Monthly\s*Earnings.*?<p[^>]*>\s*(\$[0-9][0-9\.,]*\s*[KkMm]?)\s*</p>~is',
-                $html,
-                $m
-            )) {
-                return $this->pmt_parse_money_to_usd(trim($m[1]));
+                $html, $m)) {
+                $raw = trim($m[1]);
+            // } elseif (preg_match(
+            //     '~Est\.\s*Monthly\s*Earnings.*?(\$[0-9][0-9\.,]*\s*[KkMm]?)~is',
+            //     $html, $m)) {
+            //     $raw = trim($m[1]);
             }
 
-            if (preg_match(
-                '~Est\.\s*Monthly\s*Earnings.*?(\$[0-9][0-9\.,]*\s*[KkMm]?)~is',
-                $html,
-                $m
-            )) {
-                return $this->pmt_parse_money_to_usd(trim($m[1]));
-            }
+            if ($raw !== null) {
+                $valorFinal = $this->pmt_parse_money_to_usd($raw);
 
-            Log::warning('VIDIQ SEM MATCH', [
-                'channelId' => $channelId,
-                'url' => $url,
-            ]);
+                Log::info('VIDIQ MATCH FINAL', [
+                    'channelId' => $channelId,
+                    'url' => $url,
+                    'parsed' => $valorFinal,
+                    'html' => $html,
+                ]);
+
+                return $valorFinal;
+            }
 
             return null;
 
         } catch (\Throwable $e) {
-            Log::warning('Erro VidIQ PMT', [
+            Log::warning('ERRO VIDIQ PMT', [
                 'channelId' => $channelId,
+                'url' => $url,
                 'erro' => $e->getMessage(),
             ]);
 
@@ -1878,107 +1895,6 @@ trait Comum
         arsort($freq);
 
         return array_slice($freq, 0, $limit, true);
-    }
-
-    public function pmt_analisar_bucket_pm3333333333333(array $channel, array $videos): array
-    {
-        $titles = '';
-        $descs = '';
-        $tags = '';
-        $transcripts = '';
-
-        $polarizacoes = [];
-        $urlsCounts = [];
-
-        foreach ($videos as $v) {
-            $titles .= ' '.($v['videoTitle'] ?? $v['title'] ?? $v['nome'] ?? '');
-
-            $desc = $v['videoDesc']
-                ?? $v['description']
-                ?? $v['desc']
-                ?? '';
-
-            $descs .= ' '.$desc;
-
-            $videoTags = $v['videoTags'] ?? $v['tags'] ?? [];
-            if (is_array($videoTags)) {
-                $tags .= ' '.implode(' ', $videoTags);
-            }
-
-            $urls = $this->pmt_extract_external_urls($desc);
-            $urlsCounts[] = count($urls);
-
-            Log::info('T3 PM URLS VIDEO', [
-                'videoId' => $v['videoId'] ?? null,
-                'title' => $v['videoTitle'] ?? $v['title'] ?? null,
-                'desc_len' => strlen($desc),
-                'urls_count' => count($urls),
-                'urls' => $urls,
-            ]);
-
-            $videoId = $v['videoId'] ?? $v['cod'] ?? null;
-
-            $transcript = null;
-            if ($videoId) {
-                $transcript = $this->pmt_get_transcript($videoId);
-                $transcripts .= ' '.mb_substr($transcript ?? '', 0, 4000);
-            }
-
-            $polarizacoes[] = $this->pmt_polarizacao_video(
-                video: $v,
-                channel: $channel,
-                comments: [],
-                transcript: $transcript
-            );
-        }
-
-        $scores = collect($polarizacoes)
-            ->pluck('polarizacao_score')
-            ->filter(fn ($x) => is_numeric($x))
-            ->map(fn ($x) => (float) $x);
-
-        $confs = collect($polarizacoes)
-            ->pluck('confianca')
-            ->filter(fn ($x) => is_numeric($x))
-            ->map(fn ($x) => (float) $x);
-
-        $categorias = collect($polarizacoes)
-            ->pluck('categoria')
-            ->filter()
-            ->countBy()
-            ->sortDesc();
-
-        $polos = collect($polarizacoes)
-            ->pluck('polo_ideologico')
-            ->filter()
-            ->countBy()
-            ->sortDesc();
-
-        return [
-            'videos_count' => count($videos),
-
-            'polarizacao' => [
-                'score_medio' => $scores->count() ? round($scores->avg(), 3) : null,
-                'confianca_media' => $confs->count() ? round($confs->avg(), 3) : null,
-                'categoria_dominante' => $categorias->keys()->first() ?? 'indefinido',
-                'polo_dominante' => $polos->keys()->first() ?? 'indefinido',
-                'raw' => $polarizacoes,
-            ],
-
-            'monetizacao_off_platform' => [
-                'urls_media_por_video' => count($urlsCounts)
-                    ? round(array_sum($urlsCounts) / count($urlsCounts), 2)
-                    : 0,
-                'urls_total' => array_sum($urlsCounts),
-            ],
-
-            'wordclouds' => [
-                'titulos' => $this->pmt_word_freq($titles),
-                'descricoes' => $this->pmt_word_freq($descs),
-                'transcricoes' => $this->pmt_word_freq($transcripts),
-                'tags' => $this->pmt_word_freq($tags),
-            ],
-        ];
     }
 
     public function pmt_analisar_bucket_pm(array $channel, array $videos): array
@@ -2217,14 +2133,6 @@ trait Comum
                     : null,
                 'scores' => $toxScores,
             ],
-
-            // 'monetizacao_off_platform' => [
-            //     'urls_media_por_video' => count($urlsCounts)
-            //         ? round(array_sum($urlsCounts) / count($urlsCounts), 2)
-            //         : 0,
-            //     'urls_total' => count($urlsTotal),
-            //     'urls' => $urlsTotal,
-            // ],
 
             'monetizacao_off_platform' => [
                 'urls_media_por_video' => count($urlsCounts)

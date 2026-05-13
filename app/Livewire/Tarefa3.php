@@ -141,6 +141,12 @@ class Tarefa3 extends Component
                 'subscriberCount' => $canalRaw['channelSubs'] ?? $canalRaw['inscritos'] ?? null,
             ];
 
+
+            $monet = $this->pmt_monetizacao_video([], [
+                'youtube_id' => $channelId,
+                'nome' => $channel['channelTitle'],
+                'desc' => $channel['channelDesc'],
+            ]);
             $buckets = $this->pmt_bucket_periods($channel['channelDt'], 5);
 
             $videos = $this->getAllVideos($channelId, max: 50);
@@ -180,31 +186,8 @@ class Tarefa3 extends Component
                 ];
             }
 
-            // $urlsCanal = [];
-            // foreach ($bucketResults as $bucketResult) {
-            //     $urlsCanal = array_merge(
-            //         $urlsCanal,
-            //         $bucketResult['analysis']['monetizacao_off_platform']['urls'] ?? []
-            //     );
-            // }
-            // $urlsCanal = array_values(array_unique($urlsCanal));
+           
 
-            $monet = $this->pmt_monetizacao_video([], [
-                'youtube_id' => $channelId,
-                'nome' => $channel['channelTitle'],
-                'desc' => $channel['channelDesc'],
-            ]);
-
-            // $resultado[$channelId] = [
-            //     'cor' => $cores[$idx] ?? 'slate',
-            //     'channel' => $channel,
-            //     'total_videos_coletados' => count($videosOrdenados),
-            //     'buckets' => $bucketResults,
-            //     'monetizacao_canal' => $monet,
-            //     // novas chaves para o Blade
-            //     'urls_total' => count($urlsCanal),
-            //     'urls' => $urlsCanal,
-            // ];
 
             ####################################################################
             $urlsCanal = [];

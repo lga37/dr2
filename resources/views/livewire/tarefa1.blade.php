@@ -26,7 +26,7 @@
 
         <div class="space-y-2 text-sm text-slate-700 leading-6">
             <p>
-                Pesquise vídeos sobre um mesmo tema, selecione de <strong>2 a 3 vídeos</strong>
+                Pesquise vídeos sobre um mesmo tema, selecione <strong>2 vídeos</strong>
                 e clique em <strong>avaliar</strong>.
             </p>
 

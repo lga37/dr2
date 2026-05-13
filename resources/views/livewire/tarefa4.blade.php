@@ -16,75 +16,80 @@
         </div>
 
         {{-- bloco resumido --}}
-<div class="mt-5 grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <div class="mt-5 grid grid-cols-1 lg:grid-cols-3 gap-4">
 
-    {{-- explicação --}}
-    <div class="lg:col-span-2 rounded-2xl border border-emerald-100 bg-gradient-to-br from-emerald-50 to-white p-5 shadow-sm">
-        <h3 class="text-sm font-semibold text-emerald-800 mb-3 uppercase tracking-wide">
-            Como utilizar o Widget 4
-        </h3>
+            {{-- explicação --}}
+            <div
+                class="lg:col-span-2 rounded-2xl border border-emerald-100 bg-gradient-to-br from-emerald-50 to-white p-5 shadow-sm">
+                <h3 class="text-sm font-semibold text-emerald-800 mb-3 uppercase tracking-wide">
+                    Como utilizar o Widget 4
+                </h3>
 
-        <div class="space-y-2 text-sm text-slate-700 leading-6">
+                <div class="space-y-2 text-sm text-slate-700 leading-6">
 
-            <p>
-                Pesquise vídeos relacionados a um mesmo tema,
-                selecione múltiplos registros
-                e clique em <strong>adicionar checkados</strong>.
-            </p>
+                    <p>
+                        Pesquise vídeos relacionados a um mesmo tema,
+                        selecione múltiplos registros
+                        e clique em <strong>adicionar checkados</strong>.
+                    </p>
 
-            <p>
-                O sistema avalia simultaneamente
-                <strong>polarização</strong>,
-                <strong>toxicidade</strong>
-                e indicadores de
-                <strong>monetização</strong>
-                em função da query pesquisada.
-            </p>
+                    <p>
+                        O sistema avalia simultaneamente
+                        <strong>polarização</strong>,
+                        <strong>toxicidade</strong>
+                        e indicadores de
+                        <strong>monetização</strong>
+                        em função da query pesquisada.
+                    </p>
 
-            <p>
-                A síntese permite observar padrões de
-                discurso, monetização externa,
-                estimativas financeiras,
-                evolução temporal dos comentários
-                e possíveis relações entre engajamento,
-                radicalização e receita.
-            </p>
+                    <p>
+                        A síntese permite observar padrões de
+                        discurso, monetização externa,
+                        estimativas financeiras,
+                        evolução temporal dos comentários
+                        e possíveis relações entre engajamento,
+                        radicalização e receita.
+                    </p>
+
+                </div>
+            </div>
+
+            {{-- legenda --}}
+            <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                <h3 class="text-sm font-semibold text-slate-800 mb-3 uppercase tracking-wide">
+                    Legenda
+                </h3>
+
+                <div class="space-y-2 text-sm">
+
+                    <div
+                        class="flex items-center justify-between rounded-lg border border-blue-100 bg-blue-50 px-3 py-2">
+                        <span class="text-slate-600">Polarização</span>
+                        <span class="font-semibold text-blue-700">Categoria / polo</span>
+                    </div>
+
+                    <div
+                        class="flex items-center justify-between rounded-lg border border-rose-100 bg-rose-50 px-3 py-2">
+                        <span class="text-slate-600">Toxicidade</span>
+                        <span class="font-semibold text-rose-700">Comentários</span>
+                    </div>
+
+                    <div
+                        class="flex items-center justify-between rounded-lg border border-emerald-100 bg-emerald-50 px-3 py-2">
+                        <span class="text-slate-600">Monetização</span>
+                        <span class="font-semibold text-emerald-700">VidIQ / URLs</span>
+                    </div>
+
+                    <div
+                        class="flex items-center justify-between rounded-lg border border-amber-100 bg-amber-50 px-3 py-2">
+                        <span class="text-slate-600">Síntese PMT</span>
+                        <span class="font-semibold text-amber-700">Intersecção geral</span>
+                    </div>
+
+                </div>
+            </div>
 
         </div>
-    </div>
-
-    {{-- legenda --}}
-    <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-        <h3 class="text-sm font-semibold text-slate-800 mb-3 uppercase tracking-wide">
-            Legenda
-        </h3>
-
-        <div class="space-y-2 text-sm">
-
-            <div class="flex items-center justify-between rounded-lg border border-blue-100 bg-blue-50 px-3 py-2">
-                <span class="text-slate-600">Polarização</span>
-                <span class="font-semibold text-blue-700">Categoria / polo</span>
-            </div>
-
-            <div class="flex items-center justify-between rounded-lg border border-rose-100 bg-rose-50 px-3 py-2">
-                <span class="text-slate-600">Toxicidade</span>
-                <span class="font-semibold text-rose-700">Comentários</span>
-            </div>
-
-            <div class="flex items-center justify-between rounded-lg border border-emerald-100 bg-emerald-50 px-3 py-2">
-                <span class="text-slate-600">Monetização</span>
-                <span class="font-semibold text-emerald-700">VidIQ / URLs</span>
-            </div>
-
-            <div class="flex items-center justify-between rounded-lg border border-amber-100 bg-amber-50 px-3 py-2">
-                <span class="text-slate-600">Síntese PMT</span>
-                <span class="font-semibold text-amber-700">Intersecção geral</span>
-            </div>
-
-        </div>
-    </div>
-
-</div>
 
     </div>
 
@@ -144,8 +149,8 @@
 
                 </div>
             </div>
-            
-            
+
+
 
             @if ($mostrarFeedback)
                 <div class="mt-4 grid gap-2">
@@ -169,7 +174,6 @@
 
 
                 </div>
-          
             @endif
 
 
@@ -341,10 +345,10 @@
 
                             @foreach ($canal['videos'] ?? [] as $videoId)
                                 <div class="font-mono">
-                                    
-                        <x-linkvideo :videoId="$videoId" :titulo="$videoId" />
 
-                                    
+                                    <x-linkvideo :videoId="$videoId" :titulo="$videoId" />
+
+
                                 </div>
                             @endforeach
                         </div>

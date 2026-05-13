@@ -264,7 +264,7 @@ class Tarefa4 extends Component
         $this->dispatch('t4-chart-updated', chart: $this->chart);
     }
 
-    protected function obterVideosMarcados(int $limit = 10): array
+    protected function obterVideosMarcados(int $limit = 4): array
     {
         return collect($this->buscas)
             ->shuffle()
