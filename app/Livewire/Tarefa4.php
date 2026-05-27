@@ -119,6 +119,7 @@ class Tarefa4 extends Component
 
     public function addTodos(): void
     {
+
         $marcados = collect($this->buscas)
             ->filter(fn ($row) => ! empty($row['videoId']) &&
                 ($this->checked[$row['videoId']] ?? false)
@@ -202,24 +203,13 @@ class Tarefa4 extends Component
     public function avaliarVideos(): void
     {
 
-        $videos = $this->obterVideosMarcados();
+        $this->mostrarFeedback = true;
+
+        $videos = $this->obterVideosMarcados(3);
 
         Log::info('T4 VIDEOS MARCADOS PARA ANALISE', [
             'query' => $this->query ?? null,
             'total' => count($videos),
-            'videos' => collect($videos)->map(fn ($v) => [
-                'videoId' => $v['videoId'] ?? null,
-                'title' => $v['videoTitle'] ?? $v['title'] ?? null,
-                'channelId' => $v['channelId'] ?? null,
-                'channelTitle' => $v['channelTitle'] ?? null,
-                'viewCount' => $v['viewCount'] ?? null,
-                'videoViewCount' => $v['videoViewCount'] ?? null,
-                'likeCount' => $v['likeCount'] ?? null,
-                'videoLikeCount' => $v['videoLikeCount'] ?? null,
-                'commentCount' => $v['commentCount'] ?? null,
-                'videoCommentCount' => $v['videoCommentCount'] ?? null,
-                'published' => $v['published'] ?? $v['publishedAt'] ?? null,
-            ])->values()->toArray(),
         ]);
 
         if (empty($videos)) {
@@ -229,27 +219,27 @@ class Tarefa4 extends Component
         }
 
         $query = $this->query ?? '[sem query]';
+
         $buscaBD = $this->upsertBusca($query);
+        $persistidos = $this->persistirVideosECanais($videos, $buscaBD);
 
         $chart = $this->processarToxicidadeTemporal($videos);
 
-        $persistidos = $this->persistirVideosECanais($videos, $buscaBD);
-
         $monetizacao = $this->processarMonetizacaoPorCanal($persistidos);
-
-        // $polarizacao = $this->pmt_polarizacao_tema($query, $persistidos);
-
-        Log::info('T4 ANTES POLARIZACAO', [
-            'query' => $query,
-            'videos_count' => count($persistidos),
-            'titulos' => collect($persistidos)->pluck('videoTitle')->take(10)->values()->toArray(),
-        ]);
 
         $polarizacao = $this->pmt_polarizacao_tema($query, $persistidos);
 
         Log::info('T4 DEPOIS POLARIZACAO', [
             'polarizacao' => $polarizacao,
         ]);
+
+        // $resultado = $this->montarResultadoFinal(
+        //     query: $query,
+        //     videos: $persistidos,
+        //     monetizacao: $monetizacao,
+        //     polarizacao: $polarizacao,
+        //     chart: $chart
+        // );
 
         $resultado = $this->montarResultadoFinal(
             query: $query,
@@ -259,9 +249,26 @@ class Tarefa4 extends Component
             chart: $chart
         );
 
+        /*
+        |--------------------------------------------------------------------------
+        | Garante que o Blade encontre a polarização em:
+        | $overview['polarizacao']
+        |--------------------------------------------------------------------------
+        */
+        $resultado['overview']['polarizacao'] = [
+            'categoria' => $polarizacao['categoria'] ?? null,
+            'polo_dominante' => $polarizacao['polo_dominante'] ?? $polarizacao['polo'] ?? null,
+            'polarizacao_score' => $polarizacao['polarizacao_score'] ?? $polarizacao['score'] ?? null,
+            'confianca' => $polarizacao['confianca'] ?? null,
+            'justificativa' => $polarizacao['justificativa'] ?? null,
+        ];
+
         $this->pmtTemaResult = $resultado;
+
         Session::put('t4_result', $resultado);
+
         $this->dispatch('t4-chart-updated', chart: $this->chart);
+
     }
 
     protected function obterVideosMarcados(int $limit = 4): array
@@ -285,6 +292,93 @@ class Tarefa4 extends Component
         ];
     }
 
+    public function montarGraficoComentarios(array $videos)
+    {
+
+        // dd($videos);
+
+        $globalStart = collect($videos)->min(fn ($v) => $v['published']);
+        $globalMin = PHP_INT_MAX;
+        $globalMax = PHP_INT_MIN;
+
+        $series = [];
+        foreach ($videos as $vid => $v) {
+            // $count = (int) $v['commentCount'];
+            // $upIso = $v['published'];
+            // $vid = $v['videoId'];
+
+            $count = (int) (
+                $v['commentCount']
+                ?? $v['videoCommentCount']
+                ?? $v['comments']
+                ?? 0
+            );
+
+            $upIso = $v['published']
+                ?? $v['videoDt']
+                ?? $v['publishedAt']
+                ?? now()->toIso8601String();
+
+            $vid = $v['videoId']
+                ?? $v['cod']
+                ?? null;
+
+            if (! $vid) {
+                continue;
+            }
+
+            $buck = $this->getComentariosSemToxT4($vid, $count, $upIso, 5);
+
+            // dd($buck);
+
+            $all = $this->flattenCommentsFromBuckets($buck);
+
+            // dd($all);
+
+            Log::info('T4 tox comments', [
+                'videoId' => $vid,
+                'commentCountInput' => $count,
+                'commentsReturned' => count($all),
+            ]);
+
+            $this->comentarios[$vid] = $all;
+
+            // $this->samples[$vid] = $this->sampleComments($all, 20);
+            $avg = $this->toxMedia($all);
+            $this->toxMediaArray[$vid] = $avg;
+
+            $built = $this->buildPointsForVideoAbs($all, $upIso, $globalStart);
+
+            $series[$vid] = [
+                'points' => $built['points'],
+                'avg' => $avg !== null ? round($avg * 100, 2) : null,
+                'min' => $built['minDay'],
+                'max' => $built['maxDay'],
+                'startDay' => $built['videoStartDay'],
+                'endDay' => $built['videoEndDay'],
+                'title' => $v['videoTitle'] ?? $v['title'] ?? $vid,
+
+            ];
+
+            $globalMin = min($globalMin, $built['minDay']);
+            $globalMax = max($globalMax, $built['maxDay']);
+        }
+        if ($globalMin === PHP_INT_MAX) {
+            $globalMin = 0;
+            $globalMax = 0;
+        }
+
+        // dd($series);
+
+        $this->chart = [
+            'globalStart' => $globalStart,
+            'min' => $globalMin,
+            'max' => $globalMax,
+            'series' => $series,
+        ];
+
+    }
+
     protected function persistirVideosECanais(array $videos, $buscaBD): array
     {
 
@@ -297,31 +391,6 @@ class Tarefa4 extends Component
             if (! $channelId || ! $videoId) {
                 continue;
             }
-
-            $urls = $this->pmt_extract_external_urls(
-                $raw['videoDesc'] ?? $raw['description'] ?? $raw['desc'] ?? ''
-            );
-
-            Log::info('T4 VIDEO PERSISTIDO', [
-                'videoId' => $videoId,
-                'titulo' => $raw['videoTitle'] ?? $raw['title'] ?? null,
-                'channelId' => $channelId,
-                'channelTitle' => $raw['channelTitle'] ?? null,
-
-                'raw_viewCount' => $raw['viewCount'] ?? null,
-                'raw_videoViewCount' => $raw['videoViewCount'] ?? null,
-                'raw_likeCount' => $raw['likeCount'] ?? null,
-                'raw_videoLikeCount' => $raw['videoLikeCount'] ?? null,
-                'raw_commentCount' => $raw['commentCount'] ?? null,
-                'raw_videoCommentCount' => $raw['videoCommentCount'] ?? null,
-
-                'helper_views' => $this->getVideoViews($raw),
-                'helper_likes' => $this->getVideoLikes($raw),
-                'helper_comments_meta' => $this->getVideoCommentsCount($raw),
-
-                'urls_count' => count($urls),
-                'urls' => $urls,
-            ]);
 
             $canalBD = $this->upsertCanal([
                 'youtube_id' => $channelId,
@@ -348,14 +417,14 @@ class Tarefa4 extends Component
                 'categ_id' => $raw['videoCategId'] ?? null,
             ], $canalBD, $buscaBD);
 
-            $urls = $this->pmt_extract_external_urls($raw['videoDesc'] ?? '');
+            // $urls = $this->pmt_extract_external_urls($raw['videoDesc'] ?? '');
 
             $persistidos[] = [
                 ...$raw,
                 'canal_db_id' => $canalBD->id,
                 'video_db_id' => $videoBD->id,
-                'external_urls_count' => count($urls),
-                'external_urls' => $urls,
+                // 'external_urls_count' => count($urls),
+                // 'external_urls' => $urls,
             ];
         }
 
@@ -401,21 +470,9 @@ class Tarefa4 extends Component
             $likesVideo = $this->getVideoLikes($v);
             $commentsMetaVideo = $this->getVideoCommentsCount($v);
 
-            $desc = $this->getVideoDescription($v);
-            $urls = $this->pmt_extract_external_urls($desc);
-
             Log::info('T4 SOMA VIDEO EM CANAL', [
                 'channelId' => $channelId,
-                'channelTitle' => $v['channelTitle'] ?? null,
                 'videoId' => $videoId,
-                'videoTitle' => $v['videoTitle'] ?? $v['title'] ?? null,
-                'views_video' => $viewsVideo,
-                'likes_video' => $likesVideo,
-                'comments_meta_video' => $commentsMetaVideo,
-                'urls_video' => count($urls),
-                'acumulado_views_antes' => $porCanal[$channelId]['views'],
-                'acumulado_likes_antes' => $porCanal[$channelId]['likes'],
-                'acumulado_comments_antes' => $porCanal[$channelId]['comments'],
             ]);
 
             $porCanal[$channelId]['views'] += $viewsVideo;
@@ -602,93 +659,14 @@ class Tarefa4 extends Component
     }
 
     // ###############################
-    public function montarGraficoComentarios(array $videos)
-    {
 
-        // dd($videos);
-
-        $globalStart = collect($videos)->min(fn ($v) => $v['published']);
-        $globalMin = PHP_INT_MAX;
-        $globalMax = PHP_INT_MIN;
-
-        $series = [];
-        foreach ($videos as $vid => $v) {
-            // $count = (int) $v['commentCount'];
-            // $upIso = $v['published'];
-            // $vid = $v['videoId'];
-
-            $count = (int) (
-                $v['commentCount']
-                ?? $v['videoCommentCount']
-                ?? $v['comments']
-                ?? 0
-            );
-
-            $upIso = $v['published']
-                ?? $v['videoDt']
-                ?? $v['publishedAt']
-                ?? now()->toIso8601String();
-
-            $vid = $v['videoId']
-                ?? $v['cod']
-                ?? null;
-
-            if (! $vid) {
-                continue;
-            }
-
-            $buck = $this->getCommentsByBucketsRelevance($vid, $count, $upIso, 20);
-
-            // dd($buck);
-
-            $all = $this->flattenCommentsFromBuckets($buck);
-
-            Log::info('T4 tox comments', [
-                'videoId' => $vid,
-                'commentCountInput' => $count,
-                'commentsReturned' => count($all),
-            ]);
-
-            $this->comentarios[$vid] = $all;
-
-            // $this->samples[$vid] = $this->sampleComments($all, 20);
-            $avg = $this->toxMedia($all);
-            $this->toxMediaArray[$vid] = $avg;
-
-            $built = $this->buildPointsForVideoAbs($all, $upIso, $globalStart);
-
-            $series[$vid] = [
-                'points' => $built['points'],
-                'avg' => $avg !== null ? round($avg * 100, 2) : null,
-                'min' => $built['minDay'],
-                'max' => $built['maxDay'],
-                'startDay' => $built['videoStartDay'],
-                'endDay' => $built['videoEndDay'],
-                'title' => $v['videoTitle'] ?? $v['title'] ?? $vid,
-
-            ];
-
-            $globalMin = min($globalMin, $built['minDay']);
-            $globalMax = max($globalMax, $built['maxDay']);
-        }
-        if ($globalMin === PHP_INT_MAX) {
-            $globalMin = 0;
-            $globalMax = 0;
-        }
-
-        // dd($series);
-
-        $this->chart = [
-            'globalStart' => $globalStart,
-            'min' => $globalMin,
-            'max' => $globalMax,
-            'series' => $series,
-        ];
-    }
-
-    protected function getCommentsByBucketsRelevance(
-        string $videoId, int $commentCount, string $uploadAtIso, int $perBucket = 100,
-        bool $withTox = true, bool $forceRefresh = false): array
+    protected function getComentariosSemToxT4(
+        string $videoId,
+        int $commentCount,
+        string $uploadAtIso,
+        int $perBucket = 100,
+        bool $withTox = true,
+        bool $forceRefresh = false): array
     {
         $videoId = trim($videoId);
         if ($videoId === '' || $commentCount < 0) {
@@ -721,86 +699,87 @@ class Tarefa4 extends Component
 
         // 4) Coletar N páginas por relevância (≈100 por página)
         $order = 'relevance';
-        $pageSize = 100;
+        $pageSize = 5;
         $nextToken = null;
         $seen = [];
         $col = [];
 
-        for ($p = 0; $p < $pages; $p++) {
+        // for ($p = 0; $p < $pages; $p++) {
 
-            $params = [
-                'key' => $apiKey,
-                'part' => 'snippet',          // ou 'snippet,replies'
-                'maxResults' => $pageSize,
-                'videoId' => $videoId,           // <- i maiúsculo
-                'textFormat' => 'plainText',
-                'order' => $order,
-            ];
-            if ($nextToken) {
-                $params['pageToken'] = $nextToken;
-            }
+        $params = [
+            'key' => $apiKey,
+            'part' => 'snippet',          // ou 'snippet,replies'
+            'maxResults' => $pageSize,
+            'videoId' => $videoId,           // <- i maiúsculo
+            'textFormat' => 'plainText',
+            'order' => $order,
+        ];
+        // if ($nextToken) {
+        //     $params['pageToken'] = $nextToken;
+        // }
 
-            $url = $baseCT.'?'.http_build_query($params, '', '&', PHP_QUERY_RFC3986);
+        $url = $baseCT.'?'.http_build_query($params, '', '&', PHP_QUERY_RFC3986);
 
-            Log::info('YT API (relevance)', ['page' => $p + 1, 'url' => $url, 'videoId' => $videoId]);
+        Log::info('YT API (relevance)', ['url' => $url, 'videoId' => $videoId]);
 
-            $resp = Http::timeout(20)->get($url);
+        $resp = Http::timeout(20)->get($url);
 
-            // dd($resp);
+        // dd($resp);
 
-            if ($resp->failed()) {
-                $body = $resp->json();
-                Log::warning('YT API failed', ['status' => $resp->status(), 'body' => $body]);
+        if ($resp->failed()) {
+            $body = $resp->json();
+            Log::warning('YT API failed', ['status' => $resp->status(), 'body' => $body]);
 
-                return []; // ou break; se quiser manter parciais
-            }
-
-            $data = $resp->json();
-            if (isset($data['error'])) {
-                Log::warning('YT API error', $data['error']);
-
-                return [];
-            }
-
-            $items = $data['items'] ?? [];
-            if (! $items) {
-                break;
-            }
-
-            // dd($items);
-            foreach ($items as $it) {
-                $top = $it['snippet']['topLevelComment'] ?? [];
-                $sn = $top['snippet'] ?? [];
-                $cid = $top['id'] ?? ($it['id'] ?? null);
-                if (! $cid || isset($seen[$cid])) {
-                    continue;
-                }
-
-                $seen[$cid] = true;
-
-                $dtIso = $sn['publishedAt'] ?? null;
-                if (! $dtIso) {
-                    continue;
-                }
-
-                $txt = (string) ($sn['textDisplay'] ?? '');
-                $plain = strip_tags($txt);
-
-                $col[] = [
-                    'cod' => $cid,
-                    'username' => $sn['authorDisplayName'] ?? null,
-                    'texto' => $plain,
-                    'likes' => (int) ($sn['likeCount'] ?? 0),
-                    'dt' => $dtIso,
-                    'tox' => $withTox ? $this->setTox($plain) : null,
-                ];
-            }
-
-            $nextToken = $data['nextPageToken'] ?? null;
-            if (! $nextToken) {
-                break;
-            }
+            return []; // ou break; se quiser manter parciais
         }
+
+        $data = $resp->json();
+        if (isset($data['error'])) {
+            Log::warning('YT API error', $data['error']);
+
+            return [];
+        }
+
+        $items = $data['items'] ?? [];
+        // if (! $items) {
+        //     break;
+        // }
+
+        // dd($items);
+        foreach ($items as $it) {
+            $top = $it['snippet']['topLevelComment'] ?? [];
+            $sn = $top['snippet'] ?? [];
+            $cid = $top['id'] ?? ($it['id'] ?? null);
+            if (! $cid || isset($seen[$cid])) {
+                continue;
+            }
+
+            $seen[$cid] = true;
+
+            $dtIso = $sn['publishedAt'] ?? null;
+            if (! $dtIso) {
+                continue;
+            }
+
+            $txt = (string) ($sn['textDisplay'] ?? '');
+            $plain = strip_tags($txt);
+
+            $col[] = [
+                'cod' => $cid,
+                'username' => $sn['authorDisplayName'] ?? null,
+                'texto' => $plain,
+                'likes' => (int) ($sn['likeCount'] ?? 0),
+                'dt' => $dtIso,
+                'tox' => $withTox ? $this->setTox($plain) : null,
+            ];
+        }
+
+        // $nextToken = $data['nextPageToken'] ?? null;
+        // if (! $nextToken) {
+        //     break;
+        // }
+
+        // } do for
 
         // 5) Particionar por janela e ordenar cronologicamente dentro do bucket
         $bucketRows = array_fill(0, $pages, []);
@@ -977,9 +956,6 @@ class Tarefa4 extends Component
                 'titulo' => $v['videoTitle'] ?? '',
                 'descricao' => mb_substr($v['videoDesc'] ?? '', 0, 700),
                 'tags' => $v['videoTags'] ?? [],
-                // 'views' => $v['viewCount'] ?? null,
-                // 'likes' => $v['likeCount'] ?? null,
-                // 'comentarios' => $v['commentCount'] ?? null,
             ])
             ->values()
             ->all();
@@ -1023,7 +999,7 @@ class Tarefa4 extends Component
 
         try {
             $res = Http::withToken(env('OPENAI_API_KEY'))
-                ->timeout(90)
+                ->timeout(40)
                 ->post('https://api.openai.com/v1/chat/completions', [
                     'model' => 'gpt-4o-mini',
                     'temperature' => 0.1,
@@ -1042,13 +1018,11 @@ class Tarefa4 extends Component
 
             $json = json_decode($content, true);
 
-Log::info('T4 POLARIZACAO OPENAI RAW', [
-    'status' => $res->status(),
-    'body' => $res->body(),
-    'content' => $content ?? null,
-]);
-
-
+            Log::info('T4 POLARIZACAO OPENAI RAW', [
+                'status' => $res->status(),
+                'body' => $res->body(),
+                'content' => $content ?? null,
+            ]);
 
             return is_array($json) ? $json : [
                 'categoria' => 'outro',

@@ -1,35 +1,39 @@
-<nav x-data="{ open: false }" class="bg-white border-b border-gray-100">
+<nav 
+ x-data="{ open: false }" 
+class="bg-white border-b border-gray-100">
     <!-- Primary Navigation Menu -->
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div class="flex justify-between h-16">
-            <div class="flex">
+
+            
+            <div class="flex items-center overflow-x-auto whitespace-nowrap max-w-full scrollbar-thin">
+
                 <!-- Logo -->
-                <div class="shrink-0 flex items-center">
+                <div class="hidden sm:flex shrink-0 flex items-center">
                     <a href="{{ route('home') }}">
-                        <x-application-logo class="block h-9 w-auto fill-current text-gray-800" />
+                        <x-application-logo class="" />
                     </a>
                 </div>
-
                 <!-- Navigation Links -->
-                <div class="hidden space-x-8 sm:-my-px sm:ms-10 sm:flex">
+                <div class="space-x-8 sm:-my-px sm:ms-10 sm:flex">
                     <x-nav-link :href="route('tarefa1')" :active="request()->routeIs('tarefa1')">
                         {{ __('C1:T-P') }}
                     </x-nav-link>
                 </div>
 
-                <div class="hidden space-x-8 sm:-my-px sm:ms-10 sm:flex">
+                <div class="space-x-8 sm:-my-px sm:ms-10 sm:flex">
                     <x-nav-link :href="route('tarefa2')" :active="request()->routeIs('tarefa2')">
                         {{ __('C2:T-M') }}
                     </x-nav-link>
                 </div>
 
-                <div class="hidden space-x-8 sm:-my-px sm:ms-10 sm:flex">
+                <div class="space-x-8 sm:-my-px sm:ms-10 sm:flex">
                     <x-nav-link :href="route('tarefa3')" :active="request()->routeIs('tarefa3')">
                         {{ __('C3:P-M') }}
                     </x-nav-link>
                 </div>
 
-                <div class="hidden space-x-8 sm:-my-px sm:ms-10 sm:flex">
+                <div class="space-x-8 sm:-my-px sm:ms-10 sm:flex">
                     <x-nav-link :href="route('tarefa4')" :active="request()->routeIs('tarefa4')">
                         {{ __('C4:P-M-T') }}
                     </x-nav-link>
@@ -43,69 +47,33 @@
 
 
 
-                <div class="hidden font-bold  space-x-8 sm:-my-px sm:ms-10 sm:flex">
+                <div class="font-bold  space-x-8 sm:-my-px sm:ms-10 sm:flex">
                     <x-nav-link class="" :href="route('tese')" :active="request()->routeIs('tese')">
                         A Tese
                     </x-nav-link>
                 </div>
 
 
-                <div class="hidden font-bold  space-x-8 sm:-my-px sm:ms-10 sm:flex">
+                <div class="font-bold  space-x-8 sm:-my-px sm:ms-10 sm:flex">
                     <x-nav-link class="" :href="route('monetizacao')" :active="request()->routeIs('monetizacao')">
                         Monetizacao
                     </x-nav-link>
                 </div>
 
 
-                <div class="hidden font-bold  space-x-8 sm:-my-px sm:ms-10 sm:flex">
+                <div class="font-bold  space-x-8 sm:-my-px sm:ms-10 sm:flex">
                     <x-nav-link class="" :href="route('polarizacao')" :active="request()->routeIs('polarizacao')">
                         Polarizacao
                     </x-nav-link>
                 </div>
 
 
-                <div class="hidden font-bold  space-x-8 sm:-my-px sm:ms-10 sm:flex">
+                <div class="font-bold  space-x-8 sm:-my-px sm:ms-10 sm:flex">
                     <x-nav-link class="" :href="route('toxicidade')" :active="request()->routeIs('toxicidade')">
                         Toxicidade
                     </x-nav-link>
                 </div>
 
-
-
-
-
-
-                {{-- <div class="hidden space-x-8 sm:-my-px sm:ms-10 sm:flex">
-                    <x-nav-link :href="route('busca')" :active="request()->routeIs('busca')">
-                        {{ __('Buscas') }}
-                    </x-nav-link>
-                </div>
-                <div class="hidden space-x-8 sm:-my-px sm:ms-10 sm:flex">
-                    <x-nav-link :href="route('video')" :active="request()->routeIs('video')">
-                        {{ __('Videos') }}
-                    </x-nav-link>
-                </div>
-                <div class="hidden space-x-8 sm:-my-px sm:ms-10 sm:flex">
-                    <x-nav-link :href="route('canal')" :active="request()->routeIs('canal')">
-                        {{ __('Canais') }}
-                    </x-nav-link>
-                </div>
-                <div class="hidden space-x-8 sm:-my-px sm:ms-10 sm:flex">
-                    <x-nav-link :href="route('comentario')" :active="request()->routeIs('comentario')">
-                        {{ __('Comentarios') }}
-                    </x-nav-link>
-                </div>
-
-                <div class="hidden space-x-8 sm:-my-px sm:ms-10 sm:flex">
-                    <x-nav-link :href="route('monet')" :active="request()->routeIs('monet')">
-                        {{ __('Monet') }}
-                    </x-nav-link>
-                </div>
-                <div class="hidden space-x-8 sm:-my-px sm:ms-10 sm:flex">
-                    <x-nav-link :href="route('arxiv')" :active="request()->routeIs('arxiv')">
-                        {{ __('Arxiv') }}
-                    </x-nav-link>
-                </div> --}}
 
 
 
@@ -193,6 +161,8 @@
                 <x-responsive-nav-link :href="route('home')" :active="request()->routeIs('home')">
                     {{ __('Home') }}
                 </x-responsive-nav-link>
+
+
             </div>
 
             <!-- Responsive Settings Options -->

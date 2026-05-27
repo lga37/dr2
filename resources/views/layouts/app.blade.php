@@ -45,21 +45,10 @@
     <div class="min-h-screen bg-gray-100">
         @include('layouts.navigation')
 
-        <!-- Page Heading -->
-        @isset($header)
-            <header class="bg-white shadow">
-                <div class="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
-                    {{ $header }}
-                </div>
-            </header>
-        @endisset
 
-        <!-- Page Content -->
         <main>
             @php
-                // Todas as telas de autenticação que usam o layout compacto
                 $authRoutes = ['login', 'register', 'password.*'];
-                // Se quiser incluir verificação de email etc.:  ['login','register','password.*','verification.*']
             @endphp
             @if (request()->routeIs($authRoutes))
                 <div class="flex flex-col sm:justify-center items-center pt-6 sm:pt-0 bg-gray-100 ">
@@ -72,24 +61,61 @@
             @endif
         </main>
     </div>
-    {{-- @livewire('wire-elements-modal') --}}
-
     @stack('scripts')
+
+
+<footer class="py-3 print:hidden">
+    <div class="mx-auto max-w-7xl px-4">
+
+        <div
+            class="mt-5 border-t border-gray-700 py-4 flex flex-col sm:flex-row items-center justify-between gap-4">
+
+            {{-- lado esquerdo --}}
+            <div class="text-sm text-center sm:text-left">
+                ©2026 tesedoutorado.com.br - UNIRIO - RJ - Brasil
+            </div>
+
+            {{-- lado direito --}}
+            <div class="text-xs font-semibold text-center sm:text-right">
+
+                <div class="flex flex-wrap justify-center sm:justify-end items-center gap-2 mb-1">
+                    <span>Ingredientes:</span>
+
+                    <span class="bg-green-400 text-black px-2 py-0.5 rounded">
+                        PHP
+                    </span>
+
+                    <span class="bg-yellow-400 text-black px-2 py-0.5 rounded">
+                        Laravel
+                    </span>
+
+                    <span class="bg-blue-400 text-black px-2 py-0.5 rounded">
+                        🐧 Linux
+                    </span>
+                </div>
+
+                <div class="italic">
+                    Cozinhado com ❤️ e I.A. por
+                    <a class="text-sky-300 no-underline hover:underline"
+                        href="https://www.linkedin.com/in/gustavoalmeidapro/"
+                        target="_blank">
+                        LGA
+                    </a>
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+</footer>
+
+
 </body>
 
 
 </html>
 
 @push('scripts')
-    <script>
-        // document.addEventListener('alpine:init', () => {
-        //     Alpine.data('collapsible', (storageKey, defOpen = true) => ({
-        //         open: JSON.parse(localStorage.getItem(storageKey) ?? JSON.stringify(defOpen)),
-        //         toggle() {
-        //             this.open = !this.open;
-        //             localStorage.setItem(storageKey, JSON.stringify(this.open));
-        //         }
-        //     }));
-        // });
-    </script>
+    <script></script>
 @endpush

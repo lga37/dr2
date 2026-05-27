@@ -4,6 +4,7 @@ namespace App\Livewire;
 
 use App\Models\Tarefa;
 use App\Traits\Comum;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Session;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
@@ -51,59 +52,59 @@ class Tarefa3 extends Component
 
         $this->avaliarPolarizacaoMonetizacao();
 
-        foreach ($this->selecionados as $canalId => $raw) {
+        // foreach ($this->selecionados as $canalId => $raw) {
 
-            $q = $raw['busca'] ?? '[erro]';
-            $buscaBD = $this->upsertBusca($q);
-            // dump($buscaBD);
+        //     $q = $raw['busca'] ?? '[erro]';
+        //     $buscaBD = $this->upsertBusca($q);
+        //     // dump($buscaBD);
 
-            $ch = [
-                'youtube_id' => $raw['channelId'],
-                'nome' => $raw['channelTitle'] ?? null,
-                'keywords' => $raw['channelKeywords'] ?? [],
-                'handle' => $raw['channelHandle'] ?? null,
-                'inscritos' => $raw['channelSubs'] ?? null,
-                'views' => $raw['channelViews'] ?? null,
-                'videos' => $raw['channelVideos'] ?? null,
-                'dt' => $raw['channelDt'] ?? null,
-                'local' => $raw['channelCountry'] ?? null,
-                'categ' => $raw['channelCategory'] ?? null,
-                'desc' => $raw['channelDesc'] ?? null,
-            ];
+        //     $ch = [
+        //         'youtube_id' => $raw['channelId'],
+        //         'nome' => $raw['channelTitle'] ?? null,
+        //         'keywords' => $raw['channelKeywords'] ?? [],
+        //         'handle' => $raw['channelHandle'] ?? null,
+        //         'inscritos' => $raw['channelSubs'] ?? null,
+        //         'views' => $raw['channelViews'] ?? null,
+        //         'videos' => $raw['channelVideos'] ?? null,
+        //         'dt' => $raw['channelDt'] ?? null,
+        //         'local' => $raw['channelCountry'] ?? null,
+        //         'categ' => $raw['channelCategory'] ?? null,
+        //         'desc' => $raw['channelDesc'] ?? null,
+        //     ];
 
-            $canalBD = $this->upsertCanal($ch, $buscaBD);
-            // dump($canalBD);
+        //     $canalBD = $this->upsertCanal($ch, $buscaBD);
+        //     // dump($canalBD);
 
-            $videos = $this->getAllVideos($raw['channelId'], $raw['channelDt'], 100, 10, 1, $raw['channelVideos']);
+        //     $videos = $this->getAllVideos($raw['channelId'], $raw['channelDt'], 30, 1, 1, $raw['channelVideos']);
 
-            foreach ($videos as $vd) {
-                $vd = [
-                    'cod' => $vd['videoId'],
-                    'nome' => $vd['videoTitle'] ?? null,
-                    'desc' => $vd['videoDesc'] ?? null,
-                    'hashtags' => $vd['videoTags'] ?? [],
-                    'comments' => $vd['videoCommentCount'] ?? null,
-                    'likes' => $vd['videoLikeCount'] ?? null,
-                    'views' => $vd['videoViewCount'] ?? null,
-                    'duration' => $vd['videoDuration'] ?? null,
-                    'lang' => $vd['videoLang'] ?? null,
-                    'dt' => $vd['videoDt'] ?? null,
-                    'categ_id' => $vd['videoCategId'] ?? null,
-                ];
+        //     foreach ($videos as $vd) {
+        //         $vd = [
+        //             'cod' => $vd['videoId'],
+        //             'nome' => $vd['videoTitle'] ?? null,
+        //             'desc' => $vd['videoDesc'] ?? null,
+        //             'hashtags' => $vd['videoTags'] ?? [],
+        //             'comments' => $vd['videoCommentCount'] ?? null,
+        //             'likes' => $vd['videoLikeCount'] ?? null,
+        //             'views' => $vd['videoViewCount'] ?? null,
+        //             'duration' => $vd['videoDuration'] ?? null,
+        //             'lang' => $vd['videoLang'] ?? null,
+        //             'dt' => $vd['videoDt'] ?? null,
+        //             'categ_id' => $vd['videoCategId'] ?? null,
+        //         ];
 
-                // dump($vd);
-                $videoBD = $this->upsertVideo($vd, $canalBD, $buscaBD);
-            }
+        //         // dump($vd);
+        //         $videoBD = $this->upsertVideo($vd, $canalBD, $buscaBD);
+        //     }
 
-            $ordenados = collect($videos)
-                ->filter(fn ($c) => ! empty($c['videoId']))
-                ->sortBy(fn ($c) => $c['videoDt'])
-                ->values()
-                ->toArray();
+        //     $ordenados = collect($videos)
+        //         ->filter(fn ($c) => ! empty($c['videoId']))
+        //         ->sortBy(fn ($c) => $c['videoDt'])
+        //         ->values()
+        //         ->toArray();
 
-            $this->videos_dos_canais[$canalId] = $ordenados;
-            $sessVideos[$canalId] = $ordenados;
-        }
+        //     $this->videos_dos_canais[$canalId] = $ordenados;
+        //     $sessVideos[$canalId] = $ordenados;
+        // }
 
         Session::put('t3_videos', $sessVideos);
 
@@ -149,7 +150,7 @@ class Tarefa3 extends Component
             ]);
             $buckets = $this->pmt_bucket_periods($channel['channelDt'], 5);
 
-            $videos = $this->getAllVideos($channelId, max: 50);
+            $videos = $this->getAllVideosUmaChamada($channelId, 10);
 
             $ids = collect($videos)->pluck('videoId')->filter()->values()->all();
 
@@ -216,6 +217,64 @@ class Tarefa3 extends Component
         $this->pmResult = $resultado;
         // Session::put('pm_result', $resultado);
     }
+
+
+    public function getAllVideosUmaChamada(
+        string $channelId,
+        int $max = 50
+    ): array {
+        $key = env('YOUTUBE_API_KEY');
+
+        $max = min($max, 50);
+
+        $url = 'https://www.googleapis.com/youtube/v3/search'
+            ."?key={$key}"
+            ."&channelId={$channelId}"
+            .'&part=snippet'
+            .'&order=date'
+            .'&type=video'
+            ."&maxResults={$max}";
+
+        $resp = Http::timeout(35)->get($url);
+
+        if ($resp->failed()) {
+            return [];
+        }
+
+        $json = $resp->json();
+        $items = $json['items'] ?? [];
+
+        $videos = [];
+
+        foreach ($items as $item) {
+            $snippet = $item['snippet'] ?? [];
+            $videoId = data_get($item, 'id.videoId');
+
+            if (! $videoId) {
+                continue;
+            }
+
+            $videos[] = [
+                'videoId' => $videoId,
+                'videoTitle' => (string) ($snippet['title'] ?? ''),
+                'videoDesc' => (string) ($snippet['description'] ?? ''),
+                'videoDt' => $snippet['publishedAt'] ?? null,
+                'channelId' => $snippet['channelId'] ?? '',
+                'channelTitle' => $snippet['channelTitle'] ?? '',
+                'videoThumb' => data_get($snippet, 'thumbnails.medium.url'),
+            ];
+        }
+
+        usort(
+            $videos,
+            fn ($a, $b) => strtotime($b['videoDt'] ?? '1970-01-01')
+                <=>
+                strtotime($a['videoDt'] ?? '1970-01-01')
+        );
+
+        return array_slice($videos, 0, $max);
+    }
+
 
     private function buildWordCloudTokens(array $items, int $maxWords = 60): array
     {

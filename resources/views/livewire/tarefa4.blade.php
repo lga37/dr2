@@ -132,7 +132,7 @@
                                     Adicionar Checkados
                                 </span>
                                 <span class="text-xs text-emerald-700">
-                                    Depois clique em 'Avaliar Canais'
+                                    Depois clique em 'Avaliar Videos'
                                 </span>
                             </div>
 
@@ -186,9 +186,31 @@
         $t4 = session('t4_result', []);
         $overview = $t4['overview'] ?? [];
         $query = $t4['query'] ?? ($query ?? '');
+
+        ##########################################################
+        // $pol = $overview['polarizacao'] ?? [];
+
+        // $categoria = $pol['categoria'] ?? ($pol['category'] ?? ($pol['classe'] ?? ($pol['label'] ?? '-')));
+
+        // $polo = $pol['polo_dominante'] ?? ($pol['polo'] ?? ($pol['dominant_pole'] ?? ($pol['ideologia'] ?? '-')));
+
+        // $score = $pol['polarizacao_score'] ?? ($pol['score'] ?? ($pol['polarization_score'] ?? '-'));
+
+        // $confianca = $pol['confianca'] ?? ($pol['confidence'] ?? '-');
+
     @endphp
 
     @if (!empty($t4))
+
+        @php
+            Log::info('bladeeeeeee', [
+                't4'=>$t4,
+                'overview'=> $overview,
+            ]);
+
+        @endphp
+
+
         <div class="mt-10 mx-auto max-w-7xl px-6">
 
             {{-- QUERY CENTRAL --}}
@@ -211,7 +233,6 @@
                     </h2>
 
                     @php $pol = $overview['polarizacao'] ?? []; @endphp
-
 
 
                     <div class="grid grid-cols-2 gap-3 text-sm">

@@ -1068,7 +1068,9 @@ trait Comum
 
         $apiKey = env('PERSPECTIVE_API');
 
-        // dump($apiKey);
+        Log::info('ini de setTox', [
+
+        ]);
 
         $url = 'https://commentanalyzer.googleapis.com/v1alpha1/comments:analyze?key='.$apiKey;
 
@@ -1115,6 +1117,10 @@ trait Comum
         } else {
             $tox = null; // ou 0, ou -1, ou qualquer valor que faça sentido no seu contexto
         }
+
+        Log::info('fim de setTox', [
+            'tox' => $tox,
+        ]);
 
         return $tox;
     }
@@ -1690,10 +1696,10 @@ trait Comum
                 '~Est\.\s*Monthly\s*Earnings.*?<p[^>]*>\s*(\$[0-9][0-9\.,]*\s*[KkMm]?)\s*</p>~is',
                 $html, $m)) {
                 $raw = trim($m[1]);
-            // } elseif (preg_match(
-            //     '~Est\.\s*Monthly\s*Earnings.*?(\$[0-9][0-9\.,]*\s*[KkMm]?)~is',
-            //     $html, $m)) {
-            //     $raw = trim($m[1]);
+                // } elseif (preg_match(
+                //     '~Est\.\s*Monthly\s*Earnings.*?(\$[0-9][0-9\.,]*\s*[KkMm]?)~is',
+                //     $html, $m)) {
+                //     $raw = trim($m[1]);
             }
 
             if ($raw !== null) {
@@ -1951,8 +1957,8 @@ trait Comum
             $transcript = null;
 
             if ($videoId) {
-                $transcript = $this->pmt_get_transcript($videoId);
-                $textosTranscricoes[] = mb_substr($transcript ?? '', 0, 4000);
+                // $transcript = $this->pmt_get_transcript($videoId);
+                // $textosTranscricoes[] = mb_substr($transcript ?? '', 0, 4000);
             }
 
             // Polarização por vídeo
@@ -2021,9 +2027,9 @@ trait Comum
     public function pmt_analisar_bucket_mt(
         array $channel,
         array $videos,
-        int $maxVideosParaComentarios = 7,
-        int $maxComentariosPorVideo = 30,
-        int $maxComentariosBucket = 80
+        int $maxVideosParaComentarios = 5,
+        int $maxComentariosPorVideo = 20,
+        int $maxComentariosBucket = 40
     ): array {
 
         $urlsCounts = [];
@@ -2116,7 +2122,7 @@ trait Comum
                 $toxScores[] = (float) $tox;
             }
 
-            usleep(150000);
+            // usleep(150000);
         }
 
         $urlsTotal = array_values(array_unique($urlsTotal));

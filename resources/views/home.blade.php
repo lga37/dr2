@@ -65,16 +65,7 @@
                                                 Pesquisa doutoral</span>
                                         </div>
 
-                                        <div class="mt-6 flex flex-wrap gap-3">
-                                            <a href="{{ url('/tarefa1') }}"
-                                                class="inline-flex items-center justify-center rounded-xl bg-indigo-600 px-4 py-2 font-semibold text-white shadow transition hover:-translate-y-0.5 hover:bg-indigo-500 hover:shadow-lg">
-                                                Começar Tarefa 1
-                                            </a>
-                                            <a href="#tarefas"
-                                                class="inline-flex items-center justify-center rounded-xl bg-white px-4 py-2 font-semibold text-slate-700 ring-1 ring-slate-200 transition hover:-translate-y-0.5 hover:bg-slate-50">
-                                                Cadastro Rápido
-                                            </a>
-                                        </div>
+                                     
                                     </div>
 
                                     {{-- Painel de GIFs / vídeos (lado direito) --}}
@@ -96,21 +87,13 @@
                                                     class="h-full w-full object-cover" loading="lazy">
                                             </figure>
 
-                                            {{-- GIF alto (grafos/dados) --}}
-                                            <figure
-                                                class="aspect-[9/14] overflow-hidden rounded-2xl ring-1 ring-slate-200 shadow-lg">
-                                                <img src="https://www.dca.com.br/wp-content/uploads/2023/04/futuro-robo-de-inteligencia-artificial-e-cyborg-860x400.jpg"
-                                                    alt="Grafos e relações de informação"
-                                                    class="h-full w-full object-cover" loading="lazy">
-                                            </figure>
-
-                                            {{-- GIF largo (código/ciencia) --}}
-                                            {{-- <figure
-                                                class="col-span-3 aspect-[16/9] overflow-hidden rounded-2xl ring-1 ring-slate-200 shadow-lg">
+        
+                                             <figure
+                                                class="col-span-1 aspect-auto overflow-hidden rounded-2xl ring-1 ring-slate-200 shadow-lg">
                                                 <img src="https://thumbs.dreamstime.com/b/aula-de-ci%C3%AAncia-da-computa%C3%A7%C3%A3o-tela-desenvolvendo-o-c%C3%B3digo-php-em-fundo-escuro-do-script-desenvolvedor-software-conceito-247824334.jpg"
                                                     alt="Código e ciência de dados" class="h-full w-full object-cover"
                                                     loading="lazy">
-                                            </figure> --}}
+                                            </figure>  
                                         </div>
 
                                         <div
@@ -220,6 +203,52 @@
                                             loading="lazy">
                                     </div>
                                 </section>
+
+
+
+
+{{-- TAREFA 4 --}}
+<section
+    class="reveal grid items-center gap-8 rounded-2xl bg-white/70 p-5 shadow-lg ring-1 ring-slate-200 backdrop-blur md:grid-cols-2 md:p-8">
+
+    {{-- TEXTO --}}
+    <div class="order-1">
+        <img src="https://images.unsplash.com/photo-1516321318423-f06f85e504b3?q=80&w=1200&auto=format&fit=crop"
+            alt="Visual analytics e análise integrada de dados"
+            class="mx-auto aspect-video w-full rounded-2xl object-cover shadow-xl ring-1 ring-slate-200/60 transition group-hover:scale-[1.02]"
+            loading="lazy">
+    </div>
+
+    {{-- CONTEÚDO --}}
+    <div class="order-2">
+        <h2 class="text-2xl font-semibold md:text-3xl">
+            Tarefa 4 — Integração P • M • T
+        </h2>
+
+        <p class="mt-3 text-slate-600">
+            Nesta etapa final, você explora simultaneamente sinais de
+            <span class="font-medium">polarização</span>,
+            <span class="font-medium">monetização</span> e
+            <span class="font-medium">toxicidade</span>
+            em vídeos e canais do YouTube. O objetivo é observar como essas dimensões
+            podem coexistir e se reforçar em ambientes digitais altamente engajados.
+        </p>
+
+        <ul class="mt-4 space-y-2 text-slate-600">
+            <li>• Visualize relações entre audiência, discurso e monetização.</li>
+            <li>• Explore padrões sociotécnicos em múltiplas dimensões.</li>
+            <li>• Utilize gráficos, métricas e indicadores integrados.</li>
+        </ul>
+
+        <a href="{{ url('/tarefa4') }}"
+            class="mt-5 inline-flex items-center justify-center rounded-xl bg-violet-600 px-4 py-2 font-semibold text-white shadow transition hover:-translate-y-0.5 hover:bg-violet-500 hover:shadow-lg">
+            Começar Tarefa 4
+        </a>
+    </div>
+
+</section>
+
+
                             </div>
                         </div>
                     </div>

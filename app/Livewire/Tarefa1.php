@@ -199,7 +199,7 @@ class Tarefa1 extends Component
                     'nome' => $raw['channelTitle'] ?? null,
                     'desc' => $raw['channelDesc'] ?? null,
                 ],
-                comments: array_slice($comentariosVideo, 0, 20),
+                comments: array_slice($comentariosVideo, 0, 10),
                 transcript: $transcript
             );
 
@@ -239,6 +239,7 @@ class Tarefa1 extends Component
         foreach ($videos as $vid => $v) {
             $count = (int) $v['commentCount'];
             $upIso = $v['published'];
+            $count = 30; #engessei aqui
 
             $buck = $this->getCommentsByBucketsRelevance($vid, $count, $upIso);
 
@@ -248,7 +249,7 @@ class Tarefa1 extends Component
 
             $this->comentarios[$vid] = $all;
 
-            $this->samples[$vid] = $this->sampleComments($all, 20);
+            $this->samples[$vid] = $this->sampleComments($all, 10);
             $avg = $this->toxMedia($all);
             $this->toxMediaArray[$vid] = $avg;
 
@@ -284,7 +285,7 @@ class Tarefa1 extends Component
     }
 
     protected function getCommentsByBucketsRelevance(
-        string $videoId, int $commentCount, string $uploadAtIso, int $perBucket = 100,
+        string $videoId, int $commentCount, string $uploadAtIso, int $perBucket = 50,
         bool $withTox = true, bool $forceRefresh = false): array {
         $videoId = trim($videoId);
         if ($videoId === '' || $commentCount < 0) {
@@ -317,7 +318,7 @@ class Tarefa1 extends Component
 
         // 4) Coletar N páginas por relevância (≈100 por página)
         $order = 'relevance';
-        $pageSize = 100;
+        $pageSize = 50;
         $nextToken = null;
         $seen = [];
         $col = [];
