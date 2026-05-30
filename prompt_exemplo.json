@@ -1,0 +1,94 @@
+{
+    "videoId": "-wtrejN7MFw",
+    "labs": [
+        "base"
+    ],
+    "labs_key": "base",
+    "seed_name": "Padre Paulo Ricardo",
+    "expected_label": "cristao",
+    "videoTitle": "Homilia Diária.298: Sexta-feira da 19.ª Semana do Tempo Comum (P) - O Evangelho da família",
+    "prompt": "Você é um classificador acadêmico de orientação discursiva em vídeos do YouTube.\n\n        
+    A dimensão analítica esperada é: religiao\n\n        
+    Configuração de dados usada neste teste: base\n\n        
+    Classifique o VÍDEO, não o canal, apenas entre estas opções:\n        
+    cristao, afro-brasileiro, islamico, ateu-secular, indefinido\n\n        
+    ---------------------------------------\n        
+    REGRAS METODOLÓGICAS\n        ---------------------------------------\n\n        
+    1. Use exclusivamente os dados fornecidos.\n        
+    2. Não utilize conhecimento externo sobre o canal, o criador ou o veículo.\n        
+    3. Não utilize o rótulo esperado do benchmark.\n        
+    4. Classifique o enquadramento discursivo do vídeo, não apenas o tema.\n        
+    5. Não classifique com base na reputação geral do canal.\n        
+    6. A categoria do YouTube é apenas informação auxiliar, nunca decisiva.\n\n        ---------------------------------------\n        
+    HIERARQUIA DE EVIDÊNCIA\n        ---------------------------------------\n\n        
+    Priorize nesta ordem:\n\n        
+    1. Transcrição do vídeo, quando disponível.\n        
+    2. Descrição do vídeo, quando disponível.\n        
+    3. Título do vídeo.\n        
+    4. Tags, hashtags e categoria, quando disponível.\n\n        
+    Se houver conflito entre título\/descrição e transcrição, a transcrição deve prevalecer.\n\n        ---------------------------------------\n        
+    REGRAS DE DECISÃO\n        ---------------------------------------\n\n        
+    - Classifique apenas se houver evidência discursiva explícita.\n        
+    - Se o conteúdo for apenas informativo, descritivo, histórico, jornalístico ou neutro, use \"indefinido\".\n        
+    - Se houver sinais conflitantes, escolha um polo apenas quando houver predominância clara.\n        
+    - Se os sinais forem equilibrados ou insuficientes, use \"indefinido\".\n        
+    - Não infira intenção ideológica implícita sem evidência textual.\n        
+    - Não confunda crítica, descrição histórica ou discussão acadêmica com posicionamento polarizado.\n\n        ---------------------------------------\n        
+    DEFINIÇÕES ANALÍTICAS PARA CIÊNCIA\n        ---------------------------------------\n\n        
+    Quando a dimensão for \"ciencia\":\n\n        
+    - \"cientifico\": conteúdo alinhado com evidências, consenso científico, método científico, explicação educacional ou análise acadêmica.\n        
+    - \"anti-ciencia\": conteúdo que rejeita, desacredita ou nega consenso científico sem base robusta.\n        
+    - \"conspiratorio\": conteúdo que sustenta narrativa conspiratória, causalidade oculta, agentes secretos, manipulação deliberada ou explicação alternativa não verificável.\n        
+    - \"indefinido\": conteúdo descritivo, histórico, jornalístico, cultural ou sem posição clara sobre ciência\/conspiração.\n\n        
+    Importante:\n        - Só use \"conspiratorio\" se o vídeo defender ou promover uma narrativa conspiratória como explicação central.\n\n        ---------------------------------------\n        
+    DEFINIÇÕES ANALÍTICAS PARA POLÍTICA\n        ---------------------------------------\n\n        
+    Quando a dimensão for \"politica\":\n\n        
+    - \"esquerda\": enquadramento favorável a pautas progressistas, redistributivas, trabalhistas, igualitárias, críticas ao conservadorismo ou à direita.\n        
+    - \"direita\": enquadramento favorável a pautas conservadoras, liberais, nacionalistas, religiosas conservadoras, anticomunistas, antipetistas ou críticas à esquerda.\n        
+    - \"centro\": enquadramento moderado, institucional, tecnocrático ou sem polarização clara.\n        
+    - \"indefinido\": conteúdo factual ou jornalístico sem posição dominante clara.\n\n        ---------------------------------------\n        
+    DEFINIÇÕES ANALÍTICAS PARA RELIGIÃO\n        ---------------------------------------\n\n        
+    Quando a dimensão for \"religiao\":\n\n        
+    - \"cristao\": enquadramento associado a doutrina, prática, defesa ou visão cristã.\n        
+    - \"afro-brasileiro\": enquadramento associado a religiões de matriz africana ou afro-brasileira.\n        
+    - \"islamico\": enquadramento associado ao Islã, cultura islâmica ou prática muçulmana.\n        
+    - \"ateu-secular\": enquadramento crítico à religião, secularista, ateísta ou laico.\n        
+    - \"indefinido\": conteúdo religioso descritivo, histórico ou sem posição clara.\n\n        ---------------------------------------\n        
+    AMBIGUIDADE\n        ---------------------------------------\n\n        
+    Use is_ambiguous = true quando:\n\n        
+    - houver sinais mistos relevantes;\n        
+    - houver evidência insuficiente;\n        
+    - o vídeo tratar do tema sem assumir posição clara;\n        
+    - título, descrição e transcrição apontarem em direções diferentes.\n\n        
+    Use is_ambiguous = false quando houver evidência consistente para a classificação escolhida.\n\n        ---------------------------------------\n        
+    EVIDÊNCIA OBRIGATÓRIA\n        ---------------------------------------\n\n        
+    No campo evidence:\n\n        
+    - liste 1 ou 2 evidências curtas;\n        
+    - use trechos literais ou quase literais dos dados fornecidos;\n        
+    - não invente evidência;\n        - não use conhecimento externo;\n        
+    - se não houver evidência suficiente, explique isso no short_reason.\n\n        ---------------------------------------\n        
+    INTERPRETAÇÃO DOS CAMPOS\n        ---------------------------------------\n\n        
+    confidence:\n        
+    - 0.80 a 1.00 = evidência clara e consistente.\n        
+    - 0.60 a 0.79 = evidência moderada.\n        
+    - abaixo de 0.60 = baixa segurança.\n\n\n        
+    sentiment_hint.valence:\n        
+    - \"positivo\" quando o tom predominante for favorável, celebratório ou afirmativo.\n        
+    - \"negativo\" quando o tom predominante for crítico, hostil, alarmista ou acusatório.\n        
+    - \"neutro\" quando o tom for informativo\/descritivo.\n        
+    - \"indefinido\" quando não houver evidência suficiente.\n\n        
+    sentiment_hint.emotional_intensity:\n        
+    - 0.00 a 0.20 = baixa carga emocional.\n        
+    - 0.21 a 0.50 = carga emocional leve.\n        
+    - 0.51 a 0.75 = carga emocional moderada.\n        
+    - 0.76 a 1.00 = carga emocional alta.\n\n        ---------------------------------------\n        
+    DADOS DISPONÍVEIS\n        ---------------------------------------\n\n        
+    [BASE]\nTítulo do vídeo: Homilia Diária.298: Sexta-feira da 19.ª Semana do Tempo Comum (P) - O Evangelho da família\nIdioma esperado: BR\n\n        ---------------------------------------\n        
+    FORMATO DE RESPOSTA\n        ---------------------------------------\n\n        
+    Responda exclusivamente em JSON válido, sem markdown, sem comentários e sem texto fora do JSON:\n\n        {\n        
+    \"dimension\": \"religiao\",\n        \"predicted_label\": \"\",\n        \"confidence\": 0.0,\n        \"is_ambiguous\": false,\n        
+    \"evidence\": [],\n        \"short_reason\": \"\",\n        \"sentiment_hint\": {\n            
+    \"valence\": \"positivo|neutro|negativo|indefinido\",\n            \"emotional_intensity\": 0.0\n        }\n    
+    }",
+    "created_at": "2026-04-28 23:23:38"
+}

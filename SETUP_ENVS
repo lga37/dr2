@@ -1,0 +1,113 @@
+APP_NAME=SocialDash
+APP_ENV=local #local production
+APP_DEBUG=true #true false
+
+DEBUGBAR_ENABLED=true #false na contabo
+
+APP_KEY=base64:UC2zi1gBbWVV0ZpqVGXWcFdba0nwLqhkfq9uqcQ2SQ0=
+
+#APP_URL=https://2d188d269e3e.ngrok-free.app
+
+APP_URL=http://localhost:8000
+
+
+APP_LOCALE=pt_BR
+APP_FALLBACK_LOCALE=pt_BR
+APP_FAKER_LOCALE=pt_BR
+
+# Opcional: se quiser definir fuso horário via .env (Laravel 12 permite via config)
+APP_TIMEZONE=America/Sao_Paulo
+
+APP_MAINTENANCE_DRIVER=file
+# APP_MAINTENANCE_STORE=database
+
+PHP_CLI_SERVER_WORKERS=4
+
+BCRYPT_ROUNDS=12
+
+LOG_CHANNEL=stack
+LOG_STACK=single
+LOG_DEPRECATIONS_CHANNEL=null
+LOG_LEVEL=debug
+
+DB_CONNECTION=mysql
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_DATABASE=dr
+DB_USERNAME=root
+DB_PASSWORD=123
+
+SESSION_DRIVER=database
+SESSION_LIFETIME=120
+SESSION_ENCRYPT=false
+SESSION_PATH=/
+SESSION_DOMAIN=null
+
+BROADCAST_CONNECTION=log
+FILESYSTEM_DISK=local
+QUEUE_CONNECTION=database
+
+CACHE_STORE=database
+# CACHE_PREFIX=
+
+MEMCACHED_HOST=127.0.0.1
+
+REDIS_CLIENT=phpredis
+REDIS_HOST=127.0.0.1
+REDIS_PASSWORD=null
+REDIS_PORT=6379
+
+MAIL_MAILER=log
+MAIL_SCHEME=null
+MAIL_HOST=127.0.0.1
+MAIL_PORT=2525
+MAIL_USERNAME=null
+MAIL_PASSWORD=null
+MAIL_FROM_ADDRESS="hello@example.com"
+MAIL_FROM_NAME="${APP_NAME}"
+
+AWS_ACCESS_KEY_ID=
+AWS_SECRET_ACCESS_KEY=
+AWS_DEFAULT_REGION=us-east-1
+AWS_BUCKET=
+AWS_USE_PATH_STYLE_ENDPOINT=false
+
+VITE_APP_NAME="${APP_NAME}"
+
+
+
+#PERSPECTIVE_API=AIzaSyByFYjX9G7SrI1sc5rpFbMpYLVOoy-uFuc        edu.unirio
+#PERSPECTIVE_API=AIzaSyByFYjX9G7SrI1sc5rpFbMpYLVOoy-uFuc #essa e da unirio
+
+
+#YOUTUBE_API_KEY=AIzaSyDT3WsMJl9qvtzC3wHGPakF-Sr2vlahejo    #voipgus - proj dr_youtube
+#YOUTUBE_API_KEY=AIzaSyAy1af2sfyH4DeZT9Sj1uZxopid6qOvHc4    #gustavophp7
+#YOUTUBE_API_KEY=AIzaSyAqEFNMYCCAFT5BETOrQ3rFuROAmxyW1hs    #lu.gustavoalmeidapro - sz 2@
+
+
+#PERSPECTIVE_API=AIzaSyCCdoQC5UM1j6Zl87N-SWsVhaYKtykm4wQ #de quem e essa ???
+PERSPECTIVE_API=AIzaSyByFYjX9G7SrI1sc5rpFbMpYLVOoy-uFuc #unirio
+
+#YOUTUBE_API_KEY=AIzaSyByFYjX9G7SrI1sc5rpFbMpYLVOoy-uFuc    #unirio --- estourei quota em 26/4 diz q depois meianoite zera
+
+YOUTUBE_API_KEY=AIzaSyDK9-bOf9fzqslcFEgf6mgs5adO5U2T2gU    #ga..IA
+
+
+
+TESSDATA_PREFIX=/usr/share/tesseract-ocr/4.00/tessdata
+GOOGLE_APPLICATION_CREDENTIALS=storage/app/private/natural-cistern-456918-j6-6ece72a85b5b.json
+
+#API_IMGGEN=728a8de0-da3c-4a46-b3d5-a16bc1cbd3fe
+API_CLIPDROP=ac1213d88d71b6647f04312cd07062d88eb163dcf25b63633855d892f4f4ac4b66233139f52d03efaf4024528cfa6daa
+
+
+GOOGLE_API_KEY=AIzaSyB91CIphawZiyMGKDMIXK_fd7OBbiV9Scg  #projeto garimpia 
+
+OPENAI_API_KEY=sk-proj-Bjp3nEN6k3StNOHtogXmT3BlbkFJ5rWgkTLkXAXBZrk0af1G
+
+NGROK_URL= https://3c4f9f5c49f3.ngrok-free.app
+
+SEARCHAPI_TRANSCRIPTS_YOUTUBE_API=iiKdbhifvBNpFF2v7nfW2f3L
+
+
+
